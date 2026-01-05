@@ -37,14 +37,21 @@ class PresencaController extends Controller
 
         \Log::info('Refeicao encontrada', ['refeicao_id' => $refeicao ? $refeicao->id : null]);
 
-        // Buscar todos os bolsistas ativos
+        // Determinar o dia da semana (0=Domingo, 1=Segunda, ..., 6=Sábado)
+        $diaDaSemana = Carbon::parse($data)->dayOfWeek;
+
+        // Buscar apenas bolsistas que têm direito à refeição NESTE dia da semana
         $totalUsers = User::count();
-        $bolsistasQuery = User::where('bolsista', true);
+        $bolsistasQuery = User::where('bolsista', true)
+            ->whereHas('diasSemana', function($q) use ($diaDaSemana) {
+                $q->where('dia_semana', $diaDaSemana);
+            });
         $bolsistasCount = $bolsistasQuery->count();
         $bolsistas = $bolsistasQuery->orderBy('nome')->get();
 
         \Log::info('Bolsistas buscados', [
             'total_users_db' => $totalUsers,
+            'dia_da_semana' => $diaDaSemana,
             'bolsistas_count_before_get' => $bolsistasCount,
             'bolsistas_count_after_get' => $bolsistas->count(),
             'first_bolsista' => $bolsistas->first() ? $bolsistas->first()->only(['id', 'matricula', 'nome', 'bolsista']) : null,
@@ -87,6 +94,10 @@ class PresencaController extends Controller
                 'nome' => $bolsista->nome,
                 'curso' => $bolsista->curso,
                 'turno_aluno' => $bolsista->turno,
+                'refeicao' => [
+                    'turno' => $refeicao->turno->value,
+                    'data' => $refeicao->data_do_cardapio->format('d/m/Y'),
+                ],
                 'presenca' => $presenca ? [
                     'id' => $presenca->id,
                     'status' => $presenca->status_da_presenca->value,
@@ -200,10 +211,10 @@ class PresencaController extends Controller
                 'status_da_presenca' => StatusPresenca::VALIDADO,
                 'registrado_em' => now(),
                 'validado_em' => now(),
-                'validado_por' => $request->user()->id,
+                'validado_por' => $request->user() ? $request->user()->id : 1,
             ]);
         } else {
-            $presenca->validar($request->user()->id);
+            $presenca->validar($request->user() ? $request->user()->id : 1);
         }
 
         return response()->json([
@@ -353,11 +364,11 @@ class PresencaController extends Controller
                 'status_da_presenca' => StatusPresenca::VALIDADO,
                 'registrado_em' => now(),
                 'validado_em' => now(),
-                'validado_por' => $request->user()->id,
+                'validado_por' => $request->user() ? $request->user()->id : 1, // 1 = Admin Sistema
             ]);
         } else {
             // Confirma presença existente
-            $presenca->validar($request->user()->id);
+            $presenca->validar($request->user() ? $request->user()->id : 1);
         }
 
         return response()->json([
@@ -460,7 +471,7 @@ class PresencaController extends Controller
             'presenca_ids.*' => 'required|exists:presencas,id',
         ]);
 
-        $validadorId = $request->user()->id;
+        $validadorId = $request->user() ? $request->user()->id : 1;
         $presencaIds = $request->input('presenca_ids');
 
         $presencas = Presenca::whereIn('id', $presencaIds)
@@ -479,6 +490,75 @@ class PresencaController extends Controller
             'data' => [
                 'total_solicitado' => count($presencaIds),
                 'validadas' => $validadas,
+            ],
+        ]);
+    }
+
+    /**
+     * Validar presença por QR Code
+     * POST /api/v1/admin/presencas/validar-qrcode
+     */
+    public function validarPorQrCode(Request $request)
+    {
+        $request->validate([
+            'token' => 'required|string',
+        ]);
+
+        $presenca = Presenca::buscarPorTokenQrCode($request->token);
+
+        if (!$presenca) {
+            return response()->json([
+                'success' => false,
+                'message' => 'QR Code inválido ou presença já validada.',
+            ], 404);
+        }
+
+        // Validar presença
+        $presenca->validar($request->user() ? $request->user()->id : 1);
+
+        return response()->json([
+            'success' => true,
+            'message' => "✅ Presença validada para {$presenca->user->nome}!",
+            'data' => [
+                'usuario' => $presenca->user->nome,
+                'matricula' => $presenca->user->matricula,
+                'refeicao' => [
+                    'data' => $presenca->refeicao->data_do_cardapio->format('d/m/Y'),
+                    'turno' => $presenca->refeicao->turno->value,
+                ],
+                'validado_em' => $presenca->validado_em->format('H:i:s'),
+                'validado_por' => $request->user() ? $request->user()->nome : 'Admin Sistema',
+            ],
+        ]);
+    }
+
+    /**
+     * Gerar QR Code para uma presença
+     * GET /api/v1/admin/presencas/{id}/qrcode
+     */
+    public function gerarQrCode($id)
+    {
+        $presenca = Presenca::with(['user', 'refeicao'])->findOrFail($id);
+
+        if ($presenca->status_da_presenca !== StatusPresenca::CONFIRMADO) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Apenas presenças confirmadas podem gerar QR Code.',
+            ], 400);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'presenca_id' => $presenca->id,
+                'usuario' => $presenca->user->nome,
+                'matricula' => $presenca->user->matricula,
+                'refeicao' => [
+                    'data' => $presenca->refeicao->data_do_cardapio->format('d/m/Y'),
+                    'turno' => $presenca->refeicao->turno->value,
+                ],
+                'url_qrcode' => $presenca->gerarUrlQrCode(),
+                'token' => $presenca->gerarTokenQrCode(),
             ],
         ]);
     }

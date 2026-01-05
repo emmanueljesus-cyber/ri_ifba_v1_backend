@@ -1,0 +1,94 @@
+pq <!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste API Presencas</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .result {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        pre {
+            background: #f8f8f8;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        button {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Teste API de Presenças</h1>
+
+    <div>
+        <label>Data: <input type="date" id="data" value="2026-01-05"></label>
+        <label>Turno:
+            <select id="turno">
+                <option value="">Todos</option>
+                <option value="almoco">Almoço</option>
+                <option value="jantar">Jantar</option>
+            </select>
+        </label>
+        <button onclick="testar()">Testar API</button>
+    </div>
+
+    <div class="result" id="result"></div>
+
+    <script>
+        async function testar() {
+            const data = document.getElementById('data').value;
+            const turno = document.getElementById('turno').value;
+
+            const params = new URLSearchParams({ data });
+            if (turno) params.append('turno', turno);
+
+            const url = `http://localhost:8000/api/v1/admin/presencas?${params}`;
+
+            document.getElementById('result').innerHTML = `
+                <h3>Requisição:</h3>
+                <pre>${url}</pre>
+                <p>Aguardando resposta...</p>
+            `;
+
+            try {
+                const response = await fetch(url);
+                const result = await response.json();
+
+                document.getElementById('result').innerHTML = `
+                    <h3>✅ Resposta da API:</h3>
+                    <p><strong>Status:</strong> ${response.status}</p>
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                `;
+            } catch (erro) {
+                document.getElementById('result').innerHTML = `
+                    <h3>❌ Erro:</h3>
+                    <pre>${erro.message}</pre>
+                `;
+            }
+        }
+
+        // Testar automaticamente ao carregar
+        window.onload = testar;
+    </script>
+</body>
+</html>
+

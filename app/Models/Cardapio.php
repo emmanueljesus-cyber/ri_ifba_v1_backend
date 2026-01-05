@@ -113,18 +113,4 @@ class Cardapio extends Model
     {
         return $query->where('data_do_cardapio', now()->toDateString());
     }
-
-    // ========== MÉTODOS AUXILIARES ==========
-
-    public function getDiaSemana()
-    {
-        return $this->data_do_cardapio->dayOfWeek; // 0=Dom, 1=Seg, ... (Carbon property)
-    }
-
-    public function getDiaSemanaTexto()
-    {
-        $dias = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-        $dia = $this->data_do_cardapio->dayOfWeek ?? 0;
-        return $dias[$dia] ?? 'Desconhecido';
-    }
 }

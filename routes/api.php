@@ -38,7 +38,16 @@ Route::prefix('v1')->group(function () {
         Route::post('presencas/validar-lote',        [AdminPresencaController::class, 'validarLote'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
         Route::post('presencas/{id}/marcar-falta',   [AdminPresencaController::class, 'marcarFalta'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
         Route::post('presencas/{id}/cancelar',       [AdminPresencaController::class, 'cancelar'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::get('presencas/estatisticas',         [AdminPresencaController::class, 'estatisticas'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
+
+        // RF13: Validação por QR Code e Matrícula
+        Route::post('presencas/validar-qrcode',      [AdminPresencaController::class, 'validarPorQrCode'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
+        Route::get('presencas/{id}/qrcode',          [AdminPresencaController::class, 'gerarQrCode'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
+
+        // Rotas de Relatório de Validações
+        Route::get('relatorios/validacoes',                [App\Http\Controllers\api\v1\Admin\RelatorioValidacaoController::class, 'index'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
+        Route::get('relatorios/validacoes/por-admin',      [App\Http\Controllers\api\v1\Admin\RelatorioValidacaoController::class, 'porAdmin'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
+        Route::get('relatorios/validacoes/refeicao/{id}',  [App\Http\Controllers\api\v1\Admin\RelatorioValidacaoController::class, 'porRefeicao'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
+        Route::get('relatorios/validacoes/timeline',       [App\Http\Controllers\api\v1\Admin\RelatorioValidacaoController::class, 'timeline'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
     });
 
 });

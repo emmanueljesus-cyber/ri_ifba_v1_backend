@@ -108,4 +108,34 @@ class Presenca extends Model
     {
         return in_array($this->status_da_presenca, [StatusPresenca::FALTA_JUSTIFICADA, StatusPresenca::FALTA_INJUSTIFICADA]);
     }
+
+    /**
+     * Gera token único para QR Code
+     */
+    public function gerarTokenQrCode()
+    {
+        return hash('sha256', $this->id . $this->user_id . $this->refeicao_id . config('app.key'));
+    }
+
+    /**
+     * Gera URL do QR Code para validação
+     */
+    public function gerarUrlQrCode()
+    {
+        $token = $this->gerarTokenQrCode();
+        return url("/api/v1/admin/presencas/validar-qrcode?token={$token}");
+    }
+
+    /**
+     * Valida token do QR Code
+     */
+    public static function buscarPorTokenQrCode($token)
+    {
+        return self::with(['user', 'refeicao'])
+            ->where('status_da_presenca', StatusPresenca::CONFIRMADO)
+            ->get()
+            ->first(function ($presenca) use ($token) {
+                return $presenca->gerarTokenQrCode() === $token;
+            });
+    }
 }
