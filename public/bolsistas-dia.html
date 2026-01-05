@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RF09 - Visualizar Bolsistas do Dia</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #fff;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #4ecca3;
+        }
+        .filters {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .filters label {
+            font-weight: bold;
+        }
+        .filters input, .filters select {
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            background: #fff;
+            color: #333;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+        }
+        .btn-primary {
+            background: #4ecca3;
+            color: #1a1a2e;
+        }
+        .btn-success {
+            background: #28a745;
+            color: #fff;
+        }
+        .btn-danger {
+            background: #dc3545;
+            color: #fff;
+        }
+        .btn-warning {
+            background: #ffc107;
+            color: #333;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-card .number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #4ecca3;
+        }
+        .stat-card .label {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        th {
+            background: rgba(78, 204, 163, 0.3);
+            font-weight: bold;
+        }
+        tr:hover {
+            background: rgba(255,255,255,0.05);
+        }
+        .status-badge {
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+        .status-validado {
+            background: #28a745;
+        }
+        .status-confirmado {
+            background: #17a2b8;
+        }
+        .status-pendente {
+            background: #6c757d;
+        }
+        .status-falta_justificada {
+            background: #ffc107;
+            color: #333;
+        }
+        .status-falta_injustificada {
+            background: #dc3545;
+        }
+        .status-cancelado {
+            background: #6c757d;
+        }
+        .actions {
+            display: flex;
+            gap: 5px;
+        }
+        .actions .btn {
+            padding: 5px 10px;
+            font-size: 0.85em;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.2em;
+            opacity: 0.7;
+        }
+        .message {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .message.success {
+            background: rgba(40, 167, 69, 0.3);
+            border: 1px solid #28a745;
+        }
+        .message.error {
+            background: rgba(220, 53, 69, 0.3);
+            border: 1px solid #dc3545;
+        }
+        .lote-actions {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        #selectAll {
+            width: 20px;
+            height: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍽️ RF09 - Visualizar Bolsistas do Dia</h1>
+        <p style="text-align: center; opacity: 0.7; margin-bottom: 20px;">
+            📌 Bolsistas cadastrados para um dia têm direito a ambas as refeições (almoço e jantar)
+        </p>
+
+        <div class="filters">
+            <label>Data:</label>
+            <input type="date" id="dataFiltro" value="">
+
+            <label>Turno:</label>
+            <select id="turnoFiltro">
+                <option value="">Todos</option>
+                <option value="almoco">Almoço</option>
+                <option value="jantar">Jantar</option>
+            </select>
+
+            <button class="btn btn-primary" onclick="carregarBolsistas()">🔍 Buscar</button>
+            <button class="btn btn-success" onclick="carregarTodosBolsistas()">📋 Todos Bolsistas</button>
+        </div>
+
+        <div id="message" class="message" style="display: none;"></div>
+
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <div class="number" id="statTotal">-</div>
+                <div class="label">Total</div>
+            </div>
+            <div class="stat-card">
+                <div class="number" id="statValidados">-</div>
+                <div class="label">Validados</div>
+            </div>
+            <div class="stat-card">
+                <div class="number" id="statConfirmados">-</div>
+                <div class="label">Confirmados</div>
+            </div>
+            <div class="stat-card">
+                <div class="number" id="statPendentes">-</div>
+                <div class="label">Pendentes</div>
+            </div>
+            <div class="stat-card">
+                <div class="number" id="statFaltasJust">-</div>
+                <div class="label">Faltas Just.</div>
+            </div>
+            <div class="stat-card">
+                <div class="number" id="statFaltasInjust">-</div>
+                <div class="label">Faltas Injust.</div>
+            </div>
+        </div>
+
+        <div class="lote-actions" id="loteActions" style="display: none;">
+            <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+            <label for="selectAll">Selecionar todos</label>
+            <button class="btn btn-success" onclick="confirmarLote()">✅ Confirmar Selecionados</button>
+            <span id="selectedCount">0 selecionados</span>
+        </div>
+
+        <table id="tabelaBolsistas">
+            <thead>
+                <tr>
+                    <th width="30"></th>
+                    <th>Matrícula</th>
+                    <th>Nome</th>
+                    <th>Curso</th>
+                    <th>Turno Aluno</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="tbody">
+                <tr>
+                    <td colspan="7" class="loading">Clique em "Buscar" para carregar os bolsistas</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const API_BASE = '/api/v1/admin';
+        let bolsistasData = [];
+
+        // Definir data de hoje no input
+        document.getElementById('dataFiltro').value = new Date().toISOString().split('T')[0];
+
+        function showMessage(text, type = 'success') {
+            const msg = document.getElementById('message');
+            msg.textContent = text;
+            msg.className = 'message ' + type;
+            msg.style.display = 'block';
+            setTimeout(() => msg.style.display = 'none', 5000);
+        }
+
+        async function carregarBolsistas() {
+            const data = document.getElementById('dataFiltro').value;
+            const turno = document.getElementById('turnoFiltro').value;
+
+            document.getElementById('tbody').innerHTML = '<tr><td colspan="7" class="loading">Carregando...</td></tr>';
+
+            try {
+                let url = `${API_BASE}/bolsistas/dia?data=${data}`;
+                if (turno) url += `&turno=${turno}`;
+
+                const response = await fetch(url);
+                const result = await response.json();
+
+                if (result.success) {
+                    bolsistasData = result.data;
+                    renderizarTabela(result.data);
+                    atualizarStats(result.stats);
+                    document.getElementById('loteActions').style.display = 'flex';
+                } else {
+                    showMessage(result.message || 'Erro ao carregar bolsistas', 'error');
+                    document.getElementById('tbody').innerHTML = `<tr><td colspan="7" class="loading">${result.message}</td></tr>`;
+                }
+            } catch (error) {
+                showMessage('Erro de conexão: ' + error.message, 'error');
+            }
+        }
+
+        async function carregarTodosBolsistas() {
+            document.getElementById('tbody').innerHTML = '<tr><td colspan="7" class="loading">Carregando...</td></tr>';
+
+            try {
+                const response = await fetch(`${API_BASE}/bolsistas`);
+                const result = await response.json();
+
+                if (result.success) {
+                    bolsistasData = result.data;
+                    renderizarTabelaTodos(result.data);
+                    document.getElementById('statTotal').textContent = result.total;
+                    document.getElementById('statValidados').textContent = '-';
+                    document.getElementById('statConfirmados').textContent = '-';
+                    document.getElementById('statPendentes').textContent = '-';
+                    document.getElementById('statFaltasJust').textContent = '-';
+                    document.getElementById('statFaltasInjust').textContent = '-';
+                    document.getElementById('loteActions').style.display = 'none';
+                }
+            } catch (error) {
+                showMessage('Erro de conexão: ' + error.message, 'error');
+            }
+        }
+
+        function renderizarTabela(data) {
+            if (data.length === 0) {
+                document.getElementById('tbody').innerHTML = '<tr><td colspan="7" class="loading">Nenhum bolsista encontrado para este dia</td></tr>';
+                return;
+            }
+
+            const html = data.map(b => `
+                <tr>
+                    <td><input type="checkbox" class="bolsista-check" value="${b.user_id}" onchange="updateSelectedCount()"></td>
+                    <td>${b.matricula}</td>
+                    <td>${b.nome}</td>
+                    <td>${b.curso || '-'}</td>
+                    <td>${b.turno_aluno || '-'}</td>
+                    <td><span class="status-badge status-${b.status_presenca}">${formatStatus(b.status_presenca)}</span></td>
+                    <td class="actions">
+                        <button class="btn btn-success" onclick="confirmarPresenca(${b.user_id})" ${b.status_presenca === 'validado' ? 'disabled' : ''}>✅</button>
+                        <button class="btn btn-danger" onclick="marcarFalta(${b.user_id}, false)">❌</button>
+                        <button class="btn btn-warning" onclick="marcarFalta(${b.user_id}, true)">⚠️</button>
+                    </td>
+                </tr>
+            `).join('');
+
+            document.getElementById('tbody').innerHTML = html;
+        }
+
+        function renderizarTabelaTodos(data) {
+            if (data.length === 0) {
+                document.getElementById('tbody').innerHTML = '<tr><td colspan="7" class="loading">Nenhum bolsista cadastrado</td></tr>';
+                return;
+            }
+
+            const html = data.map(b => `
+                <tr>
+                    <td></td>
+                    <td>${b.matricula}</td>
+                    <td>${b.nome}</td>
+                    <td>${b.curso || '-'}</td>
+                    <td>${b.turno || '-'}</td>
+                    <td>${b.dias_semana_texto || '-'}</td>
+                    <td>${b.desligado ? '<span class="status-badge status-falta_injustificada">Desligado</span>' : '<span class="status-badge status-validado">Ativo</span>'}</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('tbody').innerHTML = html;
+        }
+
+        function formatStatus(status) {
+            const map = {
+                'validado': 'Validado',
+                'confirmado': 'Confirmado',
+                'pendente': 'Pendente',
+                'falta_justificada': 'Falta Justificada',
+                'falta_injustificada': 'Falta Injustificada',
+                'cancelado': 'Cancelado'
+            };
+            return map[status] || status;
+        }
+
+        function atualizarStats(stats) {
+            document.getElementById('statTotal').textContent = stats.total || 0;
+            document.getElementById('statValidados').textContent = stats.validados || 0;
+            document.getElementById('statConfirmados').textContent = stats.confirmados || 0;
+            document.getElementById('statPendentes').textContent = stats.pendentes || 0;
+            document.getElementById('statFaltasJust').textContent = stats.faltas_justificadas || 0;
+            document.getElementById('statFaltasInjust').textContent = stats.faltas_injustificadas || 0;
+        }
+
+        async function confirmarPresenca(userId) {
+            const data = document.getElementById('dataFiltro').value;
+            const turno = document.getElementById('turnoFiltro').value;
+
+            if (!turno) {
+                showMessage('Selecione um turno para confirmar presença', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/bolsistas/${userId}/confirmar-presenca`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data, turno })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showMessage(result.message, 'success');
+                    carregarBolsistas();
+                } else {
+                    showMessage(result.message, 'error');
+                }
+            } catch (error) {
+                showMessage('Erro: ' + error.message, 'error');
+            }
+        }
+
+        async function marcarFalta(userId, justificada) {
+            const data = document.getElementById('dataFiltro').value;
+            const turno = document.getElementById('turnoFiltro').value;
+
+            if (!turno) {
+                showMessage('Selecione um turno para marcar falta', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/bolsistas/${userId}/marcar-falta`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data, turno, justificada })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showMessage(result.message, 'success');
+                    carregarBolsistas();
+                } else {
+                    showMessage(result.message, 'error');
+                }
+            } catch (error) {
+                showMessage('Erro: ' + error.message, 'error');
+            }
+        }
+
+        function toggleSelectAll() {
+            const checked = document.getElementById('selectAll').checked;
+            document.querySelectorAll('.bolsista-check').forEach(cb => cb.checked = checked);
+            updateSelectedCount();
+        }
+
+        function updateSelectedCount() {
+            const count = document.querySelectorAll('.bolsista-check:checked').length;
+            document.getElementById('selectedCount').textContent = count + ' selecionados';
+        }
+
+        async function confirmarLote() {
+            const turno = document.getElementById('turnoFiltro').value;
+            const data = document.getElementById('dataFiltro').value;
+
+            if (!turno) {
+                showMessage('Selecione um turno', 'error');
+                return;
+            }
+
+            const userIds = Array.from(document.querySelectorAll('.bolsista-check:checked')).map(cb => parseInt(cb.value));
+
+            if (userIds.length === 0) {
+                showMessage('Selecione ao menos um bolsista', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/bolsistas/confirmar-lote`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_ids: userIds, turno, data })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showMessage(result.message, 'success');
+                    carregarBolsistas();
+                } else {
+                    showMessage(result.message, 'error');
+                }
+            } catch (error) {
+                showMessage('Erro: ' + error.message, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
+

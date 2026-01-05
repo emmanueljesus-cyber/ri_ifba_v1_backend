@@ -9,6 +9,7 @@ use App\Models\Presenca;
 use App\Enums\TurnoRefeicao;
 use App\Enums\StatusPresenca;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class PresencaSeeder extends Seeder
 {
@@ -21,10 +22,22 @@ class PresencaSeeder extends Seeder
         $admin = User::where('perfil', 'admin')->first();
 
         // Busca bolsistas existentes ou cria novos
-        $bolsistas = User::where('bolsista', true)->get();
+        $bolsistas = User::where('bolsista', true)->where('desligado', false)->get();
         if ($bolsistas->count() < 20) {
             $quantidadeFaltante = 20 - $bolsistas->count();
             $novosBolsistas = User::factory()->bolsista()->count($quantidadeFaltante)->create();
+
+            // Vincular dias da semana aos novos bolsistas (Segunda a Sexta)
+            foreach ($novosBolsistas as $bolsista) {
+                for ($dia = 1; $dia <= 5; $dia++) {
+                    DB::table('usuario_dias_semana')->insertOrIgnore([
+                        'user_id' => $bolsista->id,
+                        'dia_semana' => $dia,
+                    ]);
+                }
+            }
+            $this->command->info("📋 Criados {$quantidadeFaltante} bolsistas via factory com dias vinculados");
+
             $bolsistas = $bolsistas->merge($novosBolsistas);
         }
 

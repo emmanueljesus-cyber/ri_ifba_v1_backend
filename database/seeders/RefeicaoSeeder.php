@@ -14,21 +14,29 @@ class RefeicaoSeeder extends Seeder
         $cardapios = Cardapio::all();
 
         foreach ($cardapios as $cardapio) {
-            // Almoço
-            Refeicao::create([
-                'cardapio_id' => $cardapio->id,
-                'data_do_cardapio' => $cardapio->data_do_cardapio,
-                'turno' => 'almoco',
-                'capacidade' => 100,
-            ]);
+            // Almoço - usa firstOrCreate para evitar duplicatas
+            Refeicao::firstOrCreate(
+                [
+                    'cardapio_id' => $cardapio->id,
+                    'turno' => 'almoco',
+                ],
+                [
+                    'data_do_cardapio' => $cardapio->data_do_cardapio,
+                    'capacidade' => 100,
+                ]
+            );
 
-            // Jantar
-            Refeicao::create([
-                'cardapio_id' => $cardapio->id,
-                'data_do_cardapio' => $cardapio->data_do_cardapio,
-                'turno' => 'jantar',
-                'capacidade' => 100,
-            ]);
+            // Jantar - usa firstOrCreate para evitar duplicatas
+            Refeicao::firstOrCreate(
+                [
+                    'cardapio_id' => $cardapio->id,
+                    'turno' => 'jantar',
+                ],
+                [
+                    'data_do_cardapio' => $cardapio->data_do_cardapio,
+                    'capacidade' => 100,
+                ]
+            );
         }
     }
 }

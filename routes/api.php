@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\api\V1\Admin\CardapioController as AdminCardapioController;
 use App\Http\Controllers\api\V1\Admin\PresencaController as AdminPresencaController;
+use App\Http\Controllers\api\V1\Admin\BolsistaController as AdminBolsistaController;
 use App\Http\Controllers\api\V1\Estudante\CardapioController as EstudanteCardapioController;
 use App\Http\Controllers\api\V1\Publico\CardapioController as PublicoCardapioController;
 
@@ -48,6 +49,14 @@ Route::prefix('v1')->group(function () {
         Route::get('relatorios/validacoes/por-admin',      [App\Http\Controllers\api\v1\Admin\RelatorioValidacaoController::class, 'porAdmin'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
         Route::get('relatorios/validacoes/refeicao/{id}',  [App\Http\Controllers\api\v1\Admin\RelatorioValidacaoController::class, 'porRefeicao'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
         Route::get('relatorios/validacoes/timeline',       [App\Http\Controllers\api\v1\Admin\RelatorioValidacaoController::class, 'timeline'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
+
+        // RF09 - Rotas de Bolsistas e Estudantes
+        Route::get('bolsistas/dia',                        [AdminBolsistaController::class, 'bolsistasDoDia'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
+        Route::get('bolsistas',                            [AdminBolsistaController::class, 'todosBolsistas'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
+        Route::get('estudantes/turno',                     [AdminBolsistaController::class, 'estudantesPorTurno'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
+        Route::post('bolsistas/{userId}/confirmar-presenca', [AdminBolsistaController::class, 'confirmarPresenca'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
+        Route::post('bolsistas/{userId}/marcar-falta',     [AdminBolsistaController::class, 'marcarFalta'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
+        Route::post('bolsistas/confirmar-lote',            [AdminBolsistaController::class, 'confirmarLote'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
     });
 
 });

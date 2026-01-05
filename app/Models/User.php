@@ -133,6 +133,30 @@ class User extends Authenticatable
 
     // ========== MÉTODOS AUXILIARES ==========
 
+    /**
+     * Verifica se o usuário é admin
+     */
+    public function isAdmin(): bool
+    {
+        return $this->perfil === PerfilUsuario::ADMIN;
+    }
+
+    /**
+     * Verifica se o usuário é estudante
+     */
+    public function isEstudante(): bool
+    {
+        return $this->perfil === PerfilUsuario::ESTUDANTE;
+    }
+
+    /**
+     * Verifica se o usuário é bolsista
+     */
+    public function isBolsista(): bool
+    {
+        return $this->bolsista === true;
+    }
+
     public function desligar($motivo)
     {
         $this->update([
