@@ -114,6 +114,7 @@ class BolsistaController extends Controller
             ->get();
 
         $lista = $bolsistas->map(function ($bolsista) {
+            
             $diasTexto = $bolsista->diasSemana->map(function ($dia) {
                 return $dia->getDiaSemanaTexto();
             })->implode(', ');
