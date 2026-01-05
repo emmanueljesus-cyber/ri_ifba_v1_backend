@@ -15,6 +15,27 @@ use Carbon\Carbon;
 class BolsistaController extends Controller
 {
     /**
+     * Nomes dos dias da semana em português
+     */
+    private const DIAS_SEMANA = [
+        0 => 'Domingo',
+        1 => 'Segunda',
+        2 => 'Terça',
+        3 => 'Quarta',
+        4 => 'Quinta',
+        5 => 'Sexta',
+        6 => 'Sábado',
+    ];
+
+    /**
+     * Converte número do dia para texto
+     */
+    private function getDiaSemanaTexto(int $dia): string
+    {
+        return self::DIAS_SEMANA[$dia] ?? 'Desconhecido';
+    }
+
+    /**
      * RF09 - Lista bolsistas do dia por turno
      * GET /api/v1/admin/bolsistas/dia
      *
@@ -23,18 +44,14 @@ class BolsistaController extends Controller
      */
     public function bolsistasDoDia(Request $request): JsonResponse
     {
-        $data = $request->input('data', now()->format('Y-m-d'));
+        $data = Carbon::parse($request->input('data', now()))->format('Y-m-d');
         $turno = $request->input('turno');
-
-        // Converter formato brasileiro se necessário
-        if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $data)) {
-            $data = Carbon::createFromFormat('d/m/Y', $data)->format('Y-m-d');
-        }
 
         $diaSemana = Carbon::parse($data)->dayOfWeek;
 
         // Buscar bolsistas cadastrados para este dia da semana
         $bolsistas = User::where('bolsista', true)
+            ->with('diasSemana')
             ->whereHas('diasSemana', function ($q) use ($diaSemana) {
                 $q->where('dia_semana', $diaSemana);
             })
@@ -60,6 +77,8 @@ class BolsistaController extends Controller
         $lista = $bolsistas->map(function ($bolsista) use ($presencas, $refeicao) {
             $presenca = $presencas[$bolsista->id] ?? null;
 
+            $diasTexto = $bolsista->diasSemana->map(fn($d) => $this->getDiaSemanaTexto($d->dia_semana))->implode(', ');
+
             return [
                 'user_id' => $bolsista->id,
                 'matricula' => $bolsista->matricula,
@@ -67,6 +86,8 @@ class BolsistaController extends Controller
                 'curso' => $bolsista->curso,
                 'turno_aluno' => $bolsista->turno,
                 'is_bolsista' => true,
+                'dias_semana' => $bolsista->diasSemana->pluck('dia_semana')->toArray(),
+                'dias_semana_texto' => $diasTexto,
                 'presenca' => $presenca ? [
                     'id' => $presenca->id,
                     'status' => $presenca->status_da_presenca->value,
@@ -90,7 +111,6 @@ class BolsistaController extends Controller
             ],
             'stats' => [
                 'total' => $bolsistas->count(),
-                'validados' => $lista->where('status_presenca', 'validado')->count(),
                 'confirmados' => $lista->where('status_presenca', 'confirmado')->count(),
                 'pendentes' => $lista->where('status_presenca', 'pendente')->count(),
                 'faltas_justificadas' => $lista->where('status_presenca', 'falta_justificada')->count(),
@@ -114,9 +134,7 @@ class BolsistaController extends Controller
             ->get();
 
         $lista = $bolsistas->map(function ($bolsista) {
-            $diasTexto = $bolsista->diasSemana->map(function ($dia) {
-                return $dia->getDiaSemanaTexto();
-            })->implode(', ');
+            $diasTexto = $bolsista->diasSemana->map(fn($d) => $this->getDiaSemanaTexto($d->dia_semana))->implode(', ');
 
             return [
                 'user_id' => $bolsista->id,
@@ -148,14 +166,9 @@ class BolsistaController extends Controller
      */
     public function estudantesPorTurno(Request $request): JsonResponse
     {
+        $data = Carbon::parse($request->input('data', now()))->format('Y-m-d');
         $turno = $request->input('turno');
-        $data = $request->input('data', now()->format('Y-m-d'));
         $apenasAtivos = $request->boolean('apenas_ativos', true);
-
-        // Converter formato brasileiro se necessário
-        if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $data)) {
-            $data = Carbon::createFromFormat('d/m/Y', $data)->format('Y-m-d');
-        }
 
         $diaSemana = Carbon::parse($data)->dayOfWeek;
 
@@ -223,13 +236,8 @@ class BolsistaController extends Controller
      */
     public function confirmarPresenca(Request $request, int $userId): JsonResponse
     {
+        $data = Carbon::parse($request->input('data', now()))->format('Y-m-d');
         $turno = $request->input('turno');
-        $data = $request->input('data', now()->format('Y-m-d'));
-
-        // Converter formato brasileiro se necessário
-        if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $data)) {
-            $data = Carbon::createFromFormat('d/m/Y', $data)->format('Y-m-d');
-        }
 
         // Validar turno
         if (!$turno) {
@@ -240,7 +248,7 @@ class BolsistaController extends Controller
         }
 
         // Buscar usuário
-        $user = User::find($userId);
+        $user = User::with('diasSemana')->find($userId);
         if (!$user) {
             return response()->json([
                 'success' => false,
@@ -261,7 +269,7 @@ class BolsistaController extends Controller
         $temDireito = $user->diasSemana()->where('dia_semana', $diaSemana)->exists();
 
         if (!$temDireito) {
-            $diasCadastrados = $user->diasSemana->map(fn($d) => $d->getDiaSemanaTexto())->implode(', ');
+            $diasCadastrados = $user->diasSemana->map(fn($d) => $this->getDiaSemanaTexto($d->dia_semana))->implode(', ');
             return response()->json([
                 'success' => false,
                 'message' => 'Este bolsista não está cadastrado para este dia.',
@@ -290,7 +298,7 @@ class BolsistaController extends Controller
             ->where('refeicao_id', $refeicao->id)
             ->first();
 
-        if ($presenca && $presenca->status_da_presenca === StatusPresenca::VALIDADO) {
+        if ($presenca && $presenca->status_da_presenca === StatusPresenca::CONFIRMADO) {
             return response()->json([
                 'success' => false,
                 'message' => 'Presença já foi confirmada anteriormente.',
@@ -305,14 +313,14 @@ class BolsistaController extends Controller
             $presenca = Presenca::create([
                 'user_id' => $userId,
                 'refeicao_id' => $refeicao->id,
-                'status_da_presenca' => StatusPresenca::VALIDADO,
+                'status_da_presenca' => StatusPresenca::CONFIRMADO,
                 'validado_em' => now(),
                 'validado_por' => auth()->id(),
                 'registrado_em' => now(),
             ]);
         } else {
             $presenca->update([
-                'status_da_presenca' => StatusPresenca::VALIDADO,
+                'status_da_presenca' => StatusPresenca::CONFIRMADO,
                 'validado_em' => now(),
                 'validado_por' => auth()->id(),
             ]);
@@ -345,14 +353,9 @@ class BolsistaController extends Controller
      */
     public function marcarFalta(Request $request, int $userId): JsonResponse
     {
+        $data = Carbon::parse($request->input('data', now()))->format('Y-m-d');
         $turno = $request->input('turno');
-        $data = $request->input('data', now()->format('Y-m-d'));
         $justificada = $request->boolean('justificada', false);
-
-        // Converter formato brasileiro se necessário
-        if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $data)) {
-            $data = Carbon::createFromFormat('d/m/Y', $data)->format('Y-m-d');
-        }
 
         // Validar turno
         if (!$turno) {
@@ -439,7 +442,7 @@ class BolsistaController extends Controller
     {
         $userIds = $request->input('user_ids', []);
         $turno = $request->input('turno');
-        $data = $request->input('data', now()->format('Y-m-d'));
+        $data = Carbon::parse($request->input('data', now()))->format('Y-m-d');
 
         if (empty($userIds)) {
             return response()->json([
@@ -453,11 +456,6 @@ class BolsistaController extends Controller
                 'success' => false,
                 'message' => 'O turno é obrigatório.',
             ], 400);
-        }
-
-        // Converter formato brasileiro se necessário
-        if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $data)) {
-            $data = Carbon::createFromFormat('d/m/Y', $data)->format('Y-m-d');
         }
 
         // Buscar refeição
@@ -483,10 +481,10 @@ class BolsistaController extends Controller
                 continue;
             }
 
-            // Verificar se já tem presença validada
+            // Verificar se já tem presença confirmada
             $presencaExistente = Presenca::where('user_id', $userId)
                 ->where('refeicao_id', $refeicao->id)
-                ->where('status_da_presenca', StatusPresenca::VALIDADO)
+                ->where('status_da_presenca', StatusPresenca::CONFIRMADO)
                 ->exists();
 
             if ($presencaExistente) {
@@ -500,7 +498,7 @@ class BolsistaController extends Controller
                     'refeicao_id' => $refeicao->id,
                 ],
                 [
-                    'status_da_presenca' => StatusPresenca::VALIDADO,
+                    'status_da_presenca' => StatusPresenca::CONFIRMADO,
                     'validado_em' => now(),
                     'validado_por' => auth()->id(),
                     'registrado_em' => now(),

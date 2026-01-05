@@ -119,9 +119,6 @@
             font-size: 0.85em;
             font-weight: bold;
         }
-        .status-validado {
-            background: #28a745;
-        }
         .status-confirmado {
             background: #17a2b8;
         }
@@ -247,13 +244,14 @@
                     <th>Nome</th>
                     <th>Curso</th>
                     <th>Turno Aluno</th>
+                    <th>Dias da Semana</th>
                     <th>Status</th>
                     <th>Ações</th>
                 </tr>
             </thead>
             <tbody id="tbody">
                 <tr>
-                    <td colspan="7" class="loading">Clique em "Buscar" para carregar os bolsistas</td>
+                    <td colspan="8" class="loading">Clique em "Buscar" para carregar os bolsistas</td>
                 </tr>
             </tbody>
         </table>
@@ -278,7 +276,7 @@
             const data = document.getElementById('dataFiltro').value;
             const turno = document.getElementById('turnoFiltro').value;
 
-            document.getElementById('tbody').innerHTML = '<tr><td colspan="7" class="loading">Carregando...</td></tr>';
+            document.getElementById('tbody').innerHTML = '<tr><td colspan="8" class="loading">Carregando...</td></tr>';
 
             try {
                 let url = `${API_BASE}/bolsistas/dia?data=${data}`;
@@ -294,7 +292,7 @@
                     document.getElementById('loteActions').style.display = 'flex';
                 } else {
                     showMessage(result.message || 'Erro ao carregar bolsistas', 'error');
-                    document.getElementById('tbody').innerHTML = `<tr><td colspan="7" class="loading">${result.message}</td></tr>`;
+                    document.getElementById('tbody').innerHTML = `<tr><td colspan="8" class="loading">${result.message}</td></tr>`;
                 }
             } catch (error) {
                 showMessage('Erro de conexão: ' + error.message, 'error');
@@ -302,7 +300,7 @@
         }
 
         async function carregarTodosBolsistas() {
-            document.getElementById('tbody').innerHTML = '<tr><td colspan="7" class="loading">Carregando...</td></tr>';
+            document.getElementById('tbody').innerHTML = '<tr><td colspan="8" class="loading">Carregando...</td></tr>';
 
             try {
                 const response = await fetch(`${API_BASE}/bolsistas`);
@@ -313,7 +311,6 @@
                     renderizarTabelaTodos(result.data);
                     document.getElementById('statTotal').textContent = result.total;
                     document.getElementById('statValidados').textContent = '-';
-                    document.getElementById('statConfirmados').textContent = '-';
                     document.getElementById('statPendentes').textContent = '-';
                     document.getElementById('statFaltasJust').textContent = '-';
                     document.getElementById('statFaltasInjust').textContent = '-';
@@ -326,7 +323,7 @@
 
         function renderizarTabela(data) {
             if (data.length === 0) {
-                document.getElementById('tbody').innerHTML = '<tr><td colspan="7" class="loading">Nenhum bolsista encontrado para este dia</td></tr>';
+                document.getElementById('tbody').innerHTML = '<tr><td colspan="8" class="loading">Nenhum bolsista encontrado para este dia</td></tr>';
                 return;
             }
 
@@ -337,9 +334,10 @@
                     <td>${b.nome}</td>
                     <td>${b.curso || '-'}</td>
                     <td>${b.turno_aluno || '-'}</td>
+                    <td>${b.dias_semana_texto || '-'}</td>
                     <td><span class="status-badge status-${b.status_presenca}">${formatStatus(b.status_presenca)}</span></td>
                     <td class="actions">
-                        <button class="btn btn-success" onclick="confirmarPresenca(${b.user_id})" ${b.status_presenca === 'validado' ? 'disabled' : ''}>✅</button>
+                        <button class="btn btn-success" onclick="confirmarPresenca(${b.user_id})" ${b.status_presenca === 'confirmado' ? 'disabled' : ''}>✅</button>
                         <button class="btn btn-danger" onclick="marcarFalta(${b.user_id}, false)">❌</button>
                         <button class="btn btn-warning" onclick="marcarFalta(${b.user_id}, true)">⚠️</button>
                     </td>
@@ -351,7 +349,7 @@
 
         function renderizarTabelaTodos(data) {
             if (data.length === 0) {
-                document.getElementById('tbody').innerHTML = '<tr><td colspan="7" class="loading">Nenhum bolsista cadastrado</td></tr>';
+                document.getElementById('tbody').innerHTML = '<tr><td colspan="8" class="loading">Nenhum bolsista cadastrado</td></tr>';
                 return;
             }
 
@@ -363,7 +361,8 @@
                     <td>${b.curso || '-'}</td>
                     <td>${b.turno || '-'}</td>
                     <td>${b.dias_semana_texto || '-'}</td>
-                    <td>${b.desligado ? '<span class="status-badge status-falta_injustificada">Desligado</span>' : '<span class="status-badge status-validado">Ativo</span>'}</td>
+                    <td>${b.desligado ? '<span class="status-badge status-falta_injustificada">Desligado</span>' : '<span class="status-badge status-confirmado">Ativo</span>'}</td>
+                    <td>-</td>
                 </tr>
             `).join('');
 
@@ -373,7 +372,6 @@
         function formatStatus(status) {
             const map = {
                 'validado': 'Validado',
-                'confirmado': 'Confirmado',
                 'pendente': 'Pendente',
                 'falta_justificada': 'Falta Justificada',
                 'falta_injustificada': 'Falta Injustificada',
@@ -384,7 +382,6 @@
 
         function atualizarStats(stats) {
             document.getElementById('statTotal').textContent = stats.total || 0;
-            document.getElementById('statValidados').textContent = stats.validados || 0;
             document.getElementById('statConfirmados').textContent = stats.confirmados || 0;
             document.getElementById('statPendentes').textContent = stats.pendentes || 0;
             document.getElementById('statFaltasJust').textContent = stats.faltas_justificadas || 0;
