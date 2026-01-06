@@ -19,44 +19,47 @@ Route::prefix('v1')->group(function () {
         Route::get('cardapio/hoje', [EstudanteCardapioController::class, 'hoje']);
     });
 
-    Route::prefix('admin')->middleware(['auth:sanctum','ensure.is.admin'])->group(function () {
+    $adminMiddleware = config('app.debug') ? [] : ['auth:sanctum', 'ensure.is.admin'];
+
+    Route::prefix('admin')->middleware($adminMiddleware)->group(function () {
         // Rotas de Cardápios
-        Route::get('cardapios',                      [AdminCardapioController::class, 'index'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::post('cardapios',                     [AdminCardapioController::class, 'store'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::post('cardapios/import',              [AdminCardapioController::class, 'import'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::get('cardapios/{cardapio}',           [AdminCardapioController::class, 'show'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::put('cardapios/{cardapio}',           [AdminCardapioController::class, 'update'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::delete('cardapios/{cardapio}',        [AdminCardapioController::class, 'destroy'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::delete('cardapios',                   [AdminCardapioController::class, 'deleteAll'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::post('cardapios/multiple',            [AdminCardapioController::class, 'deleteMultiple'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::post('cardapios/date-range',          [AdminCardapioController::class, 'deleteByDateRange'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
+        Route::get('cardapios',                      [AdminCardapioController::class, 'index']);
+        Route::post('cardapios',                     [AdminCardapioController::class, 'store']);
+        Route::post('cardapios/import',              [AdminCardapioController::class, 'import']);
+        Route::post('cardapios/import/upload',       [AdminCardapioController::class, 'import']);
+        Route::get('cardapios/{cardapio}',           [AdminCardapioController::class, 'show']);
+        Route::put('cardapios/{cardapio}',           [AdminCardapioController::class, 'update']);
+        Route::delete('cardapios/{cardapio}',        [AdminCardapioController::class, 'destroy']);
+        Route::delete('cardapios',                   [AdminCardapioController::class, 'deleteAll']);
+        Route::post('cardapios/multiple',            [AdminCardapioController::class, 'deleteMultiple']);
+        Route::post('cardapios/date-range',          [AdminCardapioController::class, 'deleteByDateRange']);
 
         // Rotas de Confirmação de Presença
-        Route::get('presencas',                      [AdminPresencaController::class, 'index'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::post('presencas/confirmar',           [AdminPresencaController::class, 'confirmarPresenca'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::post('presencas/{userId}/confirmar',  [AdminPresencaController::class, 'confirmarPorId'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::post('presencas/{userId}/remover',    [AdminPresencaController::class, 'removerConfirmacao'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::post('presencas/validar-lote',        [AdminPresencaController::class, 'validarLote'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::post('presencas/{id}/marcar-falta',   [AdminPresencaController::class, 'marcarFalta'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::post('presencas/{id}/cancelar',       [AdminPresencaController::class, 'cancelar'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
+        Route::get('presencas',                      [AdminPresencaController::class, 'index']);
+        Route::post('presencas/confirmar',           [AdminPresencaController::class, 'confirmarPresenca']);
+        Route::post('presencas/{userId}/confirmar',  [AdminPresencaController::class, 'confirmarPorId']);
+        Route::post('presencas/{userId}/remover',    [AdminPresencaController::class, 'removerConfirmacao']);
+        Route::post('presencas/validar-lote',        [AdminPresencaController::class, 'validarLote']);
+        Route::post('presencas/{id}/marcar-falta',   [AdminPresencaController::class, 'marcarFalta']);
+        Route::post('presencas/{id}/cancelar',       [AdminPresencaController::class, 'cancelar']);
 
         // RF13: Validação por QR Code e Matrícula
-        Route::post('presencas/validar-qrcode',      [AdminPresencaController::class, 'validarPorQrCode'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::get('presencas/{id}/qrcode',          [AdminPresencaController::class, 'gerarQrCode'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
+        Route::post('presencas/validar-qrcode',      [AdminPresencaController::class, 'validarPorQrCode']);
+        Route::get('presencas/{id}/qrcode',          [AdminPresencaController::class, 'gerarQrCode']);
 
         // Rotas de Relatório de Validações
-        Route::get('relatorios/validacoes',                [App\Http\Controllers\api\v1\Admin\RelatorioValidacaoController::class, 'index'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::get('relatorios/validacoes/por-admin',      [App\Http\Controllers\api\v1\Admin\RelatorioValidacaoController::class, 'porAdmin'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::get('relatorios/validacoes/refeicao/{id}',  [App\Http\Controllers\api\v1\Admin\RelatorioValidacaoController::class, 'porRefeicao'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::get('relatorios/validacoes/timeline',       [App\Http\Controllers\api\v1\Admin\RelatorioValidacaoController::class, 'timeline'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
+        Route::get('relatorios/validacoes',                [App\Http\Controllers\api\v1\Admin\RelatorioValidacaoController::class, 'index']);
+        Route::get('relatorios/validacoes/por-admin',      [App\Http\Controllers\api\v1\Admin\RelatorioValidacaoController::class, 'porAdmin']);
+        Route::get('relatorios/validacoes/refeicao/{id}',  [App\Http\Controllers\api\v1\Admin\RelatorioValidacaoController::class, 'porRefeicao']);
+        Route::get('relatorios/validacoes/timeline',       [App\Http\Controllers\api\v1\Admin\RelatorioValidacaoController::class, 'timeline']);
 
         // RF09 - Rotas de Bolsistas e Estudantes
-        Route::get('bolsistas/dia',                        [AdminBolsistaController::class, 'bolsistasDoDia'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::get('bolsistas',                            [AdminBolsistaController::class, 'todosBolsistas'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::get('estudantes/turno',                     [AdminBolsistaController::class, 'estudantesPorTurno'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::post('bolsistas/{userId}/confirmar-presenca', [AdminBolsistaController::class, 'confirmarPresenca'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::post('bolsistas/{userId}/marcar-falta',     [AdminBolsistaController::class, 'marcarFalta'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
-        Route::post('bolsistas/confirmar-lote',            [AdminBolsistaController::class, 'confirmarLote'])->withoutMiddleware(['auth:sanctum', 'ensure.is.admin']);
+        Route::get('bolsistas/dia',                        [AdminBolsistaController::class, 'bolsistasDoDia']);
+        Route::get('bolsistas',                            [AdminBolsistaController::class, 'todosBolsistas']);
+        Route::get('estudantes/turno',                     [AdminBolsistaController::class, 'estudantesPorTurno']);
+        Route::post('bolsistas/{userId}/confirmar-presenca', [AdminBolsistaController::class, 'confirmarPresenca']);
+        Route::post('bolsistas/{userId}/marcar-falta',     [AdminBolsistaController::class, 'marcarFalta']);
+        Route::post('bolsistas/confirmar-lote',            [AdminBolsistaController::class, 'confirmarLote']);
     });
 
 });

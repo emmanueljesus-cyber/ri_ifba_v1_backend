@@ -1,6 +1,6 @@
 # 🍽️ Sistema de Restaurante Institucional - IFBA
 
-Sistema web para gerenciamento de refeições do Restaurante Institucional do IFBA, desenvolvido com Laravel 11.
+Sistema web para gerenciamento de refeições do Restaurante Institucional do IFBA, desenvolvido com Laravel 12.
 
 ## 📋 Sobre o Projeto
 
@@ -15,9 +15,9 @@ Sistema completo para controle de:
 
 ## 🚀 Tecnologias
 
-- **Backend:** Laravel 11 (PHP 8.2+)
+- **Backend:** Laravel 12 (PHP 8.2+)
 - **Banco de Dados:** PostgreSQL / SQLite
-- **Frontend:** HTML5, CSS3, JavaScript
+- **Frontend:** HTML5, CSS3, JavaScript (importação de cardápio via Excel será feita pelo frontend)
 - **Autenticação:** Laravel Sanctum
 - **QR Code:** jsQR (scanner via câmera)
 
@@ -28,8 +28,7 @@ Sistema completo para controle de:
 ### **Requisitos:**
 - PHP 8.2 ou superior
 - Composer
-- PostgreSQL ou SQLite
-- Node.js (opcional, para assets)
+- PostgreSQL
 
 ### **Passos:**
 
@@ -46,8 +45,12 @@ cp .env.example .env
 php artisan key:generate
 
 # 4. Configure o banco de dados no .env
-DB_CONNECTION=sqlite  # ou pgsql
-DB_DATABASE=database/database.sqlite
+DB_CONNECTION=pgsql
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE=ri_ifba
+DB_USERNAME=seu_usuario
+DB_PASSWORD=sua_senha
 
 # 5. Execute as migrations
 php artisan migrate
@@ -70,7 +73,6 @@ Acesse: `http://localhost:8000`
 #### **1️⃣ QR Code Scanner**
 - Validação via câmera do celular/tablet
 - Token SHA-256 seguro
-- Interface: `http://localhost:8000/validar-presenca-qrcode.html`
 
 #### **2️⃣ Busca por Matrícula**
 - Validação manual (fallback)
@@ -80,13 +82,11 @@ Acesse: `http://localhost:8000`
 - Mostra apenas alunos cadastrados para aquele dia da semana
 - Checkbox direto para marcar presença
 - Marcação de faltas individual
-- Interface: `http://localhost:8000/lista-presencas-dia.html`
 
 #### **4️⃣ Relatório de Validações**
 - Auditoria completa (quem validou e quando)
 - Estatísticas por admin
 - Timeline de validações
-- Interface: `http://localhost:8000/relatorio-validacoes.html`
 
 ---
 
@@ -108,9 +108,7 @@ ri_ifba_v1_backend/
 │       ├── StatusPresenca.php
 │       └── TurnoRefeicao.php
 ├── public/
-│   ├── validar-presenca-qrcode.html
-│   ├── lista-presencas-dia.html
-│   └── relatorio-validacoes.html
+│   └── (assets públicos da API; páginas de teste removidas)
 ├── routes/
 │   └── api.php
 ├── database/
@@ -157,31 +155,14 @@ GET /api/v1/admin/relatorios/validacoes/timeline
 
 Para testar as funcionalidades:
 
-### **1. Lista de Presenças:**
-```
-http://localhost:8000/lista-presencas-dia.html
-```
-
-### **2. Validação por QR Code:**
-```
-http://localhost:8000/validar-presenca-qrcode.html
-```
-
-### **3. Relatório de Validações:**
-```
-http://localhost:8000/relatorio-validacoes.html
-```
+### Como testar
+- Testes manuais via frontend (quando disponível) e API (`/api/v1/...`). As páginas HTML de teste foram removidas do `public/`.
 
 ---
 
 ## 📖 Documentação
 
-A documentação completa está na pasta `docs/`:
-
-- **RF13_VALIDACAO_QRCODE_MATRICULA.md** - Sistema de QR Code
-- **RF13_LISTA_PRESENCAS_DIA.md** - Lista de presenças
-- **RELATORIO_VALIDACOES_ADMIN.md** - Relatórios
-- **SISTEMA_PRESENCA_COMPLETO.md** - Visão geral do sistema
+A documentação completa está na pasta `docs/` (arquivos canônicos) e arquivos antigos/duplicados foram movidos para `docs/archive/`.
 
 ---
 
@@ -288,4 +269,3 @@ Para dúvidas ou problemas, consulte a documentação na pasta `docs/` ou abra u
 ---
 
 **Última atualização:** Janeiro 2026
-

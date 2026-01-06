@@ -19,13 +19,16 @@ class PresencaController extends Controller
      */
     public function index(Request $request)
     {
-        // DEBUG EXTREMO
-        \Log::info('=== PRESENCAS INDEX INICIADO ===');
+        if (config('app.debug')) {
+            \Log::info('=== PRESENCAS INDEX INICIADO ===');
+        }
 
         $data = $request->input('data', now()->format('Y-m-d'));
         $turno = $request->input('turno');
 
-        \Log::info('Parametros recebidos', ['data' => $data, 'turno' => $turno]);
+        if (config('app.debug')) {
+            \Log::info('Parametros recebidos', ['data' => $data, 'turno' => $turno]);
+        }
 
         // Buscar a refeição do dia/turno
         $refeicao = Refeicao::where('data_do_cardapio', $data)
@@ -35,7 +38,9 @@ class PresencaController extends Controller
             ->with('cardapio')
             ->first();
 
-        \Log::info('Refeicao encontrada', ['refeicao_id' => $refeicao ? $refeicao->id : null]);
+        if (config('app.debug')) {
+            \Log::info('Refeicao encontrada', ['refeicao_id' => $refeicao ? $refeicao->id : null]);
+        }
 
         // Determinar o dia da semana (0=Domingo, 1=Segunda, ..., 6=Sábado)
         $diaDaSemana = Carbon::parse($data)->dayOfWeek;
@@ -49,13 +54,15 @@ class PresencaController extends Controller
         $bolsistasCount = $bolsistasQuery->count();
         $bolsistas = $bolsistasQuery->orderBy('nome')->get();
 
-        \Log::info('Bolsistas buscados', [
-            'total_users_db' => $totalUsers,
-            'dia_da_semana' => $diaDaSemana,
-            'bolsistas_count_before_get' => $bolsistasCount,
-            'bolsistas_count_after_get' => $bolsistas->count(),
-            'first_bolsista' => $bolsistas->first() ? $bolsistas->first()->only(['id', 'matricula', 'nome', 'bolsista']) : null,
-        ]);
+        if (config('app.debug')) {
+            \Log::info('Bolsistas buscados', [
+                'total_users_db' => $totalUsers,
+                'dia_da_semana' => $diaDaSemana,
+                'bolsistas_count_before_get' => $bolsistasCount,
+                'bolsistas_count_after_get' => $bolsistas->count(),
+                'first_bolsista' => $bolsistas->first() ? $bolsistas->first()->only(['id', 'matricula', 'nome', 'bolsista']) : null,
+            ]);
+        }
 
         if (!$refeicao) {
             return response()->json([
