@@ -482,6 +482,183 @@ php artisan test --filter=AuthMiddlewareTest
 
 ## Observações Finais
 
+---
+
+## 📋 Requisitos Funcionais Implementados
+
+### RF09 – Visualizar lista bolsistas do dia
+
+**Endpoint:** `GET /api/v1/admin/bolsistas/dia`
+
+| Parâmetro | Tipo   | Obrigatório | Descrição                    |
+|-----------|--------|-------------|------------------------------|
+| data      | date   | Não         | Data (default: hoje)         |
+| turno     | string | Não         | `almoco` ou `jantar`         |
+
+**Exemplo:**
+```bash
+GET /api/v1/admin/bolsistas/dia?data=2026-01-06&turno=almoco
+```
+
+**Resposta:**
+```json
+{
+  "data": [
+    {
+      "user_id": 1,
+      "matricula": "20231234",
+      "nome": "João Silva",
+      "curso": "Informática",
+      "status_presenca": "confirmado"
+    }
+  ],
+  "errors": [],
+  "meta": {
+    "data": "06/01/2026",
+    "dia_semana_texto": "segunda-feira",
+    "turno_filtrado": "almoco",
+    "total_bolsistas": 25,
+    "stats": {
+      "confirmados": 20,
+      "pendentes": 5
+    }
+  }
+}
+```
+
+---
+
+### RF10 – Visualizar lista bolsistas geral
+
+**Endpoint:** `GET /api/v1/admin/bolsistas`
+
+| Parâmetro | Tipo    | Obrigatório | Descrição                      |
+|-----------|---------|-------------|--------------------------------|
+| search    | string  | Não         | Busca por nome/matrícula/email |
+| ativo     | boolean | Não         | Filtrar por status ativo       |
+
+**Exemplo:**
+```bash
+GET /api/v1/admin/bolsistas?search=silva&ativo=true
+```
+
+**Resposta:**
+```json
+{
+  "data": [
+    {
+      "user_id": 1,
+      "matricula": "20231234",
+      "nome": "João Silva",
+      "email": "joao@aluno.ifba.edu.br",
+      "curso": "Informática",
+      "ativo": true,
+      "dias_semana": [1, 3, 5],
+      "dias_semana_texto": "Segunda, Quarta, Sexta"
+    }
+  ],
+  "errors": [],
+  "meta": {
+    "total": 72,
+    "ativos": 70,
+    "inativos": 2
+  }
+}
+```
+
+---
+
+### RF13 – Confirmar presença por QR Code ou manualmente
+
+#### Opção 1: QR Code (Matrícula)
+
+**Endpoint:** `POST /api/v1/admin/bolsistas/qrcode`
+
+**Body:**
+```json
+{
+  "matricula": "20231234",
+  "turno": "almoco",
+  "data": "2026-01-06"
+}
+```
+
+**Resposta (Sucesso):**
+```json
+{
+  "data": {
+    "presenca_id": 5,
+    "usuario": "João Silva",
+    "matricula": "20231234",
+    "curso": "Informática",
+    "refeicao": {
+      "data": "06/01/2026",
+      "turno": "almoco"
+    },
+    "confirmado_em": "12:30:00"
+  },
+  "errors": [],
+  "meta": {
+    "message": "✅ Presença confirmada para João Silva!"
+  }
+}
+```
+
+#### Opção 2: Busca Manual
+
+**Endpoint:** `GET /api/v1/admin/bolsistas/buscar`
+
+| Parâmetro | Tipo   | Obrigatório | Descrição                       |
+|-----------|--------|-------------|---------------------------------|
+| search    | string | Sim         | Nome ou matrícula (min 2 chars) |
+| turno     | string | Sim         | `almoco` ou `jantar`            |
+| data      | date   | Não         | Data (default: hoje)            |
+
+**Exemplo:**
+```bash
+GET /api/v1/admin/bolsistas/buscar?search=joao&turno=almoco
+```
+
+**Resposta:**
+```json
+{
+  "data": [
+    {
+      "user_id": 1,
+      "matricula": "20231234",
+      "nome": "João Silva",
+      "curso": "Informática",
+      "presenca_status": "sem_registro",
+      "presenca_id": null,
+      "ja_confirmado": false
+    }
+  ],
+  "errors": [],
+  "meta": {
+    "total": 1,
+    "data": "06/01/2026",
+    "turno": "almoco",
+    "tem_refeicao": true
+  }
+}
+```
+
+#### Opção 3: Confirmar por ID
+
+**Endpoint:** `POST /api/v1/admin/bolsistas/{userId}/confirmar-presenca`
+
+**Body:**
+```json
+{
+  "turno": "almoco",
+  "data": "2026-01-06"
+}
+```
+
+---
+
+## Observações Finais
+
 ### Toggle de Autenticação
 
 O sistema usa `APP_DEBUG` para controlar autenticação nas rotas admin:
