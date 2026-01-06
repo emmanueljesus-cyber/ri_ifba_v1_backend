@@ -18,7 +18,7 @@ class CardapioUpdateRequest extends FormRequest
         $id = $this->route('cardapio');
 
         return [
-            'data_do_cardapio'      => ['sometimes','date', Rule::unique('cardapios','data_do_cardapio')->ignore($id)],
+            'data_do_cardapio'      => ['sometimes','date', Rule::unique('cardapios', 'data_do_cardapio')->ignore($id)],
             'turnos'                => ['sometimes','array','min:1'],
             'turnos.*'              => ['required', 'string', 'filled', Rule::enum(TurnoRefeicao::class)],
             'prato_principal_ptn01' => ['sometimes','string','max:255'],

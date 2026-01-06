@@ -10,16 +10,16 @@ Sistema completo para controle de:
 - ✅ Gestão de bolsistas
 - ✅ Relatórios de validação
 - ✅ Marcação de faltas justificadas/injustificadas
+- ✅ Importação de cardápios via Excel
 
 ---
 
 ## 🚀 Tecnologias
 
 - **Backend:** Laravel 12 (PHP 8.2+)
-- **Banco de Dados:** PostgreSQL / SQLite
-- **Frontend:** HTML5, CSS3, JavaScript (importação de cardápio via Excel será feita pelo frontend)
+- **Banco de Dados:** PostgreSQL (SQLite para testes)
 - **Autenticação:** Laravel Sanctum
-- **QR Code:** jsQR (scanner via câmera)
+- **Importação Excel:** Maatwebsite/Excel
 
 ---
 
@@ -66,80 +66,91 @@ Acesse: `http://localhost:8000`
 
 ---
 
-## 🎯 Funcionalidades Implementadas
+## 🔐 Toggle de Autenticação (Desenvolvimento)
 
-### **RF13 - Validação de Presença** ✅
+As rotas `/api/v1/admin/*` usam autenticação condicional:
 
-#### **1️⃣ QR Code Scanner**
-- Validação via câmera do celular/tablet
-- Token SHA-256 seguro
+| `APP_DEBUG` | Comportamento |
+|-------------|---------------|
+| `true`      | Rotas admin **SEM** autenticação (desenvolvimento/teste) |
+| `false`     | Rotas admin **COM** `auth:sanctum` + `ensure.is.admin` (produção) |
 
-#### **2️⃣ Busca por Matrícula**
-- Validação manual (fallback)
-- Busca rápida por nome ou matrícula
-
-#### **3️⃣ Lista do Dia**
-- Mostra apenas alunos cadastrados para aquele dia da semana
-- Checkbox direto para marcar presença
-- Marcação de faltas individual
-
-#### **4️⃣ Relatório de Validações**
-- Auditoria completa (quem validou e quando)
-- Estatísticas por admin
-- Timeline de validações
+Configure no `.env`:
+```env
+APP_DEBUG=true   # Desenvolvimento (sem auth)
+APP_DEBUG=false  # Produção (com auth)
+```
 
 ---
 
-## 📊 Estrutura do Projeto
+## 📤 Importação de Cardápios (Excel)
 
+### Endpoint
+```http
+POST /api/v1/admin/cardapios/import
+Content-Type: multipart/form-data
 ```
-ri_ifba_v1_backend/
-├── app/
-│   ├── Http/Controllers/api/v1/Admin/
-│   │   ├── CardapioController.php
-│   │   ├── PresencaController.php
-│   │   └── RelatorioValidacaoController.php
-│   ├── Models/
-│   │   ├── User.php
-│   │   ├── Cardapio.php
-│   │   ├── Refeicao.php
-│   │   └── Presenca.php
-│   └── Enums/
-│       ├── StatusPresenca.php
-│       └── TurnoRefeicao.php
-├── public/
-│   └── (assets públicos da API; páginas de teste removidas)
-├── routes/
-│   └── api.php
-├── database/
-│   ├── migrations/
-│   └── seeders/
-├── docs/
-│   ├── RF13_VALIDACAO_QRCODE_MATRICULA.md
-│   ├── RF13_LISTA_PRESENCAS_DIA.md
-│   ├── RELATORIO_VALIDACOES_ADMIN.md
-│   └── SISTEMA_PRESENCA_COMPLETO.md
-└── README.md
+
+### Parâmetros
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `file` | File | Sim | Arquivo Excel (xlsx, xls, csv) |
+| `turno[]` | Array | Não | Turnos: `almoco`, `jantar` (padrão: `almoco`) |
+| `debug` | Boolean | Não | Retorna dados de debug do arquivo |
+
+### Limites
+- **Tamanho máximo:** 5MB
+- **Formatos:** `.xlsx`, `.xls`, `.csv`
+
+### Resposta (padrão JSON)
+```json
+{
+  "data": [
+    { "id": 1, "data": "2026-01-06", "turno": "almoco", "action": "created" }
+  ],
+  "errors": [],
+  "meta": {
+    "total_criados": 1,
+    "total_erros": 0
+  }
+}
 ```
 
 ---
 
 ## 🔌 Endpoints Principais
 
+Todas as respostas seguem o padrão: `{ data, errors, meta }`
+
 ### **Cardápios**
 ```http
-GET    /api/v1/admin/cardapios
-POST   /api/v1/admin/cardapios
-PUT    /api/v1/admin/cardapios/{id}
-DELETE /api/v1/admin/cardapios/{id}
+GET    /api/v1/admin/cardapios              # Listar (paginado)
+POST   /api/v1/admin/cardapios              # Criar
+POST   /api/v1/admin/cardapios/import       # Importar Excel
+GET    /api/v1/admin/cardapios/{id}         # Detalhe
+PUT    /api/v1/admin/cardapios/{id}         # Atualizar
+DELETE /api/v1/admin/cardapios/{id}         # Deletar
+DELETE /api/v1/admin/cardapios              # Deletar todos
+POST   /api/v1/admin/cardapios/multiple     # Deletar múltiplos (ids[])
+POST   /api/v1/admin/cardapios/date-range   # Deletar por período
 ```
 
 ### **Presenças**
 ```http
 GET  /api/v1/admin/presencas
 POST /api/v1/admin/presencas/confirmar
-POST /api/v1/admin/presencas/validar-qrcode
+POST /api/v1/admin/presencas/{userId}/confirmar
 POST /api/v1/admin/presencas/{id}/marcar-falta
+POST /api/v1/admin/presencas/validar-qrcode
+GET  /api/v1/admin/presencas/{id}/qrcode
+```
+
+### **Bolsistas**
+```http
+GET  /api/v1/admin/bolsistas
+GET  /api/v1/admin/bolsistas/dia
+POST /api/v1/admin/bolsistas/{userId}/confirmar-presenca
+POST /api/v1/admin/bolsistas/{userId}/marcar-falta
 ```
 
 ### **Relatórios**
@@ -149,31 +160,70 @@ GET /api/v1/admin/relatorios/validacoes/por-admin
 GET /api/v1/admin/relatorios/validacoes/timeline
 ```
 
+### **Rotas Públicas (sem auth)**
+```http
+GET /api/v1/cardapio/hoje
+GET /api/v1/cardapio/semanal
+GET /api/v1/cardapio/mensal
+```
+
+---
+
+## 📊 Estrutura do Projeto
+
+```
+ri_ifba_v1_backend/
+├── app/
+│   ├── Http/
+│   │   ├── Controllers/api/v1/Admin/
+│   │   │   ├── CardapioController.php
+│   │   │   ├── PresencaController.php
+│   │   │   ├── BolsistaController.php
+│   │   │   └── RelatorioValidacaoController.php
+│   │   └── Requests/Admin/
+│   │       ├── CardapioImportRequest.php
+│   │       ├── CardapioStoreRequest.php
+│   │       └── CardapioUpdateRequest.php
+│   ├── Services/
+│   │   ├── CardapioService.php
+│   │   └── CardapioImportService.php
+│   ├── Models/
+│   └── Enums/
+├── routes/
+│   └── api.php
+├── database/
+│   ├── migrations/
+│   └── seeders/
+└── docs/
+```
+
 ---
 
 ## 🧪 Testes
 
-Para testar as funcionalidades:
+```bash
+# Rodar todos os testes
+php artisan test
 
-### Como testar
-- Testes manuais via frontend (quando disponível) e API (`/api/v1/...`). As páginas HTML de teste foram removidas do `public/`.
+# Testar API manualmente (com APP_DEBUG=true)
+curl http://localhost:8000/api/v1/admin/cardapios
+```
 
 ---
 
 ## 📖 Documentação
 
-A documentação completa está na pasta `docs/` (arquivos canônicos) e arquivos antigos/duplicados foram movidos para `docs/archive/`.
+Documentação na pasta `docs/`. Arquivos legados em `docs/archive/`.
 
 ---
 
 ## 🔒 Segurança
 
-- ✅ Token SHA-256 para QR Code
-- ✅ Autenticação via Sanctum
+- ✅ Autenticação via Sanctum (produção)
 - ✅ Validação de permissões (Admin)
-- ✅ Proteção contra SQL Injection (Eloquent ORM)
+- ✅ Proteção SQL Injection (Eloquent)
+- ✅ Validação de uploads (tipo/tamanho)
 - ✅ CORS configurado
-- ✅ Arquivos sensíveis no .gitignore
 
 ---
 
@@ -181,28 +231,31 @@ A documentação completa está na pasta `docs/` (arquivos canônicos) e arquivo
 
 | Status | Descrição |
 |--------|-----------|
-| `null` | Sem registro (não confirmou) |
-| `confirmado` | Aluno confirmou que vai comer |
-| `validado` | Admin validou presença |
-| `falta_justificada` | Ausente com justificativa |
-| `falta_injustificada` | Ausente sem justificativa |
+| `null` | Sem registro (aluno ainda não foi marcado) |
+| `confirmado` | Admin confirmou presença (aluno compareceu) |
+| `falta_justificada` | Aluno justificou falta (antecipada ou posterior) |
+| `falta_injustificada` | Aluno faltou sem justificativa |
+| `cancelado` | Admin cancelou a refeição do dia |
 
 ---
 
 ## 🔄 Fluxo do Sistema
 
 ```
-1. Aluno confirma presença (via app/web)
+1. Admin visualiza lista de bolsistas do dia
    ↓
-2. Sistema gera QR Code único
+2. Admin marca presença do aluno:
+   - Via botão "presente" na lista
+   - OU via leitura de QR Code
+   - OU via busca por matrícula
    ↓
-3. Admin valida presença:
-   - Escaneia QR Code (rápido)
-   - OU busca por matrícula (manual)
-   - OU marca na lista do dia
+3. Status atualizado para "confirmado"
    ↓
-4. Presença registrada com auditoria
-   (quem validou e quando)
+4. Se aluno faltou:
+   - Aluno pode justificar → "falta_justificada"
+   - Sem justificativa → "falta_injustificada"
+   ↓
+5. Se refeição cancelada → "cancelado"
 ```
 
 ---

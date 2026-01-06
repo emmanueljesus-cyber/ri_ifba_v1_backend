@@ -41,4 +41,3 @@ class PresencaValidarRequest extends FormRequest
         ];
     }
 }
-

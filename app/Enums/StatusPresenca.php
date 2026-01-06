@@ -1,5 +1,7 @@
 <?php
+
 namespace App\Enums;
+
 enum StatusPresenca: string
 {
     case CONFIRMADO          = 'confirmado';

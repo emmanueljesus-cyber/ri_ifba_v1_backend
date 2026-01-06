@@ -8,7 +8,7 @@ use App\Models\Refeicao;
 use App\Models\User;
 use App\Enums\StatusPresenca;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class PresencaController extends Controller
@@ -20,14 +20,14 @@ class PresencaController extends Controller
     public function index(Request $request)
     {
         if (config('app.debug')) {
-            \Log::info('=== PRESENCAS INDEX INICIADO ===');
+            Log::info('=== PRESENCAS INDEX INICIADO ===');
         }
 
         $data = $request->input('data', now()->format('Y-m-d'));
         $turno = $request->input('turno');
 
         if (config('app.debug')) {
-            \Log::info('Parametros recebidos', ['data' => $data, 'turno' => $turno]);
+            Log::info('Parametros recebidos', ['data' => $data, 'turno' => $turno]);
         }
 
         // Buscar a refeição do dia/turno
@@ -39,50 +39,37 @@ class PresencaController extends Controller
             ->first();
 
         if (config('app.debug')) {
-            \Log::info('Refeicao encontrada', ['refeicao_id' => $refeicao ? $refeicao->id : null]);
+            Log::info('Refeicao encontrada', ['refeicao_id' => $refeicao ? $refeicao->id : null]);
         }
 
         // Determinar o dia da semana (0=Domingo, 1=Segunda, ..., 6=Sábado)
         $diaDaSemana = Carbon::parse($data)->dayOfWeek;
 
         // Buscar apenas bolsistas que têm direito à refeição NESTE dia da semana
-        $totalUsers = User::count();
         $bolsistasQuery = User::where('bolsista', true)
-            ->whereHas('diasSemana', function($q) use ($diaDaSemana) {
+            ->whereHas('diasSemana', function ($q) use ($diaDaSemana) {
                 $q->where('dia_semana', $diaDaSemana);
             });
-        $bolsistasCount = $bolsistasQuery->count();
         $bolsistas = $bolsistasQuery->orderBy('nome')->get();
 
         if (config('app.debug')) {
-            \Log::info('Bolsistas buscados', [
-                'total_users_db' => $totalUsers,
+            Log::info('Bolsistas buscados', [
                 'dia_da_semana' => $diaDaSemana,
-                'bolsistas_count_before_get' => $bolsistasCount,
-                'bolsistas_count_after_get' => $bolsistas->count(),
-                'first_bolsista' => $bolsistas->first() ? $bolsistas->first()->only(['id', 'matricula', 'nome', 'bolsista']) : null,
+                'bolsistas_count' => $bolsistas->count(),
             ]);
         }
 
         if (!$refeicao) {
             return response()->json([
-                'success' => false,
-                'message' => 'Não há refeição cadastrada para este dia e turno.',
-                'error_code' => 'NO_MEAL',
                 'data' => [],
-                'info' => [
+                'errors' => ['refeicao' => ['Não há refeição cadastrada para este dia e turno.']],
+                'meta' => [
                     'data' => $data,
                     'turno' => $turno,
                     'total_bolsistas' => $bolsistas->count(),
                     'sugestao' => 'Crie um cardápio para esta data primeiro',
                 ],
-                'stats' => [
-                    'total_bolsistas' => $bolsistas->count(),
-                    'presentes' => 0,
-                    'ausentes' => 0,
-                    'refeicao' => null,
-                ],
-            ]);
+            ], 404);
         }
 
         // Buscar presenças já registradas para esta refeição
@@ -108,35 +95,32 @@ class PresencaController extends Controller
                 'presenca' => $presenca ? [
                     'id' => $presenca->id,
                     'status' => $presenca->status_da_presenca->value,
-                    'validado_em' => $presenca->validado_em,
-                    'validado_por' => $presenca->validador ? $presenca->validador->nome : null,
+                    'confirmado_em' => $presenca->registrado_em,
+                    'confirmado_por' => $presenca->validador ? $presenca->validador->nome : null,
                 ] : null,
-                'presente' => $presenca && $presenca->status_da_presenca === StatusPresenca::VALIDADO,
+                'presente' => $presenca && $presenca->status_da_presenca === StatusPresenca::CONFIRMADO,
             ];
         });
 
-        // Estatísticas
-        $stats = [
-            'total_bolsistas' => $bolsistas->count(),
-            'presentes' => $lista->where('presente', true)->count(),
-            'ausentes' => $lista->where('presente', false)->count(),
-            'refeicao' => [
-                'id' => $refeicao->id,
-                'turno' => $refeicao->turno->value,
-                'data' => $refeicao->data_do_cardapio,
-                'cardapio' => $refeicao->cardapio ? $refeicao->cardapio->nome : null,
-            ],
-        ];
-
         return response()->json([
-            'success' => true,
             'data' => $lista->values(),
-            'stats' => $stats,
+            'errors' => [],
+            'meta' => [
+                'total_bolsistas' => $bolsistas->count(),
+                'presentes' => $lista->where('presente', true)->count(),
+                'ausentes' => $lista->where('presente', false)->count(),
+                'refeicao' => [
+                    'id' => $refeicao->id,
+                    'turno' => $refeicao->turno->value,
+                    'data' => $refeicao->data_do_cardapio->format('Y-m-d'),
+                ],
+            ],
         ]);
     }
 
     /**
      * Confirma uma presença específica por ID (via botão na lista)
+     * Admin clica no botão "presente" para confirmar que o aluno compareceu
      * POST /api/v1/admin/presencas/{user_id}/confirmar
      */
     public function confirmarPorId(Request $request, $userId)
@@ -144,7 +128,6 @@ class PresencaController extends Controller
         $turno = $request->input('turno');
         $dataInput = $request->input('data', now()->format('Y-m-d'));
 
-        // Converter formato brasileiro (dd/mm/yyyy) para ISO (yyyy-mm-dd) se necessário
         if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $dataInput)) {
             $data = Carbon::createFromFormat('d/m/Y', $dataInput)->format('Y-m-d');
         } else {
@@ -153,32 +136,30 @@ class PresencaController extends Controller
 
         if (!$turno) {
             return response()->json([
-                'success' => false,
-                'message' => 'Turno é obrigatório.',
+                'data' => null,
+                'errors' => ['turno' => ['Turno é obrigatório.']],
+                'meta' => [],
             ], 400);
         }
 
-        // Busca o usuário
         $user = User::find($userId);
         if (!$user) {
             return response()->json([
-                'success' => false,
-                'message' => 'Usuário não encontrado.',
+                'data' => null,
+                'errors' => ['user' => ['Usuário não encontrado.']],
+                'meta' => [],
             ], 404);
         }
 
-        // Verifica se a data corresponde a um dia da semana que o aluno se cadastrou
         $diaDaSemana = Carbon::parse($data)->dayOfWeek;
 
         if (!$user->temDireitoRefeicaoNoDia($diaDaSemana)) {
-            $diasCadastrados = $user->diasSemana()->get()->map(function ($dia) {
-                return $dia->getDiaSemanaTexto();
-            })->implode(', ');
+            $diasCadastrados = $user->diasSemana()->get()->map(fn($dia) => $dia->getDiaSemanaTexto())->implode(', ');
 
             return response()->json([
-                'success' => false,
-                'message' => 'Este aluno não está cadastrado para se alimentar neste dia da semana.',
-                'data' => [
+                'data' => null,
+                'errors' => ['permissao' => ['Este aluno não está cadastrado para se alimentar neste dia da semana.']],
+                'meta' => [
                     'usuario' => $user->nome,
                     'dia_tentativa' => Carbon::parse($data)->locale('pt_BR')->dayName,
                     'dias_cadastrados' => $diasCadastrados ?: 'Nenhum dia cadastrado',
@@ -186,28 +167,27 @@ class PresencaController extends Controller
             ], 403);
         }
 
-        // Busca a refeição
-        // Nota: data_do_cardapio está desnormalizada em refeicoes para performance
         $refeicao = Refeicao::where('data_do_cardapio', $data)
             ->where('turno', $turno)
             ->first();
 
         if (!$refeicao) {
             return response()->json([
-                'success' => false,
-                'message' => 'Não há refeição cadastrada.',
+                'data' => null,
+                'errors' => ['refeicao' => ['Não há refeição cadastrada.']],
+                'meta' => [],
             ], 404);
         }
 
-        // Busca ou cria presença
         $presenca = Presenca::where('user_id', $userId)
             ->where('refeicao_id', $refeicao->id)
             ->first();
 
-        if ($presenca && $presenca->status_da_presenca === StatusPresenca::VALIDADO) {
+        if ($presenca && $presenca->status_da_presenca === StatusPresenca::CONFIRMADO) {
             return response()->json([
-                'success' => false,
-                'message' => 'Presença já confirmada.',
+                'data' => null,
+                'errors' => ['presenca' => ['Presença já confirmada.']],
+                'meta' => [],
             ], 400);
         }
 
@@ -215,28 +195,28 @@ class PresencaController extends Controller
             $presenca = Presenca::create([
                 'user_id' => $userId,
                 'refeicao_id' => $refeicao->id,
-                'status_da_presenca' => StatusPresenca::VALIDADO,
+                'status_da_presenca' => StatusPresenca::CONFIRMADO,
                 'registrado_em' => now(),
                 'validado_em' => now(),
-                'validado_por' => $request->user() ? $request->user()->id : 1,
+                'validado_por' => $request->user()?->id ?? 1,
             ]);
         } else {
-            $presenca->validar($request->user() ? $request->user()->id : 1);
+            $presenca->confirmar($request->user()?->id ?? 1);
         }
 
         return response()->json([
-            'success' => true,
-            'message' => '✅ Presença confirmada!',
             'data' => [
                 'usuario' => $user->nome,
-                'validado_em' => $presenca->validado_em->format('H:i:s'),
+                'confirmado_em' => now()->format('H:i:s'),
             ],
-        ]);
+            'errors' => [],
+            'meta' => ['message' => '✅ Presença confirmada!'],
+        ], 201);
     }
 
     /**
      * Remove confirmação de presença (desfazer)
-     * POST /api/v1/admin/presencas/{user_id}/remover-confirmacao
+     * POST /api/v1/admin/presencas/{user_id}/remover
      */
     public function removerConfirmacao(Request $request, $userId)
     {
@@ -249,8 +229,9 @@ class PresencaController extends Controller
 
         if (!$refeicao) {
             return response()->json([
-                'success' => false,
-                'message' => 'Refeição não encontrada.',
+                'data' => null,
+                'errors' => ['refeicao' => ['Refeição não encontrada.']],
+                'meta' => [],
             ], 404);
         }
 
@@ -260,21 +241,24 @@ class PresencaController extends Controller
 
         if (!$presenca) {
             return response()->json([
-                'success' => false,
-                'message' => 'Presença não encontrada.',
+                'data' => null,
+                'errors' => ['presenca' => ['Presença não encontrada.']],
+                'meta' => [],
             ], 404);
         }
 
         $presenca->delete();
 
         return response()->json([
-            'success' => true,
-            'message' => 'Confirmação removida.',
+            'data' => null,
+            'errors' => [],
+            'meta' => ['message' => 'Confirmação removida.'],
         ]);
     }
 
     /**
-     * Confirma presença por QR Code (matrícula) ou botão
+     * Confirma presença por matrícula ou QR Code
+     * Admin busca aluno pela matrícula e confirma presença
      * POST /api/v1/admin/presencas/confirmar
      */
     public function confirmarPresenca(Request $request)
@@ -289,43 +273,39 @@ class PresencaController extends Controller
         $turno = $request->input('turno');
         $dataInput = $request->input('data', now()->format('Y-m-d'));
 
-        // Converter formato brasileiro (dd/mm/yyyy) para ISO (yyyy-mm-dd) se necessário
         if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $dataInput)) {
             $data = Carbon::createFromFormat('d/m/Y', $dataInput)->format('Y-m-d');
         } else {
             $data = $dataInput;
         }
 
-        // Busca o usuário
         $user = User::where('matricula', $matricula)->first();
 
         if (!$user) {
             return response()->json([
-                'success' => false,
-                'message' => 'Matrícula não encontrada.',
+                'data' => null,
+                'errors' => ['matricula' => ['Matrícula não encontrada.']],
+                'meta' => [],
             ], 404);
         }
 
-        // Verifica se é bolsista ativo
         if (!$user->bolsista || $user->desligado) {
             return response()->json([
-                'success' => false,
-                'message' => 'Usuário não é bolsista ativo.',
+                'data' => null,
+                'errors' => ['user' => ['Usuário não é bolsista ativo.']],
+                'meta' => [],
             ], 403);
         }
 
-        // Verifica se a data corresponde a um dia da semana que o aluno se cadastrou
-        $diaDaSemana = Carbon::parse($data)->dayOfWeek; // 0=Domingo, 1=Segunda...
+        $diaDaSemana = Carbon::parse($data)->dayOfWeek;
 
         if (!$user->temDireitoRefeicaoNoDia($diaDaSemana)) {
-            $diasCadastrados = $user->diasSemana()->get()->map(function ($dia) {
-                return $dia->getDiaSemanaTexto();
-            })->implode(', ');
+            $diasCadastrados = $user->diasSemana()->get()->map(fn($dia) => $dia->getDiaSemanaTexto())->implode(', ');
 
             return response()->json([
-                'success' => false,
-                'message' => 'Você não está cadastrado para se alimentar neste dia da semana.',
-                'data' => [
+                'data' => null,
+                'errors' => ['permissao' => ['Você não está cadastrado para se alimentar neste dia da semana.']],
+                'meta' => [
                     'usuario' => $user->nome,
                     'dia_tentativa' => Carbon::parse($data)->locale('pt_BR')->dayName,
                     'dias_cadastrados' => $diasCadastrados ?: 'Nenhum dia cadastrado',
@@ -333,61 +313,56 @@ class PresencaController extends Controller
             ], 403);
         }
 
-        // Busca a refeição do dia e turno
-        // Nota: data_do_cardapio está desnormalizada em refeicoes para performance
-        // A data é sempre sincronizada com cardapios.data_do_cardapio via Model boot
         $refeicao = Refeicao::where('data_do_cardapio', $data)
             ->where('turno', $turno)
             ->first();
 
         if (!$refeicao) {
             return response()->json([
-                'success' => false,
-                'message' => 'Não há refeição cadastrada para este dia e turno.',
+                'data' => null,
+                'errors' => ['refeicao' => ['Não há refeição cadastrada para este dia e turno.']],
+                'meta' => [],
             ], 404);
         }
 
-        // Busca ou cria a presença
         $presenca = Presenca::where('user_id', $user->id)
             ->where('refeicao_id', $refeicao->id)
             ->first();
 
-        if ($presenca && $presenca->status_da_presenca === StatusPresenca::VALIDADO) {
+        if ($presenca && $presenca->status_da_presenca === StatusPresenca::CONFIRMADO) {
             return response()->json([
-                'success' => false,
-                'message' => 'Presença já foi confirmada anteriormente.',
-                'data' => [
+                'data' => null,
+                'errors' => ['presenca' => ['Presença já foi confirmada anteriormente.']],
+                'meta' => [
                     'usuario' => $user->nome,
-                    'validado_em' => $presenca->validado_em->format('H:i:s'),
+                    'confirmado_em' => $presenca->registrado_em?->format('H:i:s'),
                 ],
             ], 400);
         }
 
         if (!$presenca) {
-            // Cria uma nova presença confirmada
             $presenca = Presenca::create([
                 'user_id' => $user->id,
                 'refeicao_id' => $refeicao->id,
-                'status_da_presenca' => StatusPresenca::VALIDADO,
+                'status_da_presenca' => StatusPresenca::CONFIRMADO,
                 'registrado_em' => now(),
                 'validado_em' => now(),
-                'validado_por' => $request->user() ? $request->user()->id : 1, // 1 = Admin Sistema
+                'validado_por' => $request->user()?->id ?? 1,
             ]);
         } else {
-            // Confirma presença existente
-            $presenca->validar($request->user() ? $request->user()->id : 1);
+            $presenca->confirmar($request->user()?->id ?? 1);
         }
 
         return response()->json([
-            'success' => true,
-            'message' => '✅ Presença confirmada!',
             'data' => [
                 'usuario' => $user->nome,
                 'matricula' => $user->matricula,
                 'curso' => $user->curso,
-                'validado_em' => $presenca->validado_em->format('H:i:s'),
+                'confirmado_em' => now()->format('H:i:s'),
             ],
-        ]);
+            'errors' => [],
+            'meta' => ['message' => '✅ Presença confirmada!'],
+        ], 201);
     }
 
     /**
@@ -405,14 +380,14 @@ class PresencaController extends Controller
         $presenca->marcarFalta($request->input('justificada'));
 
         return response()->json([
-            'success' => true,
-            'message' => 'Falta marcada com sucesso.',
             'data' => $presenca,
+            'errors' => [],
+            'meta' => ['message' => 'Falta marcada com sucesso.'],
         ]);
     }
 
     /**
-     * Cancela uma presença
+     * Cancela uma presença (admin cancela a refeição do dia)
      * POST /api/v1/admin/presencas/{id}/cancelar
      */
     public function cancelar($id)
@@ -424,9 +399,9 @@ class PresencaController extends Controller
         ]);
 
         return response()->json([
-            'success' => true,
-            'message' => 'Presença cancelada com sucesso.',
             'data' => $presenca,
+            'errors' => [],
+            'meta' => ['message' => 'Presença cancelada com sucesso.'],
         ]);
     }
 
@@ -443,32 +418,28 @@ class PresencaController extends Controller
             $q->whereBetween('data_do_cardapio', [$dataInicio, $dataFim]);
         })->get();
 
-        $stats = [
-            'periodo' => [
-                'inicio' => $dataInicio,
-                'fim' => $dataFim,
-            ],
-            'total' => $presencas->count(),
-            'por_status' => [
-                'confirmados' => $presencas->where('status_da_presenca', StatusPresenca::CONFIRMADO)->count(),
-                'validados' => $presencas->where('status_da_presenca', StatusPresenca::VALIDADO)->count(),
-                'faltas_justificadas' => $presencas->where('status_da_presenca', StatusPresenca::FALTA_JUSTIFICADA)->count(),
-                'faltas_injustificadas' => $presencas->where('status_da_presenca', StatusPresenca::FALTA_INJUSTIFICADA)->count(),
-                'cancelados' => $presencas->where('status_da_presenca', StatusPresenca::CANCELADO)->count(),
-            ],
-            'taxa_presenca' => $presencas->count() > 0
-                ? round(($presencas->whereIn('status_da_presenca', [StatusPresenca::CONFIRMADO, StatusPresenca::VALIDADO])->count() / $presencas->count()) * 100, 2)
-                : 0,
-        ];
-
         return response()->json([
-            'success' => true,
-            'data' => $stats,
+            'data' => [
+                'total' => $presencas->count(),
+                'por_status' => [
+                    'confirmados' => $presencas->where('status_da_presenca', StatusPresenca::CONFIRMADO)->count(),
+                    'faltas_justificadas' => $presencas->where('status_da_presenca', StatusPresenca::FALTA_JUSTIFICADA)->count(),
+                    'faltas_injustificadas' => $presencas->where('status_da_presenca', StatusPresenca::FALTA_INJUSTIFICADA)->count(),
+                    'cancelados' => $presencas->where('status_da_presenca', StatusPresenca::CANCELADO)->count(),
+                ],
+                'taxa_presenca' => $presencas->count() > 0
+                    ? round(($presencas->where('status_da_presenca', StatusPresenca::CONFIRMADO)->count() / $presencas->count()) * 100, 2)
+                    : 0,
+            ],
+            'errors' => [],
+            'meta' => [
+                'periodo' => ['inicio' => $dataInicio, 'fim' => $dataFim],
+            ],
         ]);
     }
 
     /**
-     * Validação em lote
+     * Confirmação em lote (múltiplos alunos de uma vez)
      * POST /api/v1/admin/presencas/validar-lote
      */
     public function validarLote(Request $request)
@@ -478,26 +449,29 @@ class PresencaController extends Controller
             'presenca_ids.*' => 'required|exists:presencas,id',
         ]);
 
-        $validadorId = $request->user() ? $request->user()->id : 1;
+        $confirmadorId = $request->user()?->id ?? 1;
         $presencaIds = $request->input('presenca_ids');
 
         $presencas = Presenca::whereIn('id', $presencaIds)
-            ->where('status_da_presenca', StatusPresenca::CONFIRMADO)
+            ->where(function ($q) {
+                $q->whereNull('status_da_presenca')
+                  ->orWhere('status_da_presenca', '!=', StatusPresenca::CONFIRMADO);
+            })
             ->get();
 
-        $validadas = 0;
+        $confirmadas = 0;
         foreach ($presencas as $presenca) {
-            $presenca->validar($validadorId);
-            $validadas++;
+            $presenca->confirmar($confirmadorId);
+            $confirmadas++;
         }
 
         return response()->json([
-            'success' => true,
-            'message' => "{$validadas} presença(s) validada(s) com sucesso.",
             'data' => [
                 'total_solicitado' => count($presencaIds),
-                'validadas' => $validadas,
+                'confirmadas' => $confirmadas,
             ],
+            'errors' => [],
+            'meta' => ['message' => "{$confirmadas} presença(s) confirmada(s) com sucesso."],
         ]);
     }
 
@@ -515,17 +489,15 @@ class PresencaController extends Controller
 
         if (!$presenca) {
             return response()->json([
-                'success' => false,
-                'message' => 'QR Code inválido ou presença já validada.',
+                'data' => null,
+                'errors' => ['token' => ['QR Code inválido ou presença não encontrada.']],
+                'meta' => [],
             ], 404);
         }
 
-        // Validar presença
-        $presenca->validar($request->user() ? $request->user()->id : 1);
+        $presenca->confirmar($request->user()?->id ?? 1);
 
         return response()->json([
-            'success' => true,
-            'message' => "✅ Presença validada para {$presenca->user->nome}!",
             'data' => [
                 'usuario' => $presenca->user->nome,
                 'matricula' => $presenca->user->matricula,
@@ -533,10 +505,12 @@ class PresencaController extends Controller
                     'data' => $presenca->refeicao->data_do_cardapio->format('d/m/Y'),
                     'turno' => $presenca->refeicao->turno->value,
                 ],
-                'validado_em' => $presenca->validado_em->format('H:i:s'),
-                'validado_por' => $request->user() ? $request->user()->nome : 'Admin Sistema',
+                'confirmado_em' => now()->format('H:i:s'),
+                'confirmado_por' => $request->user()?->nome ?? 'Admin Sistema',
             ],
-        ]);
+            'errors' => [],
+            'meta' => ['message' => "✅ Presença confirmada para {$presenca->user->nome}!"],
+        ], 201);
     }
 
     /**
@@ -547,15 +521,7 @@ class PresencaController extends Controller
     {
         $presenca = Presenca::with(['user', 'refeicao'])->findOrFail($id);
 
-        if ($presenca->status_da_presenca !== StatusPresenca::CONFIRMADO) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Apenas presenças confirmadas podem gerar QR Code.',
-            ], 400);
-        }
-
         return response()->json([
-            'success' => true,
             'data' => [
                 'presenca_id' => $presenca->id,
                 'usuario' => $presenca->user->nome,
@@ -567,7 +533,8 @@ class PresencaController extends Controller
                 'url_qrcode' => $presenca->gerarUrlQrCode(),
                 'token' => $presenca->gerarTokenQrCode(),
             ],
+            'errors' => [],
+            'meta' => [],
         ]);
     }
 }
-

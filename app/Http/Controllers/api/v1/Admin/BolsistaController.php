@@ -524,4 +524,3 @@ class BolsistaController extends Controller
         ]);
     }
 }
-

@@ -6,7 +6,10 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class CardapioImportRequest extends FormRequest
 {
-    public function authorize() { return $this->user()?->can('create', \App\Models\Cardapio::class); }
+    public function authorize()
+    {
+        return $this->user()?->can('create', \App\Models\Cardapio::class);
+    }
 
     public function rules()
     {

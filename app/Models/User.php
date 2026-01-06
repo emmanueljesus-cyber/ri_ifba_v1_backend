@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Models;
+
 use App\Enums\PerfilUsuario;
 use Laravel\Sanctum\HasApiTokens;       // <- add
 
@@ -10,7 +11,9 @@ use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, HasApiTokens;
+    use HasFactory;
+    use Notifiable;
+    use HasApiTokens;
 
     protected $fillable = [
         'matricula',

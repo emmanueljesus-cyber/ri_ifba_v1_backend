@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 class Justificativa extends Model
 {
     use HasFactory;
+
     protected $table = 'justificativas';
     public $timestamps = false;
 

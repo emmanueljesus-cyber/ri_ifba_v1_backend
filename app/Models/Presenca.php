@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 class Presenca extends Model
 {
     use HasFactory;
+
     protected $table = 'presencas';
     public $timestamps = false;
 
@@ -49,22 +50,22 @@ class Presenca extends Model
 
     public function scopeConfirmados($query)
     {
-        return $query->where('status_da_presenca', 'confirmado');
-    }
-
-    public function scopeValidados($query)
-    {
-        return $query->where('status_da_presenca', 'validado');
+        return $query->where('status_da_presenca', StatusPresenca::CONFIRMADO);
     }
 
     public function scopeFaltasJustificadas($query)
     {
-        return $query->where('status_da_presenca', 'falta_justificada');
+        return $query->where('status_da_presenca', StatusPresenca::FALTA_JUSTIFICADA);
     }
 
     public function scopeFaltasInjustificadas($query)
     {
-        return $query->where('status_da_presenca', 'falta_injustificada');
+        return $query->where('status_da_presenca', StatusPresenca::FALTA_INJUSTIFICADA);
+    }
+
+    public function scopeCancelados($query)
+    {
+        return $query->where('status_da_presenca', StatusPresenca::CANCELADO);
     }
 
     public function scopeDoMes($query, $mes = null, $ano = null)
@@ -78,15 +79,21 @@ class Presenca extends Model
 
     // ========== MÉTODOS AUXILIARES ==========
 
-    public function validar($validadorId)
+    /**
+     * Confirma a presença do aluno (admin marca como presente)
+     */
+    public function confirmar($confirmadorId)
     {
         $this->update([
-            'status_da_presenca' => StatusPresenca::VALIDADO,
+            'status_da_presenca' => StatusPresenca::CONFIRMADO,
             'validado_em' => now(),
-            'validado_por' => $validadorId,
+            'validado_por' => $confirmadorId,
         ]);
     }
 
+    /**
+     * Marca falta (justificada ou injustificada)
+     */
     public function marcarFalta($justificada = false)
     {
         $this->update([
@@ -99,14 +106,14 @@ class Presenca extends Model
         return $this->status_da_presenca === StatusPresenca::CONFIRMADO;
     }
 
-    public function isValidado()
-    {
-        return $this->status_da_presenca === StatusPresenca::VALIDADO;
-    }
-
     public function isFalta()
     {
         return in_array($this->status_da_presenca, [StatusPresenca::FALTA_JUSTIFICADA, StatusPresenca::FALTA_INJUSTIFICADA]);
+    }
+
+    public function isCancelado()
+    {
+        return $this->status_da_presenca === StatusPresenca::CANCELADO;
     }
 
     /**
@@ -127,12 +134,13 @@ class Presenca extends Model
     }
 
     /**
-     * Valida token do QR Code
+     * Busca presença por token do QR Code (presenças não confirmadas ainda)
      */
     public static function buscarPorTokenQrCode($token)
     {
         return self::with(['user', 'refeicao'])
-            ->where('status_da_presenca', StatusPresenca::CONFIRMADO)
+            ->whereNull('status_da_presenca')
+            ->orWhere('status_da_presenca', '!=', StatusPresenca::CONFIRMADO)
             ->get()
             ->first(function ($presenca) use ($token) {
                 return $presenca->gerarTokenQrCode() === $token;

@@ -214,4 +214,3 @@ class RelatorioValidacaoController extends Controller
         ]);
     }
 }
-

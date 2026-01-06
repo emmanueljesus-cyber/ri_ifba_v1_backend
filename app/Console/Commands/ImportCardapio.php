@@ -71,7 +71,9 @@ class ImportCardapio extends Command
                 }
             }
             $num = (int) ($raw ?? 0);
-            if ($num === 0 || $num < 30000) return null; // números inválidos
+            if ($num === 0 || $num < 30000) {
+                return null; // números inválidos
+            }
             // Excel: dia 0 = 1900-01-00, dia 1 = 1900-01-01; offset é 1900-01-01
             // mas PHP/Carbon usa timestamps, então: 25569 = 1970-01-01
             try {
@@ -111,7 +113,9 @@ class ImportCardapio extends Command
         $found = false;
         foreach ($firstColumn as $cell) {
             $cellStr = mb_strtolower(trim((string) ($cell ?? '')));
-            if ($cellStr === '') continue;
+            if ($cellStr === '') {
+                continue;
+            }
             if (str_contains($cellStr, 'prato') || str_contains($cellStr, 'guarnicao') || str_contains($cellStr, 'acompanhamento') || str_contains($cellStr, 'salada') || str_contains($cellStr, 'suco') || str_contains($cellStr, 'sobremesa')) {
                 $found = true;
                 break;
@@ -176,7 +180,9 @@ class ImportCardapio extends Command
                 // montar associativo: rótulo => valor
                 $assoc = [];
                 foreach ($labels as $i => $label) {
-                    if ($label === '') continue;
+                    if ($label === '') {
+                        continue;
+                    }
                     $assoc[$label] = $col[$i] ?? null;
                 }
 
@@ -220,7 +226,9 @@ class ImportCardapio extends Command
 
             for ($r = 1; $r < count($sheet); $r++) {
                 $row = $sheet[$r];
-                if (empty(array_filter($row))) continue;
+                if (empty(array_filter($row))) {
+                    continue;
+                }
 
                 $assoc = array_combine($header, $row);
 
