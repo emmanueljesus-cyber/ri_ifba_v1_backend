@@ -1,0 +1,417 @@
+{
+  "info": {
+    "name": "RI IFBA - Admin API",
+    "description": "Coleção completa para testar endpoints admin do sistema RI IFBA",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "admin_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Usuários (RF14)",
+      "item": [
+        {
+          "name": "Listar Usuários",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/usuarios?per_page=15&sort_by=nome&sort_order=asc",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "usuarios"],
+              "query": [
+                {
+                  "key": "per_page",
+                  "value": "15",
+                  "description": "Itens por página"
+                },
+                {
+                  "key": "perfil",
+                  "value": "estudante",
+                  "disabled": true,
+                  "description": "Filtrar por perfil (admin/estudante)"
+                },
+                {
+                  "key": "bolsista",
+                  "value": "true",
+                  "disabled": true,
+                  "description": "Filtrar apenas bolsistas"
+                },
+                {
+                  "key": "busca",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Buscar por nome, matrícula ou email"
+                },
+                {
+                  "key": "sort_by",
+                  "value": "nome",
+                  "description": "Ordenar por campo"
+                },
+                {
+                  "key": "sort_order",
+                  "value": "asc",
+                  "description": "asc ou desc"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Criar Usuário",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"João Silva\",\n  \"email\": \"joao.silva@estudante.ifba.edu.br\",\n  \"matricula\": \"202401001\",\n  \"password\": \"senha123\",\n  \"perfil\": \"estudante\",\n  \"bolsista\": true,\n  \"curso\": \"Informática\",\n  \"turno\": \"matutino\",\n  \"limite_faltas_mes\": 3\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/usuarios",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "usuarios"]
+            }
+          }
+        },
+        {
+          "name": "Buscar Usuário por ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/usuarios/1",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "usuarios", "1"]
+            }
+          }
+        },
+        {
+          "name": "Buscar por Matrícula",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/usuarios/matricula/202401001",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "usuarios", "matricula", "202401001"]
+            }
+          }
+        },
+        {
+          "name": "Atualizar Usuário",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"João Silva Santos\",\n  \"email\": \"joao.santos@estudante.ifba.edu.br\",\n  \"bolsista\": true,\n  \"turno\": \"vespertino\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/usuarios/1",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "usuarios", "1"]
+            }
+          }
+        },
+        {
+          "name": "Desativar Usuário",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/usuarios/1",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "usuarios", "1"]
+            }
+          }
+        },
+        {
+          "name": "Reativar Usuário",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/usuarios/1/reativar",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "usuarios", "1", "reativar"]
+            }
+          }
+        },
+        {
+          "name": "Listar Apenas Bolsistas",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/usuarios/bolsistas?turno=matutino",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "usuarios", "bolsistas"],
+              "query": [
+                {
+                  "key": "turno",
+                  "value": "matutino",
+                  "description": "Filtrar por turno (opcional)"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cardápios",
+      "item": [
+        {
+          "name": "Listar Cardápios",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/cardapios",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "cardapios"]
+            }
+          }
+        },
+        {
+          "name": "Criar Cardápio",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"data\": \"2026-01-08\",\n  \"refeicao\": \"almoco\",\n  \"titulo\": \"Arroz, feijão e frango grelhado\",\n  \"descricao\": \"Prato nutritivo e saudável\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/cardapios",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "cardapios"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Presenças",
+      "item": [
+        {
+          "name": "Listar Presenças",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/presencas",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "presencas"]
+            }
+          }
+        },
+        {
+          "name": "Validar QR Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"qrcode\": \"MAT123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/presencas/validar-qrcode",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "presencas", "validar-qrcode"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bolsistas (RF09, RF13)",
+      "item": [
+        {
+          "name": "Bolsistas do Dia",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/bolsistas/dia?turno=almoco",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "bolsistas", "dia"],
+              "query": [
+                {
+                  "key": "turno",
+                  "value": "almoco",
+                  "description": "almoco ou jantar"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Todos os Bolsistas",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/bolsistas",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "bolsistas"]
+            }
+          }
+        },
+        {
+          "name": "Confirmar Presença (Manual)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/bolsistas/1/confirmar-presenca",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "bolsistas", "1", "confirmar-presenca"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Públicos (Cardápio)",
+      "item": [
+        {
+          "name": "Cardápio Hoje",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/cardapio/hoje",
+              "host": ["{{base_url}}"],
+              "path": ["cardapio", "hoje"]
+            }
+          }
+        },
+        {
+          "name": "Cardápio Semanal",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/cardapio/semanal",
+              "host": ["{{base_url}}"],
+              "path": ["cardapio", "semanal"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+

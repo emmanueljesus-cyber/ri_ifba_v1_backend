@@ -5,6 +5,7 @@ use App\Http\Controllers\api\V1\Admin\CardapioController as AdminCardapioControl
 use App\Http\Controllers\api\V1\Admin\PresencaController as AdminPresencaController;
 use App\Http\Controllers\api\V1\Admin\BolsistaController as AdminBolsistaController;
 use App\Http\Controllers\api\V1\Admin\RelatorioValidacaoController as AdminRelatorioController;
+use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\api\V1\Estudante\CardapioController as EstudanteCardapioController;
 use App\Http\Controllers\api\V1\Publico\CardapioController as PublicoCardapioController;
 
@@ -105,6 +106,21 @@ Route::prefix('v1')->group(function () {
             Route::get('/por-admin', [AdminRelatorioController::class, 'porAdmin']);
             Route::get('/timeline', [AdminRelatorioController::class, 'timeline']);
             Route::get('/refeicao/{id}', [AdminRelatorioController::class, 'porRefeicao']);
+        });
+
+        // -----------------------------------------------------------------
+        // Gerenciamento de Usuários (RF14)
+        // -----------------------------------------------------------------
+        Route::prefix('usuarios')->group(function () {
+            Route::get('/', [AdminUserController::class, 'index']);                      // Listar todos
+            Route::post('/', [AdminUserController::class, 'store']);                     // Criar novo
+            Route::get('/bolsistas', [AdminUserController::class, 'listarBolsistas']);   // Apenas bolsistas
+            Route::get('/matricula/{matricula}', [AdminUserController::class, 'buscarPorMatricula']); // Por matrícula
+            Route::get('/{usuario}', [AdminUserController::class, 'show']);              // Buscar por ID
+            Route::put('/{usuario}', [AdminUserController::class, 'update']);            // Atualizar
+            Route::patch('/{usuario}', [AdminUserController::class, 'update']);          // Atualizar parcial
+            Route::delete('/{usuario}', [AdminUserController::class, 'destroy']);        // Desativar
+            Route::post('/{usuario}/reativar', [AdminUserController::class, 'reativar']); // Reativar
         });
 
     });

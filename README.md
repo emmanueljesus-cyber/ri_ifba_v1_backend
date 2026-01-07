@@ -8,6 +8,7 @@ Sistema completo para controle de:
 - ✅ Cardápios diários
 - ✅ Confirmação de presenças (QR Code + Manual)
 - ✅ Gestão de bolsistas
+- ✅ **Gerenciamento de usuários (CRUD completo)** ⭐ NOVO
 - ✅ Relatórios de validação
 - ✅ Marcação de faltas justificadas/injustificadas
 - ✅ Importação de cardápios via Excel
