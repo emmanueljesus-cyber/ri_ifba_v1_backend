@@ -81,12 +81,14 @@ Route::prefix('v1')->group(function () {
         });
 
         // -----------------------------------------------------------------
-        // Bolsistas (RF09, RF10, RF13)
+        // Bolsistas (RF09, RF10, RF13, RF15)
         // -----------------------------------------------------------------
         Route::prefix('bolsistas')->group(function () {
             Route::get('/', [AdminBolsistaController::class, 'todosBolsistas']);           // RF10 - Lista geral
             Route::get('/dia', [AdminBolsistaController::class, 'bolsistasDoDia']);        // RF09 - Lista do dia
             Route::get('/buscar', [AdminBolsistaController::class, 'buscarParaConfirmacao']); // RF13 - Busca manual
+            Route::get('/template', [AdminBolsistaController::class, 'downloadTemplate']);   // RF15 - Template
+            Route::post('/importar', [AdminBolsistaController::class, 'importar']);          // RF15 - Importar
             Route::post('/qrcode', [AdminBolsistaController::class, 'confirmarPorQrCode']); // RF13 - QR Code
             Route::post('/confirmar-lote', [AdminBolsistaController::class, 'confirmarLote']);
             Route::post('/{userId}/confirmar-presenca', [AdminBolsistaController::class, 'confirmarPresenca']);

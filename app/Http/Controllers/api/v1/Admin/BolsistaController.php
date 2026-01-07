@@ -8,8 +8,12 @@ use App\Models\Refeicao;
 use App\Models\Presenca;
 use App\Models\UsuarioDiaSemana;
 use App\Enums\StatusPresenca;
+use App\Http\Requests\Admin\BolsistaImportRequest;
+use App\Services\BolsistaImportService;
+use App\Exports\BolsistaTemplateExport;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Maatwebsite\Excel\Facades\Excel;
 use Carbon\Carbon;
 
 class BolsistaController extends Controller
@@ -125,7 +129,7 @@ class BolsistaController extends Controller
         $query = User::where('bolsista', true)->with('diasSemana');
 
         // Filtros opcionais
-        if ($request->has('search')) {
+        if ($request->has('search') && $request->input('search') !== '') {
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('nome', 'like', "%{$search}%")
@@ -715,5 +719,56 @@ class BolsistaController extends Controller
             'errors' => $erros,
             'meta' => ['message' => "{$confirmados} presença(s) confirmada(s) com sucesso."],
         ]);
+    }
+
+    /**
+     * RF15 - Importar lista de bolsistas via Excel/CSV
+     * POST /api/v1/admin/bolsistas/importar
+     */
+    public function importar(BolsistaImportRequest $request): JsonResponse
+    {
+        $file = $request->file('file');
+        $rows = Excel::toArray(null, $file)[0] ?? [];
+
+        if (empty($rows)) {
+            return response()->json([
+                'data' => [],
+                'errors' => ['file' => ['Arquivo vazio']],
+                'meta' => [],
+            ], 422);
+        }
+
+        $service = new BolsistaImportService();
+        $result = $service->import(
+            rows: $rows,
+            userId: $request->user()?->id
+        );
+
+        return response()->json([
+            'data' => [
+                'total_importados' => count($result['created']),
+                'total_atualizados' => count($result['updated']),
+                'criados' => $result['created'],
+                'atualizados' => $result['updated'],
+            ],
+            'errors' => $result['errors'],
+            'meta' => [
+                'message' => 'Importação concluída',
+                'total_processados' => count($result['created']) + count($result['updated']),
+                'total_erros' => count($result['errors']),
+            ],
+        ], empty($result['errors']) ? 201 : 207);
+    }
+
+    /**
+     * RF15 - Download do template de importação
+     * GET /api/v1/admin/bolsistas/template
+     */
+    public function downloadTemplate()
+    {
+        return Excel::download(
+            new BolsistaTemplateExport(),
+            'template_bolsistas.xlsx'
+        );
     }
 }

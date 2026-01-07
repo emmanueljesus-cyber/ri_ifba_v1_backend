@@ -1,0 +1,90 @@
+{
+  "info": {
+    "name": "RF15 - Importar Bolsistas (CORRETO)",
+    "description": "Endpoints para importação de lista de bolsistas - SEM campo turno na requisição",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Download Template",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/admin/bolsistas/template",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "admin", "bolsistas", "template"]
+        },
+        "description": "Download do template Excel com os campos:\n- matricula\n- nome\n- email\n- turno (matutino, vespertino, noturno)\n- curso"
+      }
+    },
+    {
+      "name": "2. Importar Bolsistas",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "/path/to/bolsistas.xlsx",
+              "description": "Arquivo Excel/CSV com a lista de bolsistas"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/admin/bolsistas/importar",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "admin", "bolsistas", "importar"]
+        },
+        "description": "Importa lista de bolsistas.\n\nO turno vem DENTRO do arquivo Excel, não na requisição!\n\nFormato do Excel:\nmatricula | nome | email | turno | curso\n\nCada bolsista pode ter seu próprio turno."
+      }
+    },
+    {
+      "name": "3. Listar Todos Bolsistas",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/admin/bolsistas",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "admin", "bolsistas"]
+        },
+        "description": "Lista todos os bolsistas para verificar a importação"
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "seu_token_aqui",
+      "type": "string"
+    }
+  ]
+}
+
