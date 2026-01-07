@@ -1,0 +1,64 @@
+feat: implementar RF14 - Gerenciar Usuários (CRUD completo)
+
+- Adicionar UserController com 8 métodos públicos
+  * index: listar usuários com filtros e paginação
+  * store: criar novo usuário com validação completa
+  * show: buscar usuário por ID
+  * buscarPorMatricula: buscar por matrícula
+  * update: atualizar dados (PUT/PATCH)
+  * destroy: desativar usuário (soft delete)
+  * reativar: reativar usuário desativado
+  * listarBolsistas: listar apenas bolsistas ativos
+
+- Adicionar validações robustas
+  * StoreUserRequest: validação na criação (email único, matrícula única, senha mínima)
+  * UpdateUserRequest: validação na edição (permite atualização parcial)
+
+- Implementar soft delete inteligente
+  * Campo 'desligado' ao invés de deletar registro
+  * Preserva histórico completo de presenças
+  * Permite reativação a qualquer momento
+
+- Adicionar 9 rotas RESTful
+  * GET /api/v1/admin/usuarios (listar com filtros)
+  * POST /api/v1/admin/usuarios (criar)
+  * GET /api/v1/admin/usuarios/{id} (buscar por ID)
+  * GET /api/v1/admin/usuarios/matricula/{matricula} (buscar por matrícula)
+  * PUT/PATCH /api/v1/admin/usuarios/{id} (atualizar)
+  * DELETE /api/v1/admin/usuarios/{id} (desativar)
+  * POST /api/v1/admin/usuarios/{id}/reativar (reativar)
+  * GET /api/v1/admin/usuarios/bolsistas (listar bolsistas)
+
+- Implementar filtros avançados
+  * Filtrar por perfil (admin/estudante)
+  * Filtrar por bolsista (true/false)
+  * Filtrar por status (ativo/desligado)
+  * Busca por nome, email ou matrícula (ILIKE)
+  * Ordenação customizável (sort_by, sort_order)
+  * Paginação (per_page configurável)
+
+- Adicionar segurança
+  * Middleware admin protegendo rotas
+  * Senha hasheada com bcrypt
+  * Senha nunca retornada na API
+  * Validação de unicidade (email e matrícula)
+
+- Criar coleção Postman completa
+  * 8 requests prontos para teste
+  * Payloads de exemplo incluídos
+  * Environment configurado (RI_IFBA_Local)
+  * Query parameters documentados
+
+- Adicionar documentação completa
+  * docs/RF14_GERENCIAR_USUARIOS.md (guia técnico completo)
+  * docs/RF14_RESUMO.md (resumo executivo)
+  * RF14_IMPLEMENTACAO_COMPLETA.md (documento consolidado)
+  * README.md atualizado com seção RF14
+
+Integração com outros RFs:
+- RF09: lista de bolsistas usa mesma base
+- RF13: validação de presença verifica status ativo
+- RF10: relatórios acessam histórico completo
+
+Closes #RF14
+
