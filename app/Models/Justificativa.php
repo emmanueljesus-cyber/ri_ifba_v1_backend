@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\TipoJustificativa;
+use App\Enums\StatusJustificativa;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -11,8 +12,7 @@ class Justificativa extends Model
     use HasFactory;
 
     protected $table = 'justificativas';
-    public $timestamps = false;
-
+    public $timestamps = true;
 
     protected $fillable = [
         'user_id',
@@ -21,12 +21,17 @@ class Justificativa extends Model
         'motivo',
         'anexo',
         'enviado_em',
+        'status',
+        'avaliado_por',
+        'avaliado_em',
+        'motivo_rejeicao',
     ];
 
     protected $casts = [
-        'enviado_em' => 'datetime',
-        'tipo'       => TipoJustificativa::class,
-
+        'enviado_em'  => 'datetime',
+        'avaliado_em' => 'datetime',
+        'tipo'        => TipoJustificativa::class,
+        'status'      => StatusJustificativa::class,
     ];
 
     // ========== RELACIONAMENTOS ==========
@@ -39,6 +44,11 @@ class Justificativa extends Model
     public function refeicao()
     {
         return $this->belongsTo(Refeicao::class);
+    }
+
+    public function avaliador()
+    {
+        return $this->belongsTo(User::class, 'avaliado_por');
     }
 
     // ========== SCOPES ==========
@@ -68,6 +78,21 @@ class Justificativa extends Model
         return $query->whereNull('anexo');
     }
 
+    public function scopePendentes($query)
+    {
+        return $query->where('status', StatusJustificativa::PENDENTE);
+    }
+
+    public function scopeAprovadas($query)
+    {
+        return $query->where('status', StatusJustificativa::APROVADA);
+    }
+
+    public function scopeRejeitadas($query)
+    {
+        return $query->where('status', StatusJustificativa::REJEITADA);
+    }
+
     // ========== MÉTODOS AUXILIARES ==========
 
     public function temAnexo()
@@ -89,4 +114,39 @@ class Justificativa extends Model
 
         return $tipos[$this->tipo?->value ?? $this->tipo] ?? $this->tipo;
     }
+
+    public function isPendente()
+    {
+        return $this->status === StatusJustificativa::PENDENTE || $this->status === null;
+    }
+
+    public function isAprovada()
+    {
+        return $this->status === StatusJustificativa::APROVADA;
+    }
+
+    public function isRejeitada()
+    {
+        return $this->status === StatusJustificativa::REJEITADA;
+    }
+
+    public function aprovar(int $adminId)
+    {
+        $this->update([
+            'status' => StatusJustificativa::APROVADA,
+            'avaliado_por' => $adminId,
+            'avaliado_em' => now(),
+        ]);
+    }
+
+    public function rejeitar(int $adminId, ?string $motivo = null)
+    {
+        $this->update([
+            'status' => StatusJustificativa::REJEITADA,
+            'avaliado_por' => $adminId,
+            'avaliado_em' => now(),
+            'motivo_rejeicao' => $motivo,
+        ]);
+    }
 }
+

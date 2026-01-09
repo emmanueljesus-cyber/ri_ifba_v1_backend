@@ -40,7 +40,7 @@ class FilaExtra extends Model
 
     public function scopeAguardando($query)
     {
-        return $query->where('status_fila_extras', 'aguardando');
+        return $query->where('status_fila_extras', StatusFila::INSCRITO);
     }
 
     public function scopeAprovados($query)

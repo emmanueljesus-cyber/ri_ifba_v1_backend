@@ -3,14 +3,17 @@
 namespace App\Http\Controllers\api\v1\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\BolsistaImportRequest;
 use App\Models\User;
 use App\Models\Refeicao;
 use App\Models\Presenca;
 use App\Models\UsuarioDiaSemana;
 use App\Enums\StatusPresenca;
+use App\Services\BolsistaImportService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Carbon\Carbon;
+use Maatwebsite\Excel\Facades\Excel;
 
 class BolsistaController extends Controller
 {
@@ -715,5 +718,49 @@ class BolsistaController extends Controller
             'errors' => $erros,
             'meta' => ['message' => "{$confirmados} presença(s) confirmada(s) com sucesso."],
         ]);
+    }
+
+    /**
+     * RF15 - Importar lista de bolsistas via Excel/CSV
+     * POST /api/v1/admin/bolsistas/import
+     *
+     * Permite anexar/inserir lista de bolsistas por turno de refeição
+     */
+    public function import(BolsistaImportRequest $request, BolsistaImportService $service): JsonResponse
+    {
+        $file = $request->file('file');
+        $turnoPadrao = $request->input('turno_padrao');
+        $atualizarExistentes = $request->boolean('atualizar_existentes', true);
+
+        try {
+            // Ler arquivo Excel/CSV
+            $rows = Excel::toArray(new class {}, $file)[0] ?? [];
+
+            if (empty($rows)) {
+                return response()->json([
+                    'data' => null,
+                    'errors' => ['file' => ['Arquivo vazio ou formato inválido.']],
+                    'meta' => [],
+                ], 422);
+            }
+
+            // Processar importação
+            $resultado = $service->import($rows, $turnoPadrao, $atualizarExistentes);
+
+            return response()->json([
+                'data' => [
+                    'criados' => $resultado['created'],
+                    'atualizados' => $resultado['updated'],
+                ],
+                'errors' => $resultado['errors'],
+                'meta' => $resultado['meta'],
+            ], count($resultado['errors']) > 0 ? 207 : 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'data' => null,
+                'errors' => ['file' => ['Erro ao processar arquivo: ' . $e->getMessage()]],
+                'meta' => [],
+            ], 500);
+        }
     }
 }

@@ -23,7 +23,6 @@ class Presenca extends Model
     ];
 
     protected $casts = [
-        'confirmado_em' => 'datetime',
         'validado_em'   => 'datetime',
         'registrado_em' => 'datetime',
         'status_da_presenca' => StatusPresenca::class,
