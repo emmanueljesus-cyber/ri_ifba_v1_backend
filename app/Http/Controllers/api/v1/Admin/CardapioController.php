@@ -40,6 +40,8 @@ class CardapioController extends Controller
 
     public function show(Cardapio $cardapio)
     {
+        $cardapio->load(['refeicoes', 'criador']);
+        
         return response()->json([
             'data' => new CardapioResource($cardapio),
             'errors' => [],

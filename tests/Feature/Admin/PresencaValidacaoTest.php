@@ -55,7 +55,7 @@ class PresencaValidacaoTest extends TestCase
         // Criar algumas presenças
         Presenca::factory()->count(3)->create([
             'refeicao_id' => $this->refeicao->id,
-            'status_da_presenca' => StatusPresenca::CONFIRMADO,
+            'status_da_presenca' => StatusPresenca::PRESENTE,
         ]);
 
         $response = $this->actingAs($this->admin)->getJson('/api/v1/admin/presencas');
@@ -66,8 +66,7 @@ class PresencaValidacaoTest extends TestCase
                 'data',
                 'stats' => [
                     'total',
-                    'confirmados',
-                    'validados',
+                    'presentes',
                     'faltas_justificadas',
                     'faltas_injustificadas',
                 ],
@@ -75,12 +74,12 @@ class PresencaValidacaoTest extends TestCase
     }
 
     /** @test */
-    public function pode_validar_presenca_por_id()
+    public function pode_marcar_presenca_por_id()
     {
         $presenca = Presenca::factory()->create([
             'refeicao_id' => $this->refeicao->id,
             'user_id' => $this->estudante->id,
-            'status_da_presenca' => StatusPresenca::CONFIRMADO,
+            'status_da_presenca' => StatusPresenca::FALTA_JUSTIFICADA,
         ]);
 
         $response = $this->actingAs($this->admin)
@@ -89,17 +88,17 @@ class PresencaValidacaoTest extends TestCase
         $response->assertStatus(200)
             ->assertJson([
                 'success' => true,
-                'message' => 'Presença validada com sucesso.',
+                'message' => 'Presença marcada com sucesso.',
             ]);
 
         $presenca->refresh();
-        $this->assertEquals(StatusPresenca::VALIDADO, $presenca->status_da_presenca);
+        $this->assertEquals(StatusPresenca::PRESENTE, $presenca->status_da_presenca);
         $this->assertNotNull($presenca->validado_em);
         $this->assertEquals($this->admin->id, $presenca->validado_por);
     }
 
     /** @test */
-    public function pode_validar_presenca_por_qrcode()
+    public function pode_marcar_presenca_por_qrcode()
     {
         $response = $this->actingAs($this->admin)
             ->postJson('/api/v1/admin/presencas/validar-qrcode', [
@@ -110,23 +109,23 @@ class PresencaValidacaoTest extends TestCase
         $response->assertStatus(200)
             ->assertJson([
                 'success' => true,
-                'message' => 'Presença validada com sucesso!',
+                'message' => 'Presença marcada com sucesso!',
             ]);
 
         $this->assertDatabaseHas('presencas', [
             'user_id' => $this->estudante->id,
             'refeicao_id' => $this->refeicao->id,
-            'status_da_presenca' => StatusPresenca::VALIDADO,
+            'status_da_presenca' => StatusPresenca::PRESENTE,
         ]);
     }
 
     /** @test */
-    public function nao_pode_validar_presenca_ja_validada()
+    public function nao_pode_marcar_presenca_ja_marcada()
     {
         $presenca = Presenca::factory()->create([
             'refeicao_id' => $this->refeicao->id,
             'user_id' => $this->estudante->id,
-            'status_da_presenca' => StatusPresenca::VALIDADO,
+            'status_da_presenca' => StatusPresenca::PRESENTE,
             'validado_em' => now(),
             'validado_por' => $this->admin->id,
         ]);
@@ -137,7 +136,7 @@ class PresencaValidacaoTest extends TestCase
         $response->assertStatus(400)
             ->assertJson([
                 'success' => false,
-                'message' => 'Presença já foi validada anteriormente.',
+                'message' => 'Presença já foi marcada anteriormente.',
             ]);
     }
 
@@ -147,7 +146,7 @@ class PresencaValidacaoTest extends TestCase
         $presenca = Presenca::factory()->create([
             'refeicao_id' => $this->refeicao->id,
             'user_id' => $this->estudante->id,
-            'status_da_presenca' => StatusPresenca::CONFIRMADO,
+            'status_da_presenca' => StatusPresenca::PRESENTE,
         ]);
 
         $response = $this->actingAs($this->admin)
@@ -167,7 +166,7 @@ class PresencaValidacaoTest extends TestCase
         $presenca = Presenca::factory()->create([
             'refeicao_id' => $this->refeicao->id,
             'user_id' => $this->estudante->id,
-            'status_da_presenca' => StatusPresenca::CONFIRMADO,
+            'status_da_presenca' => StatusPresenca::PRESENTE,
         ]);
 
         $response = $this->actingAs($this->admin)
@@ -187,7 +186,7 @@ class PresencaValidacaoTest extends TestCase
         $presenca = Presenca::factory()->create([
             'refeicao_id' => $this->refeicao->id,
             'user_id' => $this->estudante->id,
-            'status_da_presenca' => StatusPresenca::VALIDADO,
+            'status_da_presenca' => StatusPresenca::PRESENTE,
         ]);
 
         $response = $this->actingAs($this->admin)
@@ -200,11 +199,11 @@ class PresencaValidacaoTest extends TestCase
     }
 
     /** @test */
-    public function pode_validar_presencas_em_lote()
+    public function pode_marcar_presencas_em_lote()
     {
         $presencas = Presenca::factory()->count(3)->create([
             'refeicao_id' => $this->refeicao->id,
-            'status_da_presenca' => StatusPresenca::CONFIRMADO,
+            'status_da_presenca' => StatusPresenca::FALTA_JUSTIFICADA,
         ]);
 
         $presencaIds = $presencas->pluck('id')->toArray();
@@ -218,18 +217,18 @@ class PresencaValidacaoTest extends TestCase
             ->assertJson([
                 'success' => true,
                 'data' => [
-                    'validadas' => 3,
+                    'confirmadas' => 3,
                 ],
             ]);
 
         foreach ($presencas as $presenca) {
             $presenca->refresh();
-            $this->assertEquals(StatusPresenca::VALIDADO, $presenca->status_da_presenca);
+            $this->assertEquals(StatusPresenca::PRESENTE, $presenca->status_da_presenca);
         }
     }
 
     /** @test */
-    public function nao_pode_validar_por_qrcode_com_matricula_invalida()
+    public function nao_pode_marcar_por_qrcode_com_matricula_invalida()
     {
         $response = $this->actingAs($this->admin)
             ->postJson('/api/v1/admin/presencas/validar-qrcode', [
@@ -245,7 +244,7 @@ class PresencaValidacaoTest extends TestCase
     }
 
     /** @test */
-    public function nao_pode_validar_nao_bolsista()
+    public function nao_pode_marcar_nao_bolsista()
     {
         $naoBoLsista = User::factory()->create([
             'bolsista' => false,
@@ -270,12 +269,12 @@ class PresencaValidacaoTest extends TestCase
         // Criar várias presenças com diferentes status
         Presenca::factory()->count(2)->create([
             'refeicao_id' => $this->refeicao->id,
-            'status_da_presenca' => StatusPresenca::CONFIRMADO,
+            'status_da_presenca' => StatusPresenca::PRESENTE,
         ]);
 
         Presenca::factory()->count(3)->create([
             'refeicao_id' => $this->refeicao->id,
-            'status_da_presenca' => StatusPresenca::VALIDADO,
+            'status_da_presenca' => StatusPresenca::FALTA_JUSTIFICADA,
         ]);
 
         $response = $this->actingAs($this->admin)
@@ -323,19 +322,18 @@ class PresencaValidacaoTest extends TestCase
     {
         Presenca::factory()->count(2)->create([
             'refeicao_id' => $this->refeicao->id,
-            'status_da_presenca' => StatusPresenca::CONFIRMADO,
+            'status_da_presenca' => StatusPresenca::PRESENTE,
         ]);
 
         Presenca::factory()->count(3)->create([
             'refeicao_id' => $this->refeicao->id,
-            'status_da_presenca' => StatusPresenca::VALIDADO,
+            'status_da_presenca' => StatusPresenca::FALTA_JUSTIFICADA,
         ]);
 
         $response = $this->actingAs($this->admin)
-            ->getJson('/api/v1/admin/presencas?status=validado');
+            ->getJson('/api/v1/admin/presencas?status=presente');
 
         $response->assertStatus(200);
-        $this->assertCount(3, $response->json('data'));
+        $this->assertCount(2, $response->json('data'));
     }
 }
-

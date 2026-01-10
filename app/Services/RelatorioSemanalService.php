@@ -48,9 +48,9 @@ class RelatorioSemanalService
                 continue;
             }
 
-            // Presentes (confirmados)
+            // Presentes
             $presentes = Presenca::whereIn('refeicao_id', $refeicaoIds)
-                ->where('status_da_presenca', StatusPresenca::CONFIRMADO)
+                ->where('status_da_presenca', StatusPresenca::PRESENTE)
                 ->count();
 
             // Extras (aprovados da fila)

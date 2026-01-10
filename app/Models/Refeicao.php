@@ -103,18 +103,19 @@ class Refeicao extends Model
 
     // ========== MÉTODOS AUXILIARES ==========
 
-    public function getConfirmados()
+    public function getPresentes()
     {
         return $this->presencas()
-            ->whereIn('status_da_presenca', ['confirmado', 'validado'])
+            ->where('status_da_presenca', 'presente')
             ->count();
     }
 
-    public function getValidados()
+    /**
+     * @deprecated Usar getPresentes() em vez disso
+     */
+    public function getConfirmados()
     {
-        return $this->presencas()
-            ->where('status_da_presenca', 'validado')
-            ->count();
+        return $this->getPresentes();
     }
 
     public function getFaltas()

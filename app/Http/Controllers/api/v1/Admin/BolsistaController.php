@@ -109,7 +109,7 @@ class BolsistaController extends Controller
                 'refeicao_id' => $refeicao?->id,
                 'stats' => [
                     'total' => $bolsistas->count(),
-                    'confirmados' => $lista->where('status_presenca', 'confirmado')->count(),
+                    'presentes' => $lista->where('status_presenca', 'presente')->count(),
                     'pendentes' => $lista->where('status_presenca', 'pendente')->count(),
                     'faltas_justificadas' => $lista->where('status_presenca', 'falta_justificada')->count(),
                     'faltas_injustificadas' => $lista->where('status_presenca', 'falta_injustificada')->count(),
@@ -225,7 +225,7 @@ class BolsistaController extends Controller
                 'turno_aluno' => $bolsista->turno,
                 'presenca_status' => $presenca ? $presenca->status_da_presenca->value : 'sem_registro',
                 'presenca_id' => $presenca?->id,
-                'ja_confirmado' => $presenca && $presenca->status_da_presenca === StatusPresenca::CONFIRMADO,
+                'ja_presente' => $presenca && $presenca->status_da_presenca === StatusPresenca::PRESENTE,
             ];
         });
 
@@ -323,7 +323,7 @@ class BolsistaController extends Controller
             ->where('refeicao_id', $refeicao->id)
             ->first();
 
-        if ($presenca && $presenca->status_da_presenca === StatusPresenca::CONFIRMADO) {
+        if ($presenca && $presenca->status_da_presenca === StatusPresenca::PRESENTE) {
             return response()->json([
                 'data' => [
                     'usuario' => $user->nome,
@@ -334,7 +334,7 @@ class BolsistaController extends Controller
                 'errors' => [],
                 'meta' => [
                     'message' => '⚠️ Presença já estava confirmada.',
-                    'ja_confirmado' => true,
+                    'ja_presente' => true,
                 ],
             ], 200);
         }
@@ -344,13 +344,13 @@ class BolsistaController extends Controller
             $presenca = Presenca::create([
                 'user_id' => $user->id,
                 'refeicao_id' => $refeicao->id,
-                'status_da_presenca' => StatusPresenca::CONFIRMADO,
+                'status_da_presenca' => StatusPresenca::PRESENTE,
                 'registrado_em' => now(),
                 'validado_em' => now(),
                 'validado_por' => $request->user()?->id ?? 1,
             ]);
         } else {
-            $presenca->confirmar($request->user()?->id ?? 1);
+            $presenca->marcarPresente($request->user()?->id ?? 1);
         }
 
         return response()->json([
@@ -502,7 +502,7 @@ class BolsistaController extends Controller
             ->where('refeicao_id', $refeicao->id)
             ->first();
 
-        if ($presenca && $presenca->status_da_presenca === StatusPresenca::CONFIRMADO) {
+        if ($presenca && $presenca->status_da_presenca === StatusPresenca::PRESENTE) {
             return response()->json([
                 'data' => null,
                 'errors' => ['presenca' => ['Presença já foi confirmada anteriormente.']],
@@ -517,13 +517,13 @@ class BolsistaController extends Controller
             $presenca = Presenca::create([
                 'user_id' => $userId,
                 'refeicao_id' => $refeicao->id,
-                'status_da_presenca' => StatusPresenca::CONFIRMADO,
+                'status_da_presenca' => StatusPresenca::PRESENTE,
                 'validado_em' => now(),
                 'validado_por' => $request->user()?->id ?? 1,
                 'registrado_em' => now(),
             ]);
         } else {
-            $presenca->confirmar($request->user()?->id ?? 1);
+            $presenca->marcarPresente($request->user()?->id ?? 1);
         }
 
         return response()->json([
@@ -680,7 +680,7 @@ class BolsistaController extends Controller
 
             $presencaExistente = Presenca::where('user_id', $userId)
                 ->where('refeicao_id', $refeicao->id)
-                ->where('status_da_presenca', StatusPresenca::CONFIRMADO)
+                ->where('status_da_presenca', StatusPresenca::PRESENTE)
                 ->exists();
 
             if ($presencaExistente) {
@@ -694,7 +694,7 @@ class BolsistaController extends Controller
                     'refeicao_id' => $refeicao->id,
                 ],
                 [
-                    'status_da_presenca' => StatusPresenca::CONFIRMADO,
+                    'status_da_presenca' => StatusPresenca::PRESENTE,
                     'validado_em' => now(),
                     'validado_por' => $request->user()?->id ?? 1,
                     'registrado_em' => now(),

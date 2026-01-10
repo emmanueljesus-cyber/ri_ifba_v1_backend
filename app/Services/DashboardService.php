@@ -55,21 +55,21 @@ class DashboardService
         // Total de presenças esperadas (bolsistas * dias de refeição)
         $refeicoes = Refeicao::whereBetween('data_do_cardapio', [$inicio, $fim])->get();
         
-        $totalConfirmados = 0;
+        $totalPresentes = 0;
         $totalEsperados = 0;
         
         foreach ($refeicoes as $refeicao) {
             $presencasRefeicao = Presenca::where('refeicao_id', $refeicao->id)->count();
-            $confirmadosRefeicao = Presenca::where('refeicao_id', $refeicao->id)
-                ->where('status_da_presenca', StatusPresenca::CONFIRMADO)
+            $presentesRefeicao = Presenca::where('refeicao_id', $refeicao->id)
+                ->where('status_da_presenca', StatusPresenca::PRESENTE)
                 ->count();
             
             $totalEsperados += $presencasRefeicao;
-            $totalConfirmados += $confirmadosRefeicao;
+            $totalPresentes += $presentesRefeicao;
         }
 
         $taxa = $totalEsperados > 0 
-            ? round(($totalConfirmados / $totalEsperados) * 100, 2) 
+            ? round(($totalPresentes / $totalEsperados) * 100, 2) 
             : 0;
 
         // Comparativo com mês anterior
@@ -77,28 +77,28 @@ class DashboardService
         $fimAnterior = $fim->copy()->subMonth();
         
         $refeicoesAnterior = Refeicao::whereBetween('data_do_cardapio', [$inicioAnterior, $fimAnterior])->get();
-        $totalConfirmadosAnterior = 0;
+        $totalPresentesAnterior = 0;
         $totalEsperadosAnterior = 0;
         
         foreach ($refeicoesAnterior as $refeicao) {
             $presencasRefeicao = Presenca::where('refeicao_id', $refeicao->id)->count();
-            $confirmadosRefeicao = Presenca::where('refeicao_id', $refeicao->id)
-                ->where('status_da_presenca', StatusPresenca::CONFIRMADO)
+            $presentesRefeicao = Presenca::where('refeicao_id', $refeicao->id)
+                ->where('status_da_presenca', StatusPresenca::PRESENTE)
                 ->count();
             
             $totalEsperadosAnterior += $presencasRefeicao;
-            $totalConfirmadosAnterior += $confirmadosRefeicao;
+            $totalPresentesAnterior += $presentesRefeicao;
         }
 
         $taxaAnterior = $totalEsperadosAnterior > 0 
-            ? round(($totalConfirmadosAnterior / $totalEsperadosAnterior) * 100, 2) 
+            ? round(($totalPresentesAnterior / $totalEsperadosAnterior) * 100, 2) 
             : 0;
 
         $variacao = $taxa - $taxaAnterior;
 
         return [
             'valor' => $taxa,
-            'total_confirmados' => $totalConfirmados,
+            'total_presentes' => $totalPresentes,
             'total_registros' => $totalEsperados,
             'comparativo_anterior' => ($variacao >= 0 ? '+' : '') . number_format($variacao, 1) . '%',
             'periodo' => [
@@ -187,20 +187,20 @@ class DashboardService
             $refeicaoIds = Refeicao::whereBetween('data_do_cardapio', [$inicio, $fim])
                 ->pluck('id');
 
-            $confirmados = Presenca::whereIn('refeicao_id', $refeicaoIds)
-                ->where('status_da_presenca', StatusPresenca::CONFIRMADO)
+            $presentes = Presenca::whereIn('refeicao_id', $refeicaoIds)
+                ->where('status_da_presenca', StatusPresenca::PRESENTE)
                 ->count();
 
             $totalRegistros = Presenca::whereIn('refeicao_id', $refeicaoIds)->count();
 
             $taxa = $totalRegistros > 0 
-                ? round(($confirmados / $totalRegistros) * 100, 1) 
+                ? round(($presentes / $totalRegistros) * 100, 1) 
                 : 0;
 
             $evolucao[] = [
                 'mes' => $data->locale('pt_BR')->shortMonthName,
                 'ano' => $data->year,
-                'confirmados' => $confirmados,
+                'presentes' => $presentes,
                 'total' => $totalRegistros,
                 'taxa_presenca' => $taxa,
             ];

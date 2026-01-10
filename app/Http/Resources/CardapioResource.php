@@ -8,9 +8,26 @@ class CardapioResource extends JsonResource
 {
     public function toArray($request)
     {
+        // Determinar quais turnos existem
+        $refeicoes = $this->relationLoaded('refeicoes') ? $this->refeicoes : collect();
+        
+        $temAlmoco = $refeicoes->contains(function($r) {
+            $val = $r->turno instanceof \BackedEnum ? $r->turno->value : $r->turno;
+            return $val === 'almoco';
+        });
+        
+        $temJantar = $refeicoes->contains(function($r) {
+            $val = $r->turno instanceof \BackedEnum ? $r->turno->value : $r->turno;
+            return $val === 'jantar';
+        });
+        
         return [
             'id'                        => $this->id,
             'data_do_cardapio'         => optional($this->data_do_cardapio)->toDateString(),
+            'data'                     => optional($this->data_do_cardapio)->format('d/m/Y'),
+            'dia_semana'               => optional($this->data_do_cardapio)?->locale('pt_BR')->dayName ?? '',
+            'almoco'                   => $temAlmoco,
+            'jantar'                   => $temJantar,
             'prato_principal_ptn01'    => $this->prato_principal_ptn01,
             'prato_principal_ptn02'    => $this->prato_principal_ptn02,
             'guarnicao'                => $this->guarnicao,

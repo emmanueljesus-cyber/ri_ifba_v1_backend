@@ -18,10 +18,10 @@ class PresencaFactory extends Factory
             'user_id' => User::factory(),
             'refeicao_id' => Refeicao::factory(),
             'status_da_presenca' => $this->faker->randomElement([
-                StatusPresenca::CONFIRMADO,
-                StatusPresenca::VALIDADO,
+                StatusPresenca::PRESENTE,
                 StatusPresenca::FALTA_JUSTIFICADA,
                 StatusPresenca::FALTA_INJUSTIFICADA,
+                StatusPresenca::CANCELADO,
             ]),
             'registrado_em' => now()->subMinutes($this->faker->numberBetween(10, 120)),
             'validado_em' => null,
@@ -30,24 +30,12 @@ class PresencaFactory extends Factory
     }
 
     /**
-     * Presença confirmada (aguardando validação)
+     * Presença marcada como presente
      */
-    public function confirmada(): static
+    public function presente(): static
     {
         return $this->state(fn (array $attributes) => [
-            'status_da_presenca' => StatusPresenca::CONFIRMADO,
-            'validado_em' => null,
-            'validado_por' => null,
-        ]);
-    }
-
-    /**
-     * Presença já validada
-     */
-    public function validada(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'status_da_presenca' => StatusPresenca::VALIDADO,
+            'status_da_presenca' => StatusPresenca::PRESENTE,
             'validado_em' => now()->subMinutes($this->faker->numberBetween(1, 60)),
             'validado_por' => User::factory()->admin(),
         ]);
@@ -89,4 +77,3 @@ class PresencaFactory extends Factory
         ]);
     }
 }
-

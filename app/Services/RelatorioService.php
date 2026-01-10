@@ -32,7 +32,7 @@ class RelatorioService
 
         $dados = [];
         $totais = [
-            'confirmados' => 0,
+            'presentes' => 0,
             'falta_justificada' => 0,
             'falta_injustificada' => 0,
             'cancelados' => 0,
@@ -40,7 +40,7 @@ class RelatorioService
         ];
 
         foreach ($refeicoes as $refeicao) {
-            $confirmados = $refeicao->presencas->where('status_da_presenca', StatusPresenca::CONFIRMADO)->count();
+            $presentes = $refeicao->presencas->where('status_da_presenca', StatusPresenca::PRESENTE)->count();
             $faltaJust = $refeicao->presencas->where('status_da_presenca', StatusPresenca::FALTA_JUSTIFICADA)->count();
             $faltaInjust = $refeicao->presencas->where('status_da_presenca', StatusPresenca::FALTA_INJUSTIFICADA)->count();
             $cancelados = $refeicao->presencas->where('status_da_presenca', StatusPresenca::CANCELADO)->count();
@@ -48,14 +48,14 @@ class RelatorioService
             $dados[] = [
                 'data' => $refeicao->data_do_cardapio->format('d/m/Y'),
                 'turno' => $refeicao->turno->value,
-                'confirmados' => $confirmados,
+                'presentes' => $presentes,
                 'falta_justificada' => $faltaJust,
                 'falta_injustificada' => $faltaInjust,
                 'cancelados' => $cancelados,
                 'total' => $refeicao->presencas->count(),
             ];
 
-            $totais['confirmados'] += $confirmados;
+            $totais['presentes'] += $presentes;
             $totais['falta_justificada'] += $faltaJust;
             $totais['falta_injustificada'] += $faltaInjust;
             $totais['cancelados'] += $cancelados;
@@ -83,8 +83,8 @@ class RelatorioService
         $refeicaoIds = Refeicao::whereBetween('data_do_cardapio', [$inicio, $fim])
             ->pluck('id');
 
-        $confirmados = Presenca::whereIn('refeicao_id', $refeicaoIds)
-            ->where('status_da_presenca', StatusPresenca::CONFIRMADO)
+        $presentes = Presenca::whereIn('refeicao_id', $refeicaoIds)
+            ->where('status_da_presenca', StatusPresenca::PRESENTE)
             ->count();
 
         $faltasJust = Presenca::whereIn('refeicao_id', $refeicaoIds)
@@ -99,7 +99,7 @@ class RelatorioService
         $totalRefeicoes = $refeicaoIds->count();
 
         $taxaPresenca = $totalRegistros > 0 
-            ? round(($confirmados / $totalRegistros) * 100, 1) 
+            ? round(($presentes / $totalRegistros) * 100, 1) 
             : 0;
 
         return [
@@ -108,7 +108,7 @@ class RelatorioService
             'mes_texto' => Carbon::create($ano, $mes, 1)->locale('pt_BR')->monthName,
             'total_refeicoes' => $totalRefeicoes,
             'total_registros' => $totalRegistros,
-            'confirmados' => $confirmados,
+            'presentes' => $presentes,
             'falta_justificada' => $faltasJust,
             'falta_injustificada' => $faltasInjust,
             'taxa_presenca' => $taxaPresenca . '%',
@@ -135,7 +135,7 @@ class RelatorioService
             })
             ->get();
 
-        $confirmados = $presencas->where('status_da_presenca', StatusPresenca::CONFIRMADO)->count();
+        $presentes = $presencas->where('status_da_presenca', StatusPresenca::PRESENTE)->count();
         $faltasJust = $presencas->where('status_da_presenca', StatusPresenca::FALTA_JUSTIFICADA)->count();
         $faltasInjust = $presencas->where('status_da_presenca', StatusPresenca::FALTA_INJUSTIFICADA)->count();
 
@@ -161,11 +161,11 @@ class RelatorioService
             ],
             'resumo' => [
                 'total' => $presencas->count(),
-                'confirmados' => $confirmados,
+                'presentes' => $presentes,
                 'falta_justificada' => $faltasJust,
                 'falta_injustificada' => $faltasInjust,
                 'taxa_presenca' => $presencas->count() > 0 
-                    ? round(($confirmados / $presencas->count()) * 100, 1) . '%' 
+                    ? round(($presentes / $presencas->count()) * 100, 1) . '%' 
                     : '0%',
             ],
             'historico' => $historico,
@@ -204,7 +204,7 @@ class RelatorioService
     private function traduzirStatus($status): string
     {
         $mapa = [
-            'confirmado' => 'Presente',
+            'presente' => 'Presente',
             'falta_justificada' => 'Falta Justificada',
             'falta_injustificada' => 'Falta Injustificada',
             'cancelado' => 'Cancelado',

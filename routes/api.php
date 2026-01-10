@@ -8,7 +8,7 @@ use App\Http\Controllers\api\V1\Admin\RelatorioValidacaoController as AdminRelat
 use App\Http\Controllers\api\V1\Admin\JustificativaController as AdminJustificativaController;
 use App\Http\Controllers\api\V1\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\api\V1\Admin\RelatorioController as AdminRelatorioGeralController;
-use App\Http\Controllers\Admin\UserController as AdminUserController;
+use App\Http\Controllers\api\v1\Admin\UserController as AdminUserController;
 use App\Http\Controllers\api\V1\Estudante\CardapioController as EstudanteCardapioController;
 use App\Http\Controllers\api\V1\Publico\CardapioController as PublicoCardapioController;
 

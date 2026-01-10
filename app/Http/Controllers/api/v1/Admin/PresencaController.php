@@ -98,7 +98,7 @@ class PresencaController extends Controller
                     'confirmado_em' => $presenca->registrado_em,
                     'confirmado_por' => $presenca->validador ? $presenca->validador->nome : null,
                 ] : null,
-                'presente' => $presenca && $presenca->status_da_presenca === StatusPresenca::CONFIRMADO,
+                'presente' => $presenca && $presenca->status_da_presenca === StatusPresenca::PRESENTE,
             ];
         });
 
@@ -183,7 +183,7 @@ class PresencaController extends Controller
             ->where('refeicao_id', $refeicao->id)
             ->first();
 
-        if ($presenca && $presenca->status_da_presenca === StatusPresenca::CONFIRMADO) {
+        if ($presenca && $presenca->status_da_presenca === StatusPresenca::PRESENTE) {
             return response()->json([
                 'data' => null,
                 'errors' => ['presenca' => ['Presença já confirmada.']],
@@ -195,13 +195,13 @@ class PresencaController extends Controller
             $presenca = Presenca::create([
                 'user_id' => $userId,
                 'refeicao_id' => $refeicao->id,
-                'status_da_presenca' => StatusPresenca::CONFIRMADO,
+                'status_da_presenca' => StatusPresenca::PRESENTE,
                 'registrado_em' => now(),
                 'validado_em' => now(),
                 'validado_por' => $request->user()?->id ?? 1,
             ]);
         } else {
-            $presenca->confirmar($request->user()?->id ?? 1);
+            $presenca->marcarPresente($request->user()?->id ?? 1);
         }
 
         return response()->json([
@@ -329,7 +329,7 @@ class PresencaController extends Controller
             ->where('refeicao_id', $refeicao->id)
             ->first();
 
-        if ($presenca && $presenca->status_da_presenca === StatusPresenca::CONFIRMADO) {
+        if ($presenca && $presenca->status_da_presenca === StatusPresenca::PRESENTE) {
             return response()->json([
                 'data' => null,
                 'errors' => ['presenca' => ['Presença já foi confirmada anteriormente.']],
@@ -344,13 +344,13 @@ class PresencaController extends Controller
             $presenca = Presenca::create([
                 'user_id' => $user->id,
                 'refeicao_id' => $refeicao->id,
-                'status_da_presenca' => StatusPresenca::CONFIRMADO,
+                'status_da_presenca' => StatusPresenca::PRESENTE,
                 'registrado_em' => now(),
                 'validado_em' => now(),
                 'validado_por' => $request->user()?->id ?? 1,
             ]);
         } else {
-            $presenca->confirmar($request->user()?->id ?? 1);
+            $presenca->marcarPresente($request->user()?->id ?? 1);
         }
 
         return response()->json([
@@ -422,13 +422,13 @@ class PresencaController extends Controller
             'data' => [
                 'total' => $presencas->count(),
                 'por_status' => [
-                    'confirmados' => $presencas->where('status_da_presenca', StatusPresenca::CONFIRMADO)->count(),
+                    'presentes' => $presencas->where('status_da_presenca', StatusPresenca::PRESENTE)->count(),
                     'faltas_justificadas' => $presencas->where('status_da_presenca', StatusPresenca::FALTA_JUSTIFICADA)->count(),
                     'faltas_injustificadas' => $presencas->where('status_da_presenca', StatusPresenca::FALTA_INJUSTIFICADA)->count(),
                     'cancelados' => $presencas->where('status_da_presenca', StatusPresenca::CANCELADO)->count(),
                 ],
                 'taxa_presenca' => $presencas->count() > 0
-                    ? round(($presencas->where('status_da_presenca', StatusPresenca::CONFIRMADO)->count() / $presencas->count()) * 100, 2)
+                    ? round(($presencas->where('status_da_presenca', StatusPresenca::PRESENTE)->count() / $presencas->count()) * 100, 2)
                     : 0,
             ],
             'errors' => [],
@@ -455,13 +455,13 @@ class PresencaController extends Controller
         $presencas = Presenca::whereIn('id', $presencaIds)
             ->where(function ($q) {
                 $q->whereNull('status_da_presenca')
-                  ->orWhere('status_da_presenca', '!=', StatusPresenca::CONFIRMADO);
+                  ->orWhere('status_da_presenca', '!=', StatusPresenca::PRESENTE);
             })
             ->get();
 
         $confirmadas = 0;
         foreach ($presencas as $presenca) {
-            $presenca->confirmar($confirmadorId);
+            $presenca->marcarPresente($confirmadorId);
             $confirmadas++;
         }
 
@@ -495,7 +495,7 @@ class PresencaController extends Controller
             ], 404);
         }
 
-        $presenca->confirmar($request->user()?->id ?? 1);
+        $presenca->marcarPresente($request->user()?->id ?? 1);
 
         return response()->json([
             'data' => [

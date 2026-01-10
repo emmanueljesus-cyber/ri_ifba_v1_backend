@@ -47,9 +47,9 @@ class Presenca extends Model
 
     // ========== SCOPES ==========
 
-    public function scopeConfirmados($query)
+    public function scopePresentes($query)
     {
-        return $query->where('status_da_presenca', StatusPresenca::CONFIRMADO);
+        return $query->where('status_da_presenca', StatusPresenca::PRESENTE);
     }
 
     public function scopeFaltasJustificadas($query)
@@ -79,14 +79,14 @@ class Presenca extends Model
     // ========== MÉTODOS AUXILIARES ==========
 
     /**
-     * Confirma a presença do aluno (admin marca como presente)
+     * Marca o aluno como presente (admin valida presença)
      */
-    public function confirmar($confirmadorId)
+    public function marcarPresente($validadorId)
     {
         $this->update([
-            'status_da_presenca' => StatusPresenca::CONFIRMADO,
+            'status_da_presenca' => StatusPresenca::PRESENTE,
             'validado_em' => now(),
-            'validado_por' => $confirmadorId,
+            'validado_por' => $validadorId,
         ]);
     }
 
@@ -100,9 +100,9 @@ class Presenca extends Model
         ]);
     }
 
-    public function isConfirmado()
+    public function isPresente()
     {
-        return $this->status_da_presenca === StatusPresenca::CONFIRMADO;
+        return $this->status_da_presenca === StatusPresenca::PRESENTE;
     }
 
     public function isFalta()
@@ -133,13 +133,13 @@ class Presenca extends Model
     }
 
     /**
-     * Busca presença por token do QR Code (presenças não confirmadas ainda)
+     * Busca presença por token do QR Code (presenças não validadas ainda)
      */
     public static function buscarPorTokenQrCode($token)
     {
         return self::with(['user', 'refeicao'])
             ->whereNull('status_da_presenca')
-            ->orWhere('status_da_presenca', '!=', StatusPresenca::CONFIRMADO)
+            ->orWhere('status_da_presenca', '!=', StatusPresenca::PRESENTE)
             ->get()
             ->first(function ($presenca) use ($token) {
                 return $presenca->gerarTokenQrCode() === $token;
