@@ -127,35 +127,40 @@ class PresencaController extends Controller
      * Confirma uma presença específica por ID (via botão na lista)
      * POST /api/v1/admin/presencas/{user_id}/confirmar
      * 
-     * Controller apenas orquestra. Lógica de negócio está no PresencaService.
+     * Controller orquestra e formata HTTP. Service contém regras de negócio.
      */
     public function confirmarPorId(Request $request, $userId)
     {
-        $dataInput = $request->input('data', now()->format('Y-m-d'));
-        $data = preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $dataInput)
-            ? Carbon::createFromFormat('d/m/Y', $dataInput)->format('Y-m-d')
-            : $dataInput;
+        try {
+            $dataInput = $request->input('data', now()->format('Y-m-d'));
+            $data = preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $dataInput)
+                ? Carbon::createFromFormat('d/m/Y', $dataInput)->format('Y-m-d')
+                : $dataInput;
 
-        $resultado = $this->presencaService->confirmarPresencaCompleta(
-            (int) $userId,
-            $data,
-            $request->input('turno', ''),
-            $request->user()?->id
-        );
+            $resultado = $this->presencaService->confirmarPresencaCompleta(
+                (int) $userId,
+                $data,
+                $request->input('turno', ''),
+                $request->user()?->id
+            );
 
-        if (!$resultado['sucesso']) {
+            return response()->json([
+                'data' => [
+                    'presenca_id' => $resultado['presenca']->id,
+                    'usuario' => $resultado['user']->nome,
+                    'confirmado_em' => $resultado['presenca']->validado_em->format('H:i:s'),
+                ],
+                'errors' => [],
+                'meta' => ['message' => '✅ Presença confirmada!'],
+            ], 201);
+
+        } catch (\App\Exceptions\BusinessException $e) {
             return response()->json([
                 'data' => null,
-                'errors' => ['erro' => [$resultado['erro']]],
-                'meta' => $resultado['meta'],
-            ], $resultado['status_code']);
+                'errors' => ['erro' => [$e->getMessage()]],
+                'meta' => $e->getMeta(),
+            ], $e->getCode());
         }
-
-        return response()->json([
-            'data' => $resultado['data'],
-            'errors' => [],
-            'meta' => $resultado['meta'],
-        ], $resultado['status_code']);
     }
 
     /**

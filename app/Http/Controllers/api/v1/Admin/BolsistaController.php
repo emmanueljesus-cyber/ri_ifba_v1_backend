@@ -444,61 +444,87 @@ class BolsistaController extends Controller
      * Confirmar presença do bolsista (marcar como presente)
      * POST /api/v1/admin/bolsistas/{userId}/confirmar-presenca
      * 
-     * Controller apenas orquestra. Lógica de negócio está no PresencaService.
+     * Controller orquestra e formata HTTP. Service contém regras de negócio.
      */
     public function confirmarPresenca(Request $request, int $userId): JsonResponse
     {
-        $resultado = $this->presencaService->confirmarPresencaCompleta(
-            $userId,
-            Carbon::parse($request->input('data', now()))->format('Y-m-d'),
-            $request->input('turno', ''),
-            $request->user()?->id
-        );
+        try {
+            $resultado = $this->presencaService->confirmarPresencaCompleta(
+                $userId,
+                Carbon::parse($request->input('data', now()))->format('Y-m-d'),
+                $request->input('turno', ''),
+                $request->user()?->id
+            );
 
-        if (!$resultado['sucesso']) {
+            return response()->json([
+                'data' => [
+                    'presenca_id' => $resultado['presenca']->id,
+                    'usuario' => $resultado['user']->nome,
+                    'matricula' => $resultado['user']->matricula,
+                    'refeicao' => [
+                        'id' => $resultado['refeicao']->id,
+                        'data' => $resultado['refeicao']->data_do_cardapio->format('d/m/Y'),
+                        'turno' => $resultado['refeicao']->turno->value,
+                    ],
+                    'confirmado_em' => $resultado['presenca']->validado_em->format('d/m/Y H:i'),
+                ],
+                'errors' => [],
+                'meta' => ['message' => '✅ Presença confirmada com sucesso.'],
+            ], 201);
+
+        } catch (\App\Exceptions\BusinessException $e) {
             return response()->json([
                 'data' => null,
-                'errors' => ['erro' => [$resultado['erro']]],
-                'meta' => $resultado['meta'],
-            ], $resultado['status_code']);
+                'errors' => ['erro' => [$e->getMessage()]],
+                'meta' => $e->getMeta(),
+            ], $e->getCode());
         }
-
-        return response()->json([
-            'data' => $resultado['data'],
-            'errors' => [],
-            'meta' => $resultado['meta'],
-        ], $resultado['status_code']);
     }
 
     /**
      * Marcar falta do bolsista
      * POST /api/v1/admin/bolsistas/{userId}/marcar-falta
      * 
-     * Controller apenas orquestra. Lógica de negócio está no PresencaService.
+     * Controller orquestra e formata HTTP. Service contém regras de negócio.
      */
     public function marcarFalta(Request $request, int $userId): JsonResponse
     {
-        $resultado = $this->presencaService->marcarFaltaCompleta(
-            $userId,
-            Carbon::parse($request->input('data', now()))->format('Y-m-d'),
-            $request->input('turno', ''),
-            $request->boolean('justificada', false),
-            $request->user()?->id
-        );
+        try {
+            $justificada = $request->boolean('justificada', false);
+            
+            $resultado = $this->presencaService->marcarFaltaCompleta(
+                $userId,
+                Carbon::parse($request->input('data', now()))->format('Y-m-d'),
+                $request->input('turno', ''),
+                $justificada,
+                $request->user()?->id
+            );
 
-        if (!$resultado['sucesso']) {
+            $mensagem = $justificada ? 'Falta justificada registrada.' : 'Falta injustificada registrada.';
+
+            return response()->json([
+                'data' => [
+                    'presenca_id' => $resultado['presenca']->id,
+                    'usuario' => $resultado['user']->nome,
+                    'matricula' => $resultado['user']->matricula,
+                    'status' => $resultado['presenca']->status_da_presenca->value,
+                    'refeicao' => [
+                        'id' => $resultado['refeicao']->id,
+                        'data' => $resultado['refeicao']->data_do_cardapio->format('d/m/Y'),
+                        'turno' => $resultado['refeicao']->turno->value,
+                    ],
+                ],
+                'errors' => [],
+                'meta' => ['message' => $mensagem],
+            ], 200);
+
+        } catch (\App\Exceptions\BusinessException $e) {
             return response()->json([
                 'data' => null,
-                'errors' => ['erro' => [$resultado['erro']]],
-                'meta' => $resultado['meta'],
-            ], $resultado['status_code']);
+                'errors' => ['erro' => [$e->getMessage()]],
+                'meta' => $e->getMeta(),
+            ], $e->getCode());
         }
-
-        return response()->json([
-            'data' => $resultado['data'],
-            'errors' => [],
-            'meta' => $resultado['meta'],
-        ], $resultado['status_code']);
     }
 
     /**

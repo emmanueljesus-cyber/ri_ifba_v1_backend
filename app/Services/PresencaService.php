@@ -100,110 +100,126 @@ class PresencaService
 
     /**
      * MÉTODO COMPLETO: Confirma presença do bolsista
-     * Contém TODA a lógica de negócio. Controller só chama e formata resposta.
+     * Contém TODA a lógica de negócio. Lança exceções para erros.
      * 
-     * @return array ['sucesso' => bool, 'data' => array, 'erro' => string|null, 'meta' => array, 'status_code' => int]
+     * @throws TurnoObrigatorioException
+     * @throws UsuarioNaoEncontradoException
+     * @throws NaoEBolsistaException
+     * @throws SemDireitoRefeicaoException
+     * @throws RefeicaoNaoEncontradaException
+     * @throws PresencaJaConfirmadaException
+     * @return array ['presenca' => Presenca, 'user' => User, 'refeicao' => Refeicao]
      */
     public function confirmarPresencaCompleta(int $userId, string $data, string $turno, ?int $validadoPor = null): array
     {
         // 1. Validar turno
         if (empty($turno)) {
-            return ['sucesso' => false, 'data' => null, 'erro' => 'O turno é obrigatório.', 'meta' => [], 'status_code' => 400];
+            throw new \App\Exceptions\TurnoObrigatorioException();
         }
 
         // 2. Buscar usuário
         $user = User::with('diasSemana')->find($userId);
         if (!$user) {
-            return ['sucesso' => false, 'data' => null, 'erro' => 'Usuário não encontrado.', 'meta' => [], 'status_code' => 404];
+            throw new \App\Exceptions\UsuarioNaoEncontradoException();
         }
 
         // 3. Verificar se é bolsista
         if (!$user->bolsista) {
-            return ['sucesso' => false, 'data' => null, 'erro' => 'Este usuário não é bolsista.', 'meta' => [], 'status_code' => 403];
+            throw new \App\Exceptions\NaoEBolsistaException();
         }
 
         // 4. Validar direito à refeição no dia
-        $validacao = $this->validarDireitoRefeicao($user, $data);
-        if (!$validacao['valido']) {
-            return ['sucesso' => false, 'data' => null, 'erro' => $validacao['erro'], 'meta' => $validacao['meta'], 'status_code' => 403];
+        $diaSemana = Carbon::parse($data)->dayOfWeek;
+        if (!$user->temDireitoRefeicaoNoDia($diaSemana)) {
+            $diasCadastrados = $user->diasSemana()
+                ->get()
+                ->map(fn($d) => $this->getDiaSemanaTexto($d->dia_semana))
+                ->implode(', ');
+
+            throw new \App\Exceptions\SemDireitoRefeicaoException(
+                $user->nome,
+                Carbon::parse($data)->locale('pt_BR')->dayName,
+                $diasCadastrados ?: 'Nenhum dia cadastrado'
+            );
         }
 
         // 5. Buscar refeição
         $refeicao = $this->buscarRefeicao($data, $turno);
         if (!$refeicao) {
-            return ['sucesso' => false, 'data' => null, 'erro' => 'Não há refeição cadastrada para este dia e turno.', 'meta' => [], 'status_code' => 404];
+            throw new \App\Exceptions\RefeicaoNaoEncontradaException();
         }
 
-        // 6. Confirmar presença
-        $resultado = $this->confirmarPresenca($userId, $refeicao->id, $validadoPor);
-        if (!$resultado['sucesso']) {
-            return ['sucesso' => false, 'data' => null, 'erro' => $resultado['erro'], 'meta' => $resultado['meta'], 'status_code' => $resultado['status_code']];
+        // 6. Verificar se já confirmada
+        $presenca = Presenca::where('user_id', $userId)
+            ->where('refeicao_id', $refeicao->id)
+            ->first();
+
+        if ($presenca && $presenca->status_da_presenca === StatusPresenca::PRESENTE) {
+            throw new \App\Exceptions\PresencaJaConfirmadaException(
+                $presenca->id,
+                $presenca->validado_em?->format('d/m/Y H:i')
+            );
         }
 
-        // 7. Retornar sucesso
+        // 7. Confirmar presença
+        if (!$presenca) {
+            $presenca = Presenca::create([
+                'user_id' => $userId,
+                'refeicao_id' => $refeicao->id,
+                'status_da_presenca' => StatusPresenca::PRESENTE,
+                'validado_em' => now(),
+                'validado_por' => $validadoPor ?? 1,
+                'registrado_em' => now(),
+            ]);
+        } else {
+            $presenca->marcarPresente($validadoPor ?? 1);
+            $presenca = $presenca->fresh();
+        }
+
+        // 8. Retornar objetos de domínio
         return [
-            'sucesso' => true,
-            'data' => [
-                'presenca_id' => $resultado['presenca']->id,
-                'usuario' => $user->nome,
-                'matricula' => $user->matricula,
-                'refeicao' => [
-                    'id' => $refeicao->id,
-                    'data' => $refeicao->data_do_cardapio->format('d/m/Y'),
-                    'turno' => $refeicao->turno->value,
-                ],
-                'confirmado_em' => $resultado['presenca']->validado_em->format('d/m/Y H:i'),
-            ],
-            'erro' => null,
-            'meta' => ['message' => '✅ Presença confirmada com sucesso.'],
-            'status_code' => 201,
+            'presenca' => $presenca,
+            'user' => $user,
+            'refeicao' => $refeicao,
         ];
     }
 
     /**
      * MÉTODO COMPLETO: Marca falta do bolsista
-     * Contém TODA a lógica de negócio. Controller só chama e formata resposta.
+     * Contém TODA a lógica de negócio. Lança exceções para erros.
+     * 
+     * @throws TurnoObrigatorioException
+     * @throws UsuarioNaoEncontradoException
+     * @throws RefeicaoNaoEncontradaException
+     * @return array ['presenca' => Presenca, 'user' => User, 'refeicao' => Refeicao]
      */
     public function marcarFaltaCompleta(int $userId, string $data, string $turno, bool $justificada = false, ?int $validadoPor = null): array
     {
         // 1. Validar turno
         if (empty($turno)) {
-            return ['sucesso' => false, 'data' => null, 'erro' => 'O turno é obrigatório.', 'meta' => [], 'status_code' => 400];
+            throw new \App\Exceptions\TurnoObrigatorioException();
         }
 
         // 2. Buscar usuário
         $user = User::find($userId);
         if (!$user) {
-            return ['sucesso' => false, 'data' => null, 'erro' => 'Usuário não encontrado.', 'meta' => [], 'status_code' => 404];
+            throw new \App\Exceptions\UsuarioNaoEncontradoException();
         }
 
         // 3. Buscar refeição
         $refeicao = $this->buscarRefeicao($data, $turno);
         if (!$refeicao) {
-            return ['sucesso' => false, 'data' => null, 'erro' => 'Não há refeição cadastrada para este dia e turno.', 'meta' => [], 'status_code' => 404];
+            throw new \App\Exceptions\RefeicaoNaoEncontradaException();
         }
 
         // 4. Marcar falta
         $presenca = $this->marcarFalta($userId, $refeicao->id, $justificada, $validadoPor);
 
-        $mensagem = $justificada ? 'Falta justificada registrada.' : 'Falta injustificada registrada.';
-
+        // 5. Retornar objetos de domínio
         return [
-            'sucesso' => true,
-            'data' => [
-                'presenca_id' => $presenca->id,
-                'usuario' => $user->nome,
-                'matricula' => $user->matricula,
-                'status' => $presenca->status_da_presenca->value,
-                'refeicao' => [
-                    'id' => $refeicao->id,
-                    'data' => $refeicao->data_do_cardapio->format('d/m/Y'),
-                    'turno' => $refeicao->turno->value,
-                ],
-            ],
-            'erro' => null,
-            'meta' => ['message' => $mensagem],
-            'status_code' => 200,
+            'presenca' => $presenca,
+            'user' => $user,
+            'refeicao' => $refeicao,
         ];
     }
 
