@@ -10,6 +10,7 @@ use App\Models\Presenca;
 use App\Models\UsuarioDiaSemana;
 use App\Enums\StatusPresenca;
 use App\Services\BolsistaImportService;
+use App\Services\PresencaService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Carbon\Carbon;
@@ -17,6 +18,9 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class BolsistaController extends Controller
 {
+    public function __construct(
+        protected PresencaService $presencaService
+    ) {}
     /**
      * Nomes dos dias da semana em português
      */
@@ -446,97 +450,43 @@ class BolsistaController extends Controller
         $turno = $request->input('turno');
 
         if (!$turno) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['turno' => ['O turno é obrigatório (almoco ou jantar).']],
-                'meta' => [],
-            ], 400);
+            return response()->json(['data' => null, 'errors' => ['turno' => ['O turno é obrigatório.']], 'meta' => []], 400);
         }
 
         $user = User::with('diasSemana')->find($userId);
         if (!$user) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['user' => ['Usuário não encontrado.']],
-                'meta' => [],
-            ], 404);
+            return response()->json(['data' => null, 'errors' => ['user' => ['Usuário não encontrado.']], 'meta' => []], 404);
         }
 
         if (!$user->bolsista) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['user' => ['Este usuário não é bolsista.']],
-                'meta' => [],
-            ], 403);
+            return response()->json(['data' => null, 'errors' => ['user' => ['Este usuário não é bolsista.']], 'meta' => []], 403);
         }
 
-        $diaSemana = Carbon::parse($data)->dayOfWeek;
-        $temDireito = $user->diasSemana()->where('dia_semana', $diaSemana)->exists();
-
-        if (!$temDireito) {
-            $diasCadastrados = $user->diasSemana->map(fn($d) => $this->getDiaSemanaTexto($d->dia_semana))->implode(', ');
-            return response()->json([
-                'data' => null,
-                'errors' => ['permissao' => ['Este bolsista não está cadastrado para este dia.']],
-                'meta' => [
-                    'usuario' => $user->nome,
-                    'dia_tentativa' => Carbon::parse($data)->locale('pt_BR')->dayName,
-                    'dias_cadastrados' => $diasCadastrados ?: 'Nenhum dia cadastrado',
-                ],
-            ], 403);
+        // Validar direito à refeição via Service
+        $validacao = $this->presencaService->validarDireitoRefeicao($user, $data);
+        if (!$validacao['valido']) {
+            return response()->json(['data' => null, 'errors' => ['permissao' => [$validacao['erro']]], 'meta' => $validacao['meta']], 403);
         }
 
-        $refeicao = Refeicao::where('data_do_cardapio', $data)
-            ->where('turno', $turno)
-            ->first();
-
+        // Buscar refeição via Service
+        $refeicao = $this->presencaService->buscarRefeicao($data, $turno);
         if (!$refeicao) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['refeicao' => ['Não há refeição cadastrada para este dia e turno.']],
-                'meta' => [],
-            ], 404);
+            return response()->json(['data' => null, 'errors' => ['refeicao' => ['Não há refeição cadastrada para este dia e turno.']], 'meta' => []], 404);
         }
 
-        $presenca = Presenca::where('user_id', $userId)
-            ->where('refeicao_id', $refeicao->id)
-            ->first();
-
-        if ($presenca && $presenca->status_da_presenca === StatusPresenca::PRESENTE) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['presenca' => ['Presença já foi confirmada anteriormente.']],
-                'meta' => [
-                    'presenca_id' => $presenca->id,
-                    'confirmado_em' => $presenca->validado_em?->format('d/m/Y H:i'),
-                ],
-            ], 409);
-        }
-
-        if (!$presenca) {
-            $presenca = Presenca::create([
-                'user_id' => $userId,
-                'refeicao_id' => $refeicao->id,
-                'status_da_presenca' => StatusPresenca::PRESENTE,
-                'validado_em' => now(),
-                'validado_por' => $request->user()?->id ?? 1,
-                'registrado_em' => now(),
-            ]);
-        } else {
-            $presenca->marcarPresente($request->user()?->id ?? 1);
+        // Confirmar presença via Service
+        $resultado = $this->presencaService->confirmarPresenca($userId, $refeicao->id, $request->user()?->id);
+        if (!$resultado['sucesso']) {
+            return response()->json(['data' => null, 'errors' => ['presenca' => [$resultado['erro']]], 'meta' => $resultado['meta']], 409);
         }
 
         return response()->json([
             'data' => [
-                'presenca_id' => $presenca->id,
+                'presenca_id' => $resultado['presenca']->id,
                 'usuario' => $user->nome,
                 'matricula' => $user->matricula,
-                'refeicao' => [
-                    'id' => $refeicao->id,
-                    'data' => $refeicao->data_do_cardapio->format('d/m/Y'),
-                    'turno' => $refeicao->turno->value,
-                ],
-                'confirmado_em' => $presenca->validado_em->format('d/m/Y H:i'),
+                'refeicao' => ['id' => $refeicao->id, 'data' => $refeicao->data_do_cardapio->format('d/m/Y'), 'turno' => $refeicao->turno->value],
+                'confirmado_em' => $resultado['presenca']->validado_em->format('d/m/Y H:i'),
             ],
             'errors' => [],
             'meta' => ['message' => '✅ Presença confirmada com sucesso.'],
@@ -554,74 +504,31 @@ class BolsistaController extends Controller
         $justificada = $request->boolean('justificada', false);
 
         if (!$turno) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['turno' => ['O turno é obrigatório (almoco ou jantar).']],
-                'meta' => [],
-            ], 400);
+            return response()->json(['data' => null, 'errors' => ['turno' => ['O turno é obrigatório.']], 'meta' => []], 400);
         }
 
         $user = User::find($userId);
         if (!$user) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['user' => ['Usuário não encontrado.']],
-                'meta' => [],
-            ], 404);
+            return response()->json(['data' => null, 'errors' => ['user' => ['Usuário não encontrado.']], 'meta' => []], 404);
         }
 
-        $refeicao = Refeicao::where('data_do_cardapio', $data)
-            ->where('turno', $turno)
-            ->first();
-
+        $refeicao = $this->presencaService->buscarRefeicao($data, $turno);
         if (!$refeicao) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['refeicao' => ['Não há refeição cadastrada para este dia e turno.']],
-                'meta' => [],
-            ], 404);
+            return response()->json(['data' => null, 'errors' => ['refeicao' => ['Não há refeição cadastrada para este dia e turno.']], 'meta' => []], 404);
         }
 
-        $status = $justificada
-            ? StatusPresenca::FALTA_JUSTIFICADA
-            : StatusPresenca::FALTA_INJUSTIFICADA;
+        // Marcar falta via Service
+        $presenca = $this->presencaService->marcarFalta($userId, $refeicao->id, $justificada, $request->user()?->id);
 
-        $presenca = Presenca::where('user_id', $userId)
-            ->where('refeicao_id', $refeicao->id)
-            ->first();
-
-        if (!$presenca) {
-            $presenca = Presenca::create([
-                'user_id' => $userId,
-                'refeicao_id' => $refeicao->id,
-                'status_da_presenca' => $status,
-                'validado_em' => now(),
-                'validado_por' => $request->user()?->id ?? 1,
-                'registrado_em' => now(),
-            ]);
-        } else {
-            $presenca->update([
-                'status_da_presenca' => $status,
-                'validado_em' => now(),
-                'validado_por' => $request->user()?->id ?? 1,
-            ]);
-        }
-
-        $mensagem = $justificada
-            ? 'Falta justificada registrada com sucesso.'
-            : 'Falta injustificada registrada com sucesso.';
+        $mensagem = $justificada ? 'Falta justificada registrada.' : 'Falta injustificada registrada.';
 
         return response()->json([
             'data' => [
                 'presenca_id' => $presenca->id,
                 'usuario' => $user->nome,
                 'matricula' => $user->matricula,
-                'status' => $status->value,
-                'refeicao' => [
-                    'id' => $refeicao->id,
-                    'data' => $refeicao->data_do_cardapio->format('d/m/Y'),
-                    'turno' => $refeicao->turno->value,
-                ],
+                'status' => $presenca->status_da_presenca->value,
+                'refeicao' => ['id' => $refeicao->id, 'data' => $refeicao->data_do_cardapio->format('d/m/Y'), 'turno' => $refeicao->turno->value],
             ],
             'errors' => [],
             'meta' => ['message' => $mensagem],
