@@ -130,4 +130,51 @@ class ValidationHelper
         
         return ['valido' => true, 'erro' => null];
     }
+
+    /**
+     * Valida se o bolsista pode acessar refeição (ativo, é bolsista, tem direito ao dia)
+     * 
+     * @param User $user Usuário a validar
+     * @param int $diaSemana Dia da semana (0-6)
+     * @return array ['valido' => bool, 'erro' => ?array]
+     */
+    public static function validarBolsistaAtivo(User $user, int $diaSemana): array
+    {
+        if (!$user->bolsista) {
+            return [
+                'valido' => false,
+                'erro' => [
+                    'chave' => 'bolsista',
+                    'message' => 'Este usuário não é bolsista.',
+                    'code' => 422
+                ],
+            ];
+        }
+
+        if ($user->desligado) {
+            return [
+                'valido' => false,
+                'erro' => [
+                    'chave' => 'bolsista',
+                    'message' => 'Este bolsista está desligado.',
+                    'code' => 422
+                ],
+            ];
+        }
+
+        $temDireito = $user->diasSemana()->where('dia_semana', $diaSemana)->exists();
+
+        if (!$temDireito) {
+            return [
+                'valido' => false,
+                'erro' => [
+                    'chave' => 'permissao',
+                    'message' => 'Bolsista não tem direito a refeição neste dia.',
+                    'code' => 422
+                ],
+            ];
+        }
+
+        return ['valido' => true, 'erro' => null];
+    }
 }

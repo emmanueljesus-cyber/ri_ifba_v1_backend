@@ -5,10 +5,10 @@ namespace App\Http\Controllers\api\v1\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\BolsistaImportRequest;
 use App\Http\Responses\ApiResponse;
+use App\Http\Resources\BolsistaResource;
 use App\Helpers\DateHelper;
 use App\Helpers\ValidationHelper;
 use App\Models\User;
-use App\Models\Refeicao;
 use App\Models\Presenca;
 use App\Enums\StatusPresenca;
 use App\Services\BolsistaImportService;
@@ -42,65 +42,14 @@ class BolsistaController extends Controller
         $turno = $request->input('turno');
         $diaSemana = Carbon::parse($data)->dayOfWeek;
 
-        // Buscar bolsistas cadastrados para este dia da semana
-        $bolsistas = User::where('bolsista', true)
-            ->with('diasSemana')
-            ->whereHas('diasSemana', fn($q) => $q->where('dia_semana', $diaSemana))
-            ->orderBy('nome')
-            ->get();
-
-        // Buscar refeição do dia/turno
-        $refeicaoQuery = Refeicao::where('data_do_cardapio', $data);
-        if ($turno) {
-            $refeicaoQuery->where('turno', $turno);
-        }
-        $refeicao = $refeicaoQuery->first();
-
-        // Buscar presenças
-        $presencas = [];
-        if ($refeicao) {
-            $presencas = Presenca::where('refeicao_id', $refeicao->id)
-                ->get()
-                ->keyBy('user_id');
-        }
-
-        // Montar lista com status
-        $lista = $bolsistas->map(function ($bolsista) use ($presencas) {
-            $presenca = $presencas[$bolsista->id] ?? null;
-            $diasTexto = $bolsista->diasSemana
-                ->map(fn($d) => DateHelper::getDiaSemanaTexto($d->dia_semana))
-                ->implode(', ');
-
-            return [
-                'user_id' => $bolsista->id,
-                'matricula' => $bolsista->matricula,
-                'nome' => $bolsista->nome,
-                'curso' => $bolsista->curso,
-                'turno_aluno' => $bolsista->turno,
-                'is_bolsista' => true,
-                'dias_semana' => $bolsista->diasSemana->pluck('dia_semana')->toArray(),
-                'dias_semana_texto' => $diasTexto,
-                'presenca' => $presenca ? [
-                    'id' => $presenca->id,
-                    'status' => $presenca->status_da_presenca->value,
-                    'confirmado_em' => DateHelper::formatarDataHoraBR($presenca->validado_em),
-                ] : null,
-                'status_presenca' => $presenca ? $presenca->status_da_presenca->value : 'pendente',
-            ];
-        });
+        // Buscar bolsistas com presenças
+        [$bolsistas, $refeicao] = $this->buscarBolsistasComPresencas($data, $turno, $diaSemana);
 
         // Estatísticas
-        $stats = [
-            'total' => $bolsistas->count(),
-            'presentes' => $lista->where('status_presenca', 'presente')->count(),
-            'pendentes' => $lista->where('status_presenca', 'pendente')->count(),
-            'faltas_justificadas' => $lista->where('status_presenca', 'falta_justificada')->count(),
-            'faltas_injustificadas' => $lista->where('status_presenca', 'falta_injustificada')->count(),
-            'cancelados' => $lista->where('status_presenca', 'cancelado')->count(),
-        ];
+        $stats = $this->calcularEstatisticas($bolsistas);
 
         return ApiResponse::standardSuccess(
-            data: $lista->values(),
+            data: BolsistaResource::collection($bolsistas),
             meta: [
                 'data' => DateHelper::formatarDataBR($data),
                 'data_iso' => $data,
@@ -138,31 +87,12 @@ class BolsistaController extends Controller
 
         $bolsistas = $query->orderBy('nome')->get();
 
-        $lista = $bolsistas->map(function ($bolsista) {
-            $diasTexto = $bolsista->diasSemana
-                ->map(fn($d) => DateHelper::getDiaSemanaTexto($d->dia_semana))
-                ->implode(', ');
-
-            return [
-                'user_id' => $bolsista->id,
-                'matricula' => $bolsista->matricula,
-                'nome' => $bolsista->nome,
-                'email' => $bolsista->email,
-                'curso' => $bolsista->curso,
-                'turno' => $bolsista->turno,
-                'is_bolsista' => true,
-                'ativo' => !$bolsista->desligado,
-                'dias_semana' => $bolsista->diasSemana->pluck('dia_semana')->toArray(),
-                'dias_semana_texto' => $diasTexto,
-            ];
-        });
-
         return ApiResponse::standardSuccess(
-            data: $lista->values(),
+            data: BolsistaResource::collection($bolsistas),
             meta: [
                 'total' => $bolsistas->count(),
-                'ativos' => $lista->where('ativo', true)->count(),
-                'inativos' => $lista->where('ativo', false)->count(),
+                'ativos' => $bolsistas->where('desligado', false)->count(),
+                'inativos' => $bolsistas->where('desligado', true)->count(),
             ]
         );
     }
@@ -199,31 +129,23 @@ class BolsistaController extends Controller
         $resultado = ValidationHelper::buscarRefeicao($data, $turno);
         $refeicao = $resultado['refeicao'];
 
-        // Mapear com status
-        $lista = $bolsistas->map(function ($bolsista) use ($refeicao) {
-            $presenca = null;
-            if ($refeicao) {
+        // Anexar status de presença
+        if ($refeicao) {
+            foreach ($bolsistas as $bolsista) {
                 $presenca = Presenca::where('user_id', $bolsista->id)
                     ->where('refeicao_id', $refeicao->id)
                     ->first();
-            }
 
-            return [
-                'user_id' => $bolsista->id,
-                'matricula' => $bolsista->matricula,
-                'nome' => $bolsista->nome,
-                'curso' => $bolsista->curso,
-                'turno_aluno' => $bolsista->turno,
-                'presenca_status' => $presenca ? $presenca->status_da_presenca->value : 'sem_registro',
-                'presenca_id' => $presenca?->id,
-                'ja_presente' => $presenca && $presenca->status_da_presenca === StatusPresenca::PRESENTE,
-            ];
-        });
+                $bolsista->presenca_status_busca = $presenca ? $presenca->status_da_presenca->value : 'sem_registro';
+                $bolsista->presenca_id_busca = $presenca?->id;
+                $bolsista->ja_presente_flag = $presenca && $presenca->status_da_presenca === StatusPresenca::PRESENTE;
+            }
+        }
 
         return ApiResponse::standardSuccess(
-            data: $lista->values(),
+            data: BolsistaResource::collection($bolsistas),
             meta: [
-                'total' => $lista->count(),
+                'total' => $bolsistas->count(),
                 'data' => DateHelper::formatarDataBR($data),
                 'data_iso' => $data,
                 'turno' => $turno,
@@ -257,27 +179,11 @@ class BolsistaController extends Controller
             return ApiResponse::standardNotFound('matricula', 'Matrícula não encontrada.');
         }
 
-        if (!$user->bolsista) {
-            return ApiResponse::standardError('matricula', 'Este usuário não é bolsista.', 422);
-        }
-
-        if ($user->desligado) {
-            return ApiResponse::standardError('matricula', 'Este bolsista está desligado.', 422);
-        }
-
-        // Verificar direito ao dia
-        $temDireito = $user->diasSemana()->where('dia_semana', $diaSemana)->exists();
-
-        if (!$temDireito) {
-            $diasCadastrados = $user->diasSemana
-                ->map(fn($d) => DateHelper::getDiaSemanaTexto($d->dia_semana))
-                ->implode(', ');
-                
-            return ApiResponse::standardError(
-                'permissao',
-                'Bolsista não tem direito a refeição neste dia.',
-                422
-            );
+        // Validar bolsista ativo
+        $validacao = ValidationHelper::validarBolsistaAtivo($user, $diaSemana);
+        if (!$validacao['valido']) {
+            $erro = $validacao['erro'];
+            return ApiResponse::standardError($erro['chave'], $erro['message'], $erro['code']);
         }
 
         // Buscar refeição
@@ -348,52 +254,24 @@ class BolsistaController extends Controller
         $apenasAtivos = $request->boolean('apenas_ativos', true);
         $diaSemana = Carbon::parse($data)->dayOfWeek;
 
-        $query = User::estudantes()
-            ->whereHas('diasSemana', fn($q) => $q->where('dia_semana', $diaSemana));
-
-        if ($apenasAtivos) {
-            $query->where('desligado', false);
-        }
-
-        $estudantes = $query->orderBy('nome')->get();
-
-        // Buscar presenças
-        $refeicaoQuery = Refeicao::where('data_do_cardapio', $data);
-        if ($turno) {
-            $refeicaoQuery->where('turno', $turno);
-        }
-        $refeicao = $refeicaoQuery->first();
-
-        $presencas = [];
-        if ($refeicao) {
-            $presencas = Presenca::where('refeicao_id', $refeicao->id)
-                ->get()
-                ->keyBy('user_id');
-        }
-
-        $lista = $estudantes->map(function ($estudante) use ($presencas) {
-            $presenca = $presencas[$estudante->id] ?? null;
-
-            return [
-                'user_id' => $estudante->id,
-                'matricula' => $estudante->matricula,
-                'nome' => $estudante->nome,
-                'curso' => $estudante->curso,
-                'turno_aluno' => $estudante->turno,
-                'is_bolsista' => $estudante->bolsista,
-                'status_presenca' => $presenca ? $presenca->status_da_presenca->value : 'pendente',
-            ];
-        });
+        // Buscar estudantes do dia
+        [$estudantes, $refeicao] = $this->buscarBolsistasComPresencas(
+            $data, 
+            $turno, 
+            $diaSemana,
+            apenasAtivos: $apenasAtivos,
+            usarScopeEstudantes: true
+        );
 
         return ApiResponse::standardSuccess(
-            data: $lista->values(),
+            data: BolsistaResource::collection($estudantes),
             meta: [
                 'data' => DateHelper::formatarDataBR($data),
                 'dia_semana_texto' => DateHelper::getDiaSemanaTexto($diaSemana),
                 'turno' => $turno,
                 'total' => $estudantes->count(),
-                'total_bolsistas' => $lista->where('is_bolsista', true)->count(),
-                'total_nao_bolsistas' => $lista->where('is_bolsista', false)->count(),
+                'total_bolsistas' => $estudantes->where('bolsista', true)->count(),
+                'total_nao_bolsistas' => $estudantes->where('bolsista', false)->count(),
             ]
         );
     }
@@ -585,5 +463,67 @@ class BolsistaController extends Controller
         } catch (\Exception $e) {
             return ApiResponse::standardError('file', 'Erro ao processar arquivo: ' . $e->getMessage(), 500);
         }
+    }
+
+    // ==================== MÉTODOS PRIVADOS ====================
+
+    /**
+     * Busca bolsistas com suas presenças anexadas
+     * 
+     * @return array [$bolsistas, $refeicao]
+     */
+    private function buscarBolsistasComPresencas(
+        string $data, 
+        ?string $turno, 
+        int $diaSemana,
+        bool $apenasAtivos = false,
+        bool $usarScopeEstudantes = false
+    ): array {
+        $query = $usarScopeEstudantes ? User::estudantes() : User::where('bolsista', true);
+        
+        $query->with('diasSemana')
+            ->whereHas('diasSemana', fn($q) => $q->where('dia_semana', $diaSemana))
+            ->orderBy('nome');
+
+        if ($apenasAtivos) {
+            $query->where('desligado', false);
+        }
+
+        $bolsistas = $query->get();
+
+        // Buscar refeição
+        $refeicaoQuery = \App\Models\Refeicao::where('data_do_cardapio', $data);
+        if ($turno) {
+            $refeicaoQuery->where('turno', $turno);
+        }
+        $refeicao = $refeicaoQuery->first();
+
+        // Anexar presenças
+        if ($refeicao) {
+            $presencas = Presenca::where('refeicao_id', $refeicao->id)
+                ->get()
+                ->keyBy('user_id');
+
+            foreach ($bolsistas as $bolsista) {
+                $bolsista->presenca_atual = $presencas[$bolsista->id] ?? null;
+            }
+        }
+
+        return [$bolsistas, $refeicao];
+    }
+
+    /**
+     * Calcula estatísticas de presença
+     */
+    private function calcularEstatisticas($bolsistas): array
+    {
+        $total = $bolsistas->count();
+        $presentes = $bolsistas->filter(fn($b) => $b->presenca_atual?->status_da_presenca->value === 'presente')->count();
+        $pendentes = $bolsistas->filter(fn($b) => !$b->presenca_atual)->count();
+        $faltasJustificadas = $bolsistas->filter(fn($b) => $b->presenca_atual?->status_da_presenca->value === 'falta_justificada')->count();
+        $faltasInjustificadas = $bolsistas->filter(fn($b) => $b->presenca_atual?->status_da_presenca->value === 'falta_injustificada')->count();
+        $cancelados = $bolsistas->filter(fn($b) => $b->presenca_atual?->status_da_presenca->value === 'cancelado')->count();
+
+        return compact('total', 'presentes', 'pendentes', 'faltasJustificadas', 'faltasInjustificadas', 'cancelados');
     }
 }
