@@ -7,68 +7,102 @@ use App\Http\Requests\Admin\CardapioImportRequest;
 use App\Http\Requests\Admin\CardapioStoreRequest;
 use App\Http\Requests\Admin\CardapioUpdateRequest;
 use App\Http\Resources\CardapioResource;
+use App\Http\Responses\ApiResponse;
 use App\Models\Cardapio;
 use App\Services\CardapioImportService;
 use App\Services\CardapioService;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
 
+/**
+ * Controller para gerenciamento de cardápios (RF08)
+ * 
+ * Responsabilidades:
+ * - CRUD de cardápios
+ * - Importação de cardápios via Excel/CSV
+ * - Operações em lote (deletar múltiplos, por período)
+ */
 class CardapioController extends Controller
 {
     public function __construct(
         private CardapioService $service,
         private CardapioImportService $importService,
-    ) {
-    }
+    ) {}
 
+    /**
+     * RF08 - Listar cardápios
+     * GET /api/v1/admin/cardapios
+     */
     public function index(Request $request)
     {
-        $data = $this->service->paginate($request->only('data'), $request->integer('per_page', 15));
+        $data = $this->service->paginate(
+            $request->only('data'),
+            $request->integer('per_page', 15)
+        );
+        
         return CardapioResource::collection($data);
     }
 
+    /**
+     * RF08 - Criar cardápio
+     * POST /api/v1/admin/cardapios
+     */
     public function store(CardapioStoreRequest $request)
     {
-        $userId = $request->user()?->id ?? null;
+        $userId = $request->user()?->id;
         $cardapio = $this->service->create($request->validated(), $userId);
-        return response()->json([
-            'data' => new CardapioResource($cardapio),
-            'errors' => [],
-            'meta' => ['created' => true],
-        ], 201);
+        
+        return ApiResponse::standardCreated(
+            new CardapioResource($cardapio),
+            ['created' => true]
+        );
     }
 
+    /**
+     * RF08 - Exibir cardápio
+     * GET /api/v1/admin/cardapios/{cardapio}
+     */
     public function show(Cardapio $cardapio)
     {
         $cardapio->load(['refeicoes', 'criador']);
         
-        return response()->json([
-            'data' => new CardapioResource($cardapio),
-            'errors' => [],
-            'meta' => [],
-        ]);
+        return ApiResponse::standardSuccess(
+            new CardapioResource($cardapio)
+        );
     }
 
+    /**
+     * RF08 - Atualizar cardápio
+     * PUT/PATCH /api/v1/admin/cardapios/{cardapio}
+     */
     public function update(CardapioUpdateRequest $request, Cardapio $cardapio)
     {
         $cardapio = $this->service->update($cardapio, $request->validated());
-        return response()->json([
-            'data' => new CardapioResource($cardapio),
-            'errors' => [],
-            'meta' => ['updated' => true],
-        ]);
+        
+        return ApiResponse::standardSuccess(
+            new CardapioResource($cardapio),
+            ['updated' => true]
+        );
     }
 
+    /**
+     * RF08 - Deletar cardápio
+     * DELETE /api/v1/admin/cardapios/{cardapio}
+     */
     public function destroy(Cardapio $cardapio)
     {
         $this->service->delete($cardapio);
-        return response()->json([
-            'data' => null,
-            'errors' => [],
-            'meta' => ['deleted' => true],
-        ]);
+        
+        return ApiResponse::standardSuccess(
+            null,
+            ['deleted' => true]
+        );
     }
 
+    /**
+     * RF08 - Importar cardápios via Excel/CSV
+     * POST /api/v1/admin/cardapios/import
+     */
     public function import(CardapioImportRequest $request)
     {
         $file = $request->file('file');
@@ -76,11 +110,7 @@ class CardapioController extends Controller
         $rows = Excel::toArray(null, $file)[0] ?? [];
 
         if (empty($rows)) {
-            return response()->json([
-                'data' => [],
-                'errors' => ['file' => ['Arquivo vazio']],
-                'meta' => [],
-            ], 422);
+            return ApiResponse::standardError('file', 'Arquivo vazio', 422);
         }
 
         $result = $this->importService->import(
@@ -90,39 +120,42 @@ class CardapioController extends Controller
             debug: $request->boolean('debug')
         );
 
+        // Modo debug
         if ($request->boolean('debug') && $result['debug']) {
-            return response()->json([
-                'data' => $result['debug'],
-                'errors' => [],
-                'meta' => ['debug' => true],
-            ]);
+            return ApiResponse::standardResponse(
+                data: $result['debug'],
+                meta: ['debug' => true]
+            );
         }
 
-        return response()->json([
-            'data' => $result['created'],
-            'errors' => $result['errors'],
-            'meta' => [
+        // Resposta normal
+        return ApiResponse::standardCreated(
+            data: $result['created'],
+            meta: [
                 'total_criados' => count($result['created']),
                 'total_erros' => count($result['errors']),
-            ],
-        ], 201);
+                'errors' => $result['errors'],
+            ]
+        );
     }
 
     /**
      * Deletar todos os cardápios
+     * DELETE /api/v1/admin/cardapios/all
      */
     public function deleteAll()
     {
         $deleted = Cardapio::query()->delete();
-        return response()->json([
-            'data' => null,
-            'errors' => [],
-            'meta' => ['deleted_count' => $deleted],
-        ]);
+        
+        return ApiResponse::standardSuccess(
+            null,
+            ['deleted_count' => $deleted]
+        );
     }
 
     /**
      * Deletar múltiplos cardápios por ID
+     * POST /api/v1/admin/cardapios/delete-multiple
      */
     public function deleteMultiple(Request $request)
     {
@@ -133,15 +166,15 @@ class CardapioController extends Controller
 
         $deleted = Cardapio::whereIn('id', $request->input('ids'))->delete();
 
-        return response()->json([
-            'data' => null,
-            'errors' => [],
-            'meta' => ['deleted_count' => $deleted],
-        ]);
+        return ApiResponse::standardSuccess(
+            null,
+            ['deleted_count' => $deleted]
+        );
     }
 
     /**
      * Deletar cardápios por período de datas
+     * POST /api/v1/admin/cardapios/delete-by-date-range
      */
     public function deleteByDateRange(Request $request)
     {
@@ -155,14 +188,13 @@ class CardapioController extends Controller
 
         $deleted = Cardapio::whereBetween('data_do_cardapio', [$dataInicio, $dataFim])->delete();
 
-        return response()->json([
-            'data' => null,
-            'errors' => [],
-            'meta' => [
+        return ApiResponse::standardSuccess(
+            null,
+            [
                 'deleted_count' => $deleted,
                 'data_inicio' => $dataInicio,
                 'data_fim' => $dataFim,
-            ],
-        ]);
+            ]
+        );
     }
 }

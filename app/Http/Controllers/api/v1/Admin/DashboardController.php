@@ -4,18 +4,24 @@ namespace App\Http\Controllers\api\v1\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Services\DashboardService;
+use App\Http\Responses\ApiResponse;
+use App\Helpers\DateHelper;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Carbon\Carbon;
 
+/**
+ * Controller para dashboard administrativo (RF11)
+ * 
+ * Responsabilidades:
+ * - Fornecer estatísticas e métricas do sistema
+ * - Delegar cálculos para DashboardService
+ */
 class DashboardController extends Controller
 {
-    protected DashboardService $service;
-
-    public function __construct(DashboardService $service)
-    {
-        $this->service = $service;
-    }
+    public function __construct(
+        private DashboardService $service
+    ) {}
 
     /**
      * RF11 - Dashboard principal com todas as estatísticas
@@ -34,19 +40,18 @@ class DashboardController extends Controller
             $dataFim = Carbon::create($ano, $mes, 1)->endOfMonth()->toDateString();
         }
 
-        return response()->json([
-            'data' => [
+        return ApiResponse::standardSuccess(
+            data: [
                 'resumo' => $this->service->resumoGeral($mes, $ano),
                 'taxa_presenca' => $this->service->taxaPresenca($dataInicio, $dataFim),
                 'faltas' => $this->service->faltasPorTipo($dataInicio, $dataFim),
                 'extras' => $this->service->extrasAtendidos($dataInicio, $dataFim),
             ],
-            'errors' => [],
-            'meta' => [
+            meta: [
                 'periodo' => "{$dataInicio} a {$dataFim}",
-                'gerado_em' => now()->format('d/m/Y H:i:s'),
-            ],
-        ]);
+                'gerado_em' => DateHelper::formatarDataHoraBR(now()),
+            ]
+        );
     }
 
     /**
@@ -58,11 +63,9 @@ class DashboardController extends Controller
         $mes = $request->input('mes', now()->month);
         $ano = $request->input('ano', now()->year);
 
-        return response()->json([
-            'data' => $this->service->resumoGeral($mes, $ano),
-            'errors' => [],
-            'meta' => [],
-        ]);
+        return ApiResponse::standardSuccess(
+            $this->service->resumoGeral($mes, $ano)
+        );
     }
 
     /**
@@ -74,11 +77,9 @@ class DashboardController extends Controller
         $dataInicio = $request->input('data_inicio');
         $dataFim = $request->input('data_fim');
 
-        return response()->json([
-            'data' => $this->service->taxaPresenca($dataInicio, $dataFim),
-            'errors' => [],
-            'meta' => [],
-        ]);
+        return ApiResponse::standardSuccess(
+            $this->service->taxaPresenca($dataInicio, $dataFim)
+        );
     }
 
     /**
@@ -90,11 +91,9 @@ class DashboardController extends Controller
         $dataInicio = $request->input('data_inicio');
         $dataFim = $request->input('data_fim');
 
-        return response()->json([
-            'data' => $this->service->faltasPorTipo($dataInicio, $dataFim),
-            'errors' => [],
-            'meta' => [],
-        ]);
+        return ApiResponse::standardSuccess(
+            $this->service->faltasPorTipo($dataInicio, $dataFim)
+        );
     }
 
     /**
@@ -106,11 +105,9 @@ class DashboardController extends Controller
         $dataInicio = $request->input('data_inicio');
         $dataFim = $request->input('data_fim');
 
-        return response()->json([
-            'data' => $this->service->extrasAtendidos($dataInicio, $dataFim),
-            'errors' => [],
-            'meta' => [],
-        ]);
+        return ApiResponse::standardSuccess(
+            $this->service->extrasAtendidos($dataInicio, $dataFim)
+        );
     }
 
     /**
@@ -121,11 +118,10 @@ class DashboardController extends Controller
     {
         $meses = $request->input('meses', 6);
 
-        return response()->json([
-            'data' => $this->service->evolucaoMensal($meses),
-            'errors' => [],
-            'meta' => ['meses_analisados' => $meses],
-        ]);
+        return ApiResponse::standardSuccess(
+            data: $this->service->evolucaoMensal($meses),
+            meta: ['meses_analisados' => $meses]
+        );
     }
 
     /**
@@ -136,10 +132,9 @@ class DashboardController extends Controller
     {
         $limite = $request->input('limite', 10);
 
-        return response()->json([
-            'data' => $this->service->topFaltosos($limite),
-            'errors' => [],
-            'meta' => ['limite' => $limite],
-        ]);
+        return ApiResponse::standardSuccess(
+            data: $this->service->topFaltosos($limite),
+            meta: ['limite' => $limite]
+        );
     }
 }

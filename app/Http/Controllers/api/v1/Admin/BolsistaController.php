@@ -4,10 +4,12 @@ namespace App\Http\Controllers\api\v1\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\BolsistaImportRequest;
+use App\Http\Responses\ApiResponse;
+use App\Helpers\DateHelper;
+use App\Helpers\ValidationHelper;
 use App\Models\User;
 use App\Models\Refeicao;
 use App\Models\Presenca;
-use App\Models\UsuarioDiaSemana;
 use App\Enums\StatusPresenca;
 use App\Services\BolsistaImportService;
 use App\Services\PresencaService;
@@ -16,31 +18,19 @@ use Illuminate\Http\JsonResponse;
 use Carbon\Carbon;
 use Maatwebsite\Excel\Facades\Excel;
 
+/**
+ * Controller para gerenciamento de bolsistas (RF09, RF13, RF15)
+ * 
+ * Responsabilidades:
+ * - Lista de bolsistas do dia/todos
+ * - Busca e confirmação de presença (QR Code + manual)
+ * - Importação de lista de bolsistas
+ */
 class BolsistaController extends Controller
 {
     public function __construct(
         protected PresencaService $presencaService
     ) {}
-    /**
-     * Nomes dos dias da semana em português
-     */
-    private const DIAS_SEMANA = [
-        0 => 'Domingo',
-        1 => 'Segunda',
-        2 => 'Terça',
-        3 => 'Quarta',
-        4 => 'Quinta',
-        5 => 'Sexta',
-        6 => 'Sábado',
-    ];
-
-    /**
-     * Converte número do dia para texto
-     */
-    private function getDiaSemanaTexto(int $dia): string
-    {
-        return self::DIAS_SEMANA[$dia] ?? 'Desconhecido';
-    }
 
     /**
      * RF09 - Lista bolsistas do dia por turno
@@ -50,26 +40,23 @@ class BolsistaController extends Controller
     {
         $data = Carbon::parse($request->input('data', now()))->format('Y-m-d');
         $turno = $request->input('turno');
-
         $diaSemana = Carbon::parse($data)->dayOfWeek;
 
         // Buscar bolsistas cadastrados para este dia da semana
         $bolsistas = User::where('bolsista', true)
             ->with('diasSemana')
-            ->whereHas('diasSemana', function ($q) use ($diaSemana) {
-                $q->where('dia_semana', $diaSemana);
-            })
+            ->whereHas('diasSemana', fn($q) => $q->where('dia_semana', $diaSemana))
             ->orderBy('nome')
             ->get();
 
-        // Buscar refeição do dia/turno para verificar presenças
+        // Buscar refeição do dia/turno
         $refeicaoQuery = Refeicao::where('data_do_cardapio', $data);
         if ($turno) {
             $refeicaoQuery->where('turno', $turno);
         }
         $refeicao = $refeicaoQuery->first();
 
-        // Buscar presenças já registradas
+        // Buscar presenças
         $presencas = [];
         if ($refeicao) {
             $presencas = Presenca::where('refeicao_id', $refeicao->id)
@@ -77,10 +64,12 @@ class BolsistaController extends Controller
                 ->keyBy('user_id');
         }
 
-        // Montar lista com status de presença
-        $lista = $bolsistas->map(function ($bolsista) use ($presencas, $refeicao) {
+        // Montar lista com status
+        $lista = $bolsistas->map(function ($bolsista) use ($presencas) {
             $presenca = $presencas[$bolsista->id] ?? null;
-            $diasTexto = $bolsista->diasSemana->map(fn($d) => $this->getDiaSemanaTexto($d->dia_semana))->implode(', ');
+            $diasTexto = $bolsista->diasSemana
+                ->map(fn($d) => DateHelper::getDiaSemanaTexto($d->dia_semana))
+                ->implode(', ');
 
             return [
                 'user_id' => $bolsista->id,
@@ -94,33 +83,35 @@ class BolsistaController extends Controller
                 'presenca' => $presenca ? [
                     'id' => $presenca->id,
                     'status' => $presenca->status_da_presenca->value,
-                    'confirmado_em' => $presenca->validado_em?->format('d/m/Y H:i'),
+                    'confirmado_em' => DateHelper::formatarDataHoraBR($presenca->validado_em),
                 ] : null,
                 'status_presenca' => $presenca ? $presenca->status_da_presenca->value : 'pendente',
             ];
         });
 
-        return response()->json([
-            'data' => $lista->values(),
-            'errors' => [],
-            'meta' => [
-                'data' => Carbon::parse($data)->format('d/m/Y'),
+        // Estatísticas
+        $stats = [
+            'total' => $bolsistas->count(),
+            'presentes' => $lista->where('status_presenca', 'presente')->count(),
+            'pendentes' => $lista->where('status_presenca', 'pendente')->count(),
+            'faltas_justificadas' => $lista->where('status_presenca', 'falta_justificada')->count(),
+            'faltas_injustificadas' => $lista->where('status_presenca', 'falta_injustificada')->count(),
+            'cancelados' => $lista->where('status_presenca', 'cancelado')->count(),
+        ];
+
+        return ApiResponse::standardSuccess(
+            data: $lista->values(),
+            meta: [
+                'data' => DateHelper::formatarDataBR($data),
                 'data_iso' => $data,
                 'dia_semana' => $diaSemana,
-                'dia_semana_texto' => Carbon::parse($data)->locale('pt_BR')->dayName,
+                'dia_semana_texto' => DateHelper::getDiaSemanaTexto($diaSemana),
                 'turno_filtrado' => $turno,
                 'total_bolsistas' => $bolsistas->count(),
                 'refeicao_id' => $refeicao?->id,
-                'stats' => [
-                    'total' => $bolsistas->count(),
-                    'presentes' => $lista->where('status_presenca', 'presente')->count(),
-                    'pendentes' => $lista->where('status_presenca', 'pendente')->count(),
-                    'faltas_justificadas' => $lista->where('status_presenca', 'falta_justificada')->count(),
-                    'faltas_injustificadas' => $lista->where('status_presenca', 'falta_injustificada')->count(),
-                    'cancelados' => $lista->where('status_presenca', 'cancelado')->count(),
-                ],
-            ],
-        ]);
+                'stats' => $stats,
+            ]
+        );
     }
 
     /**
@@ -131,7 +122,7 @@ class BolsistaController extends Controller
     {
         $query = User::where('bolsista', true)->with('diasSemana');
 
-        // Filtros opcionais
+        // Filtros
         if ($request->has('search')) {
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
@@ -148,7 +139,9 @@ class BolsistaController extends Controller
         $bolsistas = $query->orderBy('nome')->get();
 
         $lista = $bolsistas->map(function ($bolsista) {
-            $diasTexto = $bolsista->diasSemana->map(fn($d) => $this->getDiaSemanaTexto($d->dia_semana))->implode(', ');
+            $diasTexto = $bolsista->diasSemana
+                ->map(fn($d) => DateHelper::getDiaSemanaTexto($d->dia_semana))
+                ->implode(', ');
 
             return [
                 'user_id' => $bolsista->id,
@@ -164,22 +157,19 @@ class BolsistaController extends Controller
             ];
         });
 
-        return response()->json([
-            'data' => $lista->values(),
-            'errors' => [],
-            'meta' => [
+        return ApiResponse::standardSuccess(
+            data: $lista->values(),
+            meta: [
                 'total' => $bolsistas->count(),
                 'ativos' => $lista->where('ativo', true)->count(),
                 'inativos' => $lista->where('ativo', false)->count(),
-            ],
-        ]);
+            ]
+        );
     }
 
     /**
      * RF13 - Buscar bolsista para confirmação manual
      * GET /api/v1/admin/bolsistas/buscar
-     *
-     * Busca bolsistas por nome ou matrícula para confirmação manual de presença
      */
     public function buscarParaConfirmacao(Request $request): JsonResponse
     {
@@ -194,26 +184,23 @@ class BolsistaController extends Controller
         $data = Carbon::parse($request->input('data', now()))->format('Y-m-d');
         $diaSemana = Carbon::parse($data)->dayOfWeek;
 
-        // Buscar bolsistas que correspondem à busca e têm direito ao dia
+        // Buscar bolsistas
         $bolsistas = User::where('bolsista', true)
             ->where('desligado', false)
             ->where(function ($q) use ($search) {
                 $q->where('nome', 'like', "%{$search}%")
                   ->orWhere('matricula', 'like', "%{$search}%");
             })
-            ->whereHas('diasSemana', function ($q) use ($diaSemana) {
-                $q->where('dia_semana', $diaSemana);
-            })
+            ->whereHas('diasSemana', fn($q) => $q->where('dia_semana', $diaSemana))
             ->limit(10)
             ->get();
 
         // Buscar refeição
-        $refeicao = Refeicao::where('data_do_cardapio', $data)
-            ->where('turno', $turno)
-            ->first();
+        $resultado = ValidationHelper::buscarRefeicao($data, $turno);
+        $refeicao = $resultado['refeicao'];
 
-        // Mapear com status de presença
-        $lista = $bolsistas->map(function ($bolsista) use ($refeicao, $data, $turno) {
+        // Mapear com status
+        $lista = $bolsistas->map(function ($bolsista) use ($refeicao) {
             $presenca = null;
             if ($refeicao) {
                 $presenca = Presenca::where('user_id', $bolsista->id)
@@ -233,25 +220,22 @@ class BolsistaController extends Controller
             ];
         });
 
-        return response()->json([
-            'data' => $lista->values(),
-            'errors' => [],
-            'meta' => [
+        return ApiResponse::standardSuccess(
+            data: $lista->values(),
+            meta: [
                 'total' => $lista->count(),
-                'data' => Carbon::parse($data)->format('d/m/Y'),
+                'data' => DateHelper::formatarDataBR($data),
                 'data_iso' => $data,
                 'turno' => $turno,
                 'refeicao_id' => $refeicao?->id,
                 'tem_refeicao' => $refeicao !== null,
-            ],
-        ]);
+            ]
+        );
     }
 
     /**
      * RF13 - Confirmar presença por QR Code (matrícula)
      * POST /api/v1/admin/bolsistas/qrcode
-     *
-     * Recebe a matrícula escaneada do QR Code e confirma presença
      */
     public function confirmarPorQrCode(Request $request): JsonResponse
     {
@@ -266,84 +250,64 @@ class BolsistaController extends Controller
         $data = Carbon::parse($request->input('data', now()))->format('Y-m-d');
         $diaSemana = Carbon::parse($data)->dayOfWeek;
 
-        // Buscar usuário pela matrícula
+        // Buscar usuário
         $user = User::where('matricula', $matricula)->first();
 
         if (!$user) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['matricula' => ['Matrícula não encontrada.']],
-                'meta' => [],
-            ], 404);
+            return ApiResponse::standardNotFound('matricula', 'Matrícula não encontrada.');
         }
 
         if (!$user->bolsista) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['matricula' => ['Este usuário não é bolsista.']],
-                'meta' => [],
-            ], 422);
+            return ApiResponse::standardError('matricula', 'Este usuário não é bolsista.', 422);
         }
 
         if ($user->desligado) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['matricula' => ['Este bolsista está desligado.']],
-                'meta' => [],
-            ], 422);
+            return ApiResponse::standardError('matricula', 'Este bolsista está desligado.', 422);
         }
 
-        // Verificar se tem direito ao dia
+        // Verificar direito ao dia
         $temDireito = $user->diasSemana()->where('dia_semana', $diaSemana)->exists();
 
         if (!$temDireito) {
-            $diasCadastrados = $user->diasSemana->map(fn($d) => $this->getDiaSemanaTexto($d->dia_semana))->implode(', ');
-            return response()->json([
-                'data' => null,
-                'errors' => ['permissao' => ['Bolsista não tem direito a refeição neste dia.']],
-                'meta' => [
-                    'usuario' => $user->nome,
-                    'dia_tentativa' => Carbon::parse($data)->locale('pt_BR')->dayName,
-                    'dias_cadastrados' => $diasCadastrados ?: 'Nenhum',
-                ],
-            ], 422);
+            $diasCadastrados = $user->diasSemana
+                ->map(fn($d) => DateHelper::getDiaSemanaTexto($d->dia_semana))
+                ->implode(', ');
+                
+            return ApiResponse::standardError(
+                'permissao',
+                'Bolsista não tem direito a refeição neste dia.',
+                422
+            );
         }
 
         // Buscar refeição
-        $refeicao = Refeicao::where('data_do_cardapio', $data)
-            ->where('turno', $turno)
-            ->first();
-
-        if (!$refeicao) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['refeicao' => ['Não há refeição cadastrada para este dia e turno.']],
-                'meta' => [],
-            ], 404);
+        $resultado = ValidationHelper::buscarRefeicao($data, $turno);
+        if ($resultado['erro']) {
+            return ApiResponse::standardNotFound('refeicao', $resultado['erro']['message']);
         }
+        $refeicao = $resultado['refeicao'];
 
-        // Verificar se já está confirmado
+        // Verificar se já presente
         $presenca = Presenca::where('user_id', $user->id)
             ->where('refeicao_id', $refeicao->id)
             ->first();
 
         if ($presenca && $presenca->status_da_presenca === StatusPresenca::PRESENTE) {
-            return response()->json([
-                'data' => [
+            return ApiResponse::standardSuccess(
+                data: [
                     'usuario' => $user->nome,
                     'matricula' => $user->matricula,
                     'curso' => $user->curso,
-                    'confirmado_em' => $presenca->validado_em?->format('H:i:s'),
+                    'confirmado_em' => $presenca->validado_em->format('H:i:s'),
                 ],
-                'errors' => [],
-                'meta' => [
+                meta: [
                     'message' => '⚠️ Presença já estava confirmada.',
                     'ja_presente' => true,
-                ],
-            ], 200);
+                ]
+            );
         }
 
-        // Criar ou atualizar presença
+        // Confirmar presença
         if (!$presenca) {
             $presenca = Presenca::create([
                 'user_id' => $user->id,
@@ -357,23 +321,20 @@ class BolsistaController extends Controller
             $presenca->marcarPresente($request->user()?->id ?? 1);
         }
 
-        return response()->json([
-            'data' => [
+        return ApiResponse::standardCreated(
+            data: [
                 'presenca_id' => $presenca->id,
                 'usuario' => $user->nome,
                 'matricula' => $user->matricula,
                 'curso' => $user->curso,
                 'refeicao' => [
-                    'data' => $refeicao->data_do_cardapio->format('d/m/Y'),
+                    'data' => DateHelper::formatarDataBR($refeicao->data_do_cardapio),
                     'turno' => $refeicao->turno->value,
                 ],
                 'confirmado_em' => now()->format('H:i:s'),
             ],
-            'errors' => [],
-            'meta' => [
-                'message' => "✅ Presença confirmada para {$user->nome}!",
-            ],
-        ], 201);
+            meta: ['message' => "✅ Presença confirmada para {$user->nome}!"]
+        );
     }
 
     /**
@@ -385,13 +346,10 @@ class BolsistaController extends Controller
         $data = Carbon::parse($request->input('data', now()))->format('Y-m-d');
         $turno = $request->input('turno');
         $apenasAtivos = $request->boolean('apenas_ativos', true);
-
         $diaSemana = Carbon::parse($data)->dayOfWeek;
 
         $query = User::estudantes()
-            ->whereHas('diasSemana', function ($q) use ($diaSemana) {
-                $q->where('dia_semana', $diaSemana);
-            });
+            ->whereHas('diasSemana', fn($q) => $q->where('dia_semana', $diaSemana));
 
         if ($apenasAtivos) {
             $query->where('desligado', false);
@@ -399,6 +357,7 @@ class BolsistaController extends Controller
 
         $estudantes = $query->orderBy('nome')->get();
 
+        // Buscar presenças
         $refeicaoQuery = Refeicao::where('data_do_cardapio', $data);
         if ($turno) {
             $refeicaoQuery->where('turno', $turno);
@@ -426,25 +385,22 @@ class BolsistaController extends Controller
             ];
         });
 
-        return response()->json([
-            'data' => $lista->values(),
-            'errors' => [],
-            'meta' => [
-                'data' => Carbon::parse($data)->format('d/m/Y'),
-                'dia_semana_texto' => Carbon::parse($data)->locale('pt_BR')->dayName,
+        return ApiResponse::standardSuccess(
+            data: $lista->values(),
+            meta: [
+                'data' => DateHelper::formatarDataBR($data),
+                'dia_semana_texto' => DateHelper::getDiaSemanaTexto($diaSemana),
                 'turno' => $turno,
                 'total' => $estudantes->count(),
                 'total_bolsistas' => $lista->where('is_bolsista', true)->count(),
                 'total_nao_bolsistas' => $lista->where('is_bolsista', false)->count(),
-            ],
-        ]);
+            ]
+        );
     }
 
     /**
-     * Confirmar presença do bolsista (marcar como presente)
+     * Confirmar presença do bolsista
      * POST /api/v1/admin/bolsistas/{userId}/confirmar-presenca
-     * 
-     * Controller orquestra e formata HTTP. Service contém regras de negócio.
      */
     public function confirmarPresenca(Request $request, int $userId): JsonResponse
     {
@@ -456,36 +412,29 @@ class BolsistaController extends Controller
                 $request->user()?->id
             );
 
-            return response()->json([
-                'data' => [
+            return ApiResponse::standardCreated(
+                data: [
                     'presenca_id' => $resultado['presenca']->id,
                     'usuario' => $resultado['user']->nome,
                     'matricula' => $resultado['user']->matricula,
                     'refeicao' => [
                         'id' => $resultado['refeicao']->id,
-                        'data' => $resultado['refeicao']->data_do_cardapio->format('d/m/Y'),
+                        'data' => DateHelper::formatarDataBR($resultado['refeicao']->data_do_cardapio),
                         'turno' => $resultado['refeicao']->turno->value,
                     ],
-                    'confirmado_em' => $resultado['presenca']->validado_em->format('d/m/Y H:i'),
+                    'confirmado_em' => DateHelper::formatarDataHoraBR($resultado['presenca']->validado_em),
                 ],
-                'errors' => [],
-                'meta' => ['message' => '✅ Presença confirmada com sucesso.'],
-            ], 201);
+                meta: ['message' => '✅ Presença confirmada com sucesso.']
+            );
 
         } catch (\App\Exceptions\BusinessException $e) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['erro' => [$e->getMessage()]],
-                'meta' => $e->getMeta(),
-            ], $e->getCode());
+            return ApiResponse::standardError('erro', $e->getMessage(), $e->getCode());
         }
     }
 
     /**
      * Marcar falta do bolsista
      * POST /api/v1/admin/bolsistas/{userId}/marcar-falta
-     * 
-     * Controller orquestra e formata HTTP. Service contém regras de negócio.
      */
     public function marcarFalta(Request $request, int $userId): JsonResponse
     {
@@ -502,33 +451,28 @@ class BolsistaController extends Controller
 
             $mensagem = $justificada ? 'Falta justificada registrada.' : 'Falta injustificada registrada.';
 
-            return response()->json([
-                'data' => [
+            return ApiResponse::standardSuccess(
+                data: [
                     'presenca_id' => $resultado['presenca']->id,
                     'usuario' => $resultado['user']->nome,
                     'matricula' => $resultado['user']->matricula,
                     'status' => $resultado['presenca']->status_da_presenca->value,
                     'refeicao' => [
                         'id' => $resultado['refeicao']->id,
-                        'data' => $resultado['refeicao']->data_do_cardapio->format('d/m/Y'),
+                        'data' => DateHelper::formatarDataBR($resultado['refeicao']->data_do_cardapio),
                         'turno' => $resultado['refeicao']->turno->value,
                     ],
                 ],
-                'errors' => [],
-                'meta' => ['message' => $mensagem],
-            ], 200);
+                meta: ['message' => $mensagem]
+            );
 
         } catch (\App\Exceptions\BusinessException $e) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['erro' => [$e->getMessage()]],
-                'meta' => $e->getMeta(),
-            ], $e->getCode());
+            return ApiResponse::standardError('erro', $e->getMessage(), $e->getCode());
         }
     }
 
     /**
-     * Confirmar presença em lote (múltiplos bolsistas)
+     * Confirmar presença em lote
      * POST /api/v1/admin/bolsistas/confirmar-lote
      */
     public function confirmarLote(Request $request): JsonResponse
@@ -538,32 +482,19 @@ class BolsistaController extends Controller
         $data = Carbon::parse($request->input('data', now()))->format('Y-m-d');
 
         if (empty($userIds)) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['user_ids' => ['Nenhum usuário selecionado.']],
-                'meta' => [],
-            ], 400);
+            return ApiResponse::standardError('user_ids', 'Nenhum usuário selecionado.', 400);
         }
 
         if (!$turno) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['turno' => ['O turno é obrigatório.']],
-                'meta' => [],
-            ], 400);
+            return ApiResponse::standardError('turno', 'O turno é obrigatório.', 400);
         }
 
-        $refeicao = Refeicao::where('data_do_cardapio', $data)
-            ->where('turno', $turno)
-            ->first();
-
-        if (!$refeicao) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['refeicao' => ['Não há refeição cadastrada para este dia e turno.']],
-                'meta' => [],
-            ], 404);
+        // Buscar refeição
+        $resultado = ValidationHelper::buscarRefeicao($data, $turno);
+        if ($resultado['erro']) {
+            return ApiResponse::standardNotFound('refeicao', $resultado['erro']['message']);
         }
+        $refeicao = $resultado['refeicao'];
 
         $confirmados = 0;
         $jaConfirmados = 0;
@@ -603,27 +534,27 @@ class BolsistaController extends Controller
             $confirmados++;
         }
 
-        return response()->json([
-            'data' => [
+        return ApiResponse::standardSuccess(
+            data: [
                 'total_solicitados' => count($userIds),
                 'confirmados' => $confirmados,
                 'ja_confirmados' => $jaConfirmados,
                 'refeicao' => [
                     'id' => $refeicao->id,
-                    'data' => $refeicao->data_do_cardapio->format('d/m/Y'),
+                    'data' => DateHelper::formatarDataBR($refeicao->data_do_cardapio),
                     'turno' => $refeicao->turno->value,
                 ],
             ],
-            'errors' => $erros,
-            'meta' => ['message' => "{$confirmados} presença(s) confirmada(s) com sucesso."],
-        ]);
+            meta: [
+                'message' => "{$confirmados} presença(s) confirmada(s) com sucesso.",
+                'errors' => $erros,
+            ]
+        );
     }
 
     /**
      * RF15 - Importar lista de bolsistas via Excel/CSV
      * POST /api/v1/admin/bolsistas/import
-     *
-     * Permite anexar/inserir lista de bolsistas por turno de refeição
      */
     public function import(BolsistaImportRequest $request, BolsistaImportService $service): JsonResponse
     {
@@ -632,34 +563,27 @@ class BolsistaController extends Controller
         $atualizarExistentes = $request->boolean('atualizar_existentes', true);
 
         try {
-            // Ler arquivo Excel/CSV
             $rows = Excel::toArray(new class {}, $file)[0] ?? [];
 
             if (empty($rows)) {
-                return response()->json([
-                    'data' => null,
-                    'errors' => ['file' => ['Arquivo vazio ou formato inválido.']],
-                    'meta' => [],
-                ], 422);
+                return ApiResponse::standardError('file', 'Arquivo vazio ou formato inválido.', 422);
             }
 
-            // Processar importação
             $resultado = $service->import($rows, $turnoPadrao, $atualizarExistentes);
 
-            return response()->json([
-                'data' => [
+            return ApiResponse::standardCreated(
+                data: [
                     'criados' => $resultado['created'],
                     'atualizados' => $resultado['updated'],
                 ],
-                'errors' => $resultado['errors'],
-                'meta' => $resultado['meta'],
-            ], count($resultado['errors']) > 0 ? 207 : 201);
+                meta: array_merge(
+                    $resultado['meta'],
+                    ['errors' => $resultado['errors']]
+                )
+            );
+            
         } catch (\Exception $e) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['file' => ['Erro ao processar arquivo: ' . $e->getMessage()]],
-                'meta' => [],
-            ], 500);
+            return ApiResponse::standardError('file', 'Erro ao processar arquivo: ' . $e->getMessage(), 500);
         }
     }
 }
