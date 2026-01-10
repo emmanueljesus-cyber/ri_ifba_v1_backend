@@ -443,96 +443,62 @@ class BolsistaController extends Controller
     /**
      * Confirmar presença do bolsista (marcar como presente)
      * POST /api/v1/admin/bolsistas/{userId}/confirmar-presenca
+     * 
+     * Controller apenas orquestra. Lógica de negócio está no PresencaService.
      */
     public function confirmarPresenca(Request $request, int $userId): JsonResponse
     {
-        $data = Carbon::parse($request->input('data', now()))->format('Y-m-d');
-        $turno = $request->input('turno');
+        $resultado = $this->presencaService->confirmarPresencaCompleta(
+            $userId,
+            Carbon::parse($request->input('data', now()))->format('Y-m-d'),
+            $request->input('turno', ''),
+            $request->user()?->id
+        );
 
-        if (!$turno) {
-            return response()->json(['data' => null, 'errors' => ['turno' => ['O turno é obrigatório.']], 'meta' => []], 400);
-        }
-
-        $user = User::with('diasSemana')->find($userId);
-        if (!$user) {
-            return response()->json(['data' => null, 'errors' => ['user' => ['Usuário não encontrado.']], 'meta' => []], 404);
-        }
-
-        if (!$user->bolsista) {
-            return response()->json(['data' => null, 'errors' => ['user' => ['Este usuário não é bolsista.']], 'meta' => []], 403);
-        }
-
-        // Validar direito à refeição via Service
-        $validacao = $this->presencaService->validarDireitoRefeicao($user, $data);
-        if (!$validacao['valido']) {
-            return response()->json(['data' => null, 'errors' => ['permissao' => [$validacao['erro']]], 'meta' => $validacao['meta']], 403);
-        }
-
-        // Buscar refeição via Service
-        $refeicao = $this->presencaService->buscarRefeicao($data, $turno);
-        if (!$refeicao) {
-            return response()->json(['data' => null, 'errors' => ['refeicao' => ['Não há refeição cadastrada para este dia e turno.']], 'meta' => []], 404);
-        }
-
-        // Confirmar presença via Service
-        $resultado = $this->presencaService->confirmarPresenca($userId, $refeicao->id, $request->user()?->id);
         if (!$resultado['sucesso']) {
-            return response()->json(['data' => null, 'errors' => ['presenca' => [$resultado['erro']]], 'meta' => $resultado['meta']], 409);
+            return response()->json([
+                'data' => null,
+                'errors' => ['erro' => [$resultado['erro']]],
+                'meta' => $resultado['meta'],
+            ], $resultado['status_code']);
         }
 
         return response()->json([
-            'data' => [
-                'presenca_id' => $resultado['presenca']->id,
-                'usuario' => $user->nome,
-                'matricula' => $user->matricula,
-                'refeicao' => ['id' => $refeicao->id, 'data' => $refeicao->data_do_cardapio->format('d/m/Y'), 'turno' => $refeicao->turno->value],
-                'confirmado_em' => $resultado['presenca']->validado_em->format('d/m/Y H:i'),
-            ],
+            'data' => $resultado['data'],
             'errors' => [],
-            'meta' => ['message' => '✅ Presença confirmada com sucesso.'],
-        ], 201);
+            'meta' => $resultado['meta'],
+        ], $resultado['status_code']);
     }
 
     /**
      * Marcar falta do bolsista
      * POST /api/v1/admin/bolsistas/{userId}/marcar-falta
+     * 
+     * Controller apenas orquestra. Lógica de negócio está no PresencaService.
      */
     public function marcarFalta(Request $request, int $userId): JsonResponse
     {
-        $data = Carbon::parse($request->input('data', now()))->format('Y-m-d');
-        $turno = $request->input('turno');
-        $justificada = $request->boolean('justificada', false);
+        $resultado = $this->presencaService->marcarFaltaCompleta(
+            $userId,
+            Carbon::parse($request->input('data', now()))->format('Y-m-d'),
+            $request->input('turno', ''),
+            $request->boolean('justificada', false),
+            $request->user()?->id
+        );
 
-        if (!$turno) {
-            return response()->json(['data' => null, 'errors' => ['turno' => ['O turno é obrigatório.']], 'meta' => []], 400);
+        if (!$resultado['sucesso']) {
+            return response()->json([
+                'data' => null,
+                'errors' => ['erro' => [$resultado['erro']]],
+                'meta' => $resultado['meta'],
+            ], $resultado['status_code']);
         }
-
-        $user = User::find($userId);
-        if (!$user) {
-            return response()->json(['data' => null, 'errors' => ['user' => ['Usuário não encontrado.']], 'meta' => []], 404);
-        }
-
-        $refeicao = $this->presencaService->buscarRefeicao($data, $turno);
-        if (!$refeicao) {
-            return response()->json(['data' => null, 'errors' => ['refeicao' => ['Não há refeição cadastrada para este dia e turno.']], 'meta' => []], 404);
-        }
-
-        // Marcar falta via Service
-        $presenca = $this->presencaService->marcarFalta($userId, $refeicao->id, $justificada, $request->user()?->id);
-
-        $mensagem = $justificada ? 'Falta justificada registrada.' : 'Falta injustificada registrada.';
 
         return response()->json([
-            'data' => [
-                'presenca_id' => $presenca->id,
-                'usuario' => $user->nome,
-                'matricula' => $user->matricula,
-                'status' => $presenca->status_da_presenca->value,
-                'refeicao' => ['id' => $refeicao->id, 'data' => $refeicao->data_do_cardapio->format('d/m/Y'), 'turno' => $refeicao->turno->value],
-            ],
+            'data' => $resultado['data'],
             'errors' => [],
-            'meta' => ['message' => $mensagem],
-        ]);
+            'meta' => $resultado['meta'],
+        ], $resultado['status_code']);
     }
 
     /**

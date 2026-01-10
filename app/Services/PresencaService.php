@@ -51,7 +51,7 @@ class PresencaService
     }
 
     /**
-     * Confirma presença de um usuário
+     * Confirma presença de um usuário (baixo nível - requer refeicaoId)
      * 
      * @return array ['sucesso' => bool, 'presenca' => Presenca|null, 'erro' => string|null, 'meta' => array]
      */
@@ -71,6 +71,7 @@ class PresencaService
                     'presenca_id' => $presenca->id,
                     'confirmado_em' => $presenca->validado_em?->format('d/m/Y H:i'),
                 ],
+                'status_code' => 409,
             ];
         }
 
@@ -93,6 +94,116 @@ class PresencaService
             'presenca' => $presenca->fresh(),
             'erro' => null,
             'meta' => [],
+            'status_code' => 201,
+        ];
+    }
+
+    /**
+     * MÉTODO COMPLETO: Confirma presença do bolsista
+     * Contém TODA a lógica de negócio. Controller só chama e formata resposta.
+     * 
+     * @return array ['sucesso' => bool, 'data' => array, 'erro' => string|null, 'meta' => array, 'status_code' => int]
+     */
+    public function confirmarPresencaCompleta(int $userId, string $data, string $turno, ?int $validadoPor = null): array
+    {
+        // 1. Validar turno
+        if (empty($turno)) {
+            return ['sucesso' => false, 'data' => null, 'erro' => 'O turno é obrigatório.', 'meta' => [], 'status_code' => 400];
+        }
+
+        // 2. Buscar usuário
+        $user = User::with('diasSemana')->find($userId);
+        if (!$user) {
+            return ['sucesso' => false, 'data' => null, 'erro' => 'Usuário não encontrado.', 'meta' => [], 'status_code' => 404];
+        }
+
+        // 3. Verificar se é bolsista
+        if (!$user->bolsista) {
+            return ['sucesso' => false, 'data' => null, 'erro' => 'Este usuário não é bolsista.', 'meta' => [], 'status_code' => 403];
+        }
+
+        // 4. Validar direito à refeição no dia
+        $validacao = $this->validarDireitoRefeicao($user, $data);
+        if (!$validacao['valido']) {
+            return ['sucesso' => false, 'data' => null, 'erro' => $validacao['erro'], 'meta' => $validacao['meta'], 'status_code' => 403];
+        }
+
+        // 5. Buscar refeição
+        $refeicao = $this->buscarRefeicao($data, $turno);
+        if (!$refeicao) {
+            return ['sucesso' => false, 'data' => null, 'erro' => 'Não há refeição cadastrada para este dia e turno.', 'meta' => [], 'status_code' => 404];
+        }
+
+        // 6. Confirmar presença
+        $resultado = $this->confirmarPresenca($userId, $refeicao->id, $validadoPor);
+        if (!$resultado['sucesso']) {
+            return ['sucesso' => false, 'data' => null, 'erro' => $resultado['erro'], 'meta' => $resultado['meta'], 'status_code' => $resultado['status_code']];
+        }
+
+        // 7. Retornar sucesso
+        return [
+            'sucesso' => true,
+            'data' => [
+                'presenca_id' => $resultado['presenca']->id,
+                'usuario' => $user->nome,
+                'matricula' => $user->matricula,
+                'refeicao' => [
+                    'id' => $refeicao->id,
+                    'data' => $refeicao->data_do_cardapio->format('d/m/Y'),
+                    'turno' => $refeicao->turno->value,
+                ],
+                'confirmado_em' => $resultado['presenca']->validado_em->format('d/m/Y H:i'),
+            ],
+            'erro' => null,
+            'meta' => ['message' => '✅ Presença confirmada com sucesso.'],
+            'status_code' => 201,
+        ];
+    }
+
+    /**
+     * MÉTODO COMPLETO: Marca falta do bolsista
+     * Contém TODA a lógica de negócio. Controller só chama e formata resposta.
+     */
+    public function marcarFaltaCompleta(int $userId, string $data, string $turno, bool $justificada = false, ?int $validadoPor = null): array
+    {
+        // 1. Validar turno
+        if (empty($turno)) {
+            return ['sucesso' => false, 'data' => null, 'erro' => 'O turno é obrigatório.', 'meta' => [], 'status_code' => 400];
+        }
+
+        // 2. Buscar usuário
+        $user = User::find($userId);
+        if (!$user) {
+            return ['sucesso' => false, 'data' => null, 'erro' => 'Usuário não encontrado.', 'meta' => [], 'status_code' => 404];
+        }
+
+        // 3. Buscar refeição
+        $refeicao = $this->buscarRefeicao($data, $turno);
+        if (!$refeicao) {
+            return ['sucesso' => false, 'data' => null, 'erro' => 'Não há refeição cadastrada para este dia e turno.', 'meta' => [], 'status_code' => 404];
+        }
+
+        // 4. Marcar falta
+        $presenca = $this->marcarFalta($userId, $refeicao->id, $justificada, $validadoPor);
+
+        $mensagem = $justificada ? 'Falta justificada registrada.' : 'Falta injustificada registrada.';
+
+        return [
+            'sucesso' => true,
+            'data' => [
+                'presenca_id' => $presenca->id,
+                'usuario' => $user->nome,
+                'matricula' => $user->matricula,
+                'status' => $presenca->status_da_presenca->value,
+                'refeicao' => [
+                    'id' => $refeicao->id,
+                    'data' => $refeicao->data_do_cardapio->format('d/m/Y'),
+                    'turno' => $refeicao->turno->value,
+                ],
+            ],
+            'erro' => null,
+            'meta' => ['message' => $mensagem],
+            'status_code' => 200,
         ];
     }
 

@@ -126,47 +126,36 @@ class PresencaController extends Controller
     /**
      * Confirma uma presença específica por ID (via botão na lista)
      * POST /api/v1/admin/presencas/{user_id}/confirmar
+     * 
+     * Controller apenas orquestra. Lógica de negócio está no PresencaService.
      */
     public function confirmarPorId(Request $request, $userId)
     {
-        $turno = $request->input('turno');
         $dataInput = $request->input('data', now()->format('Y-m-d'));
         $data = preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $dataInput)
             ? Carbon::createFromFormat('d/m/Y', $dataInput)->format('Y-m-d')
             : $dataInput;
 
-        if (!$turno) {
-            return response()->json(['data' => null, 'errors' => ['turno' => ['Turno é obrigatório.']], 'meta' => []], 400);
-        }
+        $resultado = $this->presencaService->confirmarPresencaCompleta(
+            (int) $userId,
+            $data,
+            $request->input('turno', ''),
+            $request->user()?->id
+        );
 
-        $user = User::find($userId);
-        if (!$user) {
-            return response()->json(['data' => null, 'errors' => ['user' => ['Usuário não encontrado.']], 'meta' => []], 404);
-        }
-
-        // Validar direito via Service
-        $validacao = $this->presencaService->validarDireitoRefeicao($user, $data);
-        if (!$validacao['valido']) {
-            return response()->json(['data' => null, 'errors' => ['permissao' => [$validacao['erro']]], 'meta' => $validacao['meta']], 403);
-        }
-
-        // Buscar refeição via Service
-        $refeicao = $this->presencaService->buscarRefeicao($data, $turno);
-        if (!$refeicao) {
-            return response()->json(['data' => null, 'errors' => ['refeicao' => ['Não há refeição cadastrada.']], 'meta' => []], 404);
-        }
-
-        // Confirmar via Service
-        $resultado = $this->presencaService->confirmarPresenca($userId, $refeicao->id, $request->user()?->id);
         if (!$resultado['sucesso']) {
-            return response()->json(['data' => null, 'errors' => ['presenca' => [$resultado['erro']]], 'meta' => $resultado['meta']], 400);
+            return response()->json([
+                'data' => null,
+                'errors' => ['erro' => [$resultado['erro']]],
+                'meta' => $resultado['meta'],
+            ], $resultado['status_code']);
         }
 
         return response()->json([
-            'data' => ['usuario' => $user->nome, 'confirmado_em' => now()->format('H:i:s')],
+            'data' => $resultado['data'],
             'errors' => [],
-            'meta' => ['message' => '✅ Presença confirmada!'],
-        ], 201);
+            'meta' => $resultado['meta'],
+        ], $resultado['status_code']);
     }
 
     /**
