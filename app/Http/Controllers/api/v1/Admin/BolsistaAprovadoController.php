@@ -3,250 +3,184 @@
 namespace App\Http\Controllers\api\v1\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Bolsista;
+use App\Services\BolsistaAprovadoService;
+use App\Http\Responses\ApiResponse;
+use App\Helpers\DateHelper;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
 /**
- * Controller para gerenciamento manual de bolsistas aprovados
- * Permite adicionar/editar/remover matrículas da lista de bolsistas
+ * Controller para gerenciamento de matrículas aprovadas (RF15)
+ * 
+ * Responsabilidades:
+ * - Orquestração HTTP
+ * - Delegação para BolsistaAprovadoService
  */
 class BolsistaAprovadoController extends Controller
 {
+    public function __construct(
+        private BolsistaAprovadoService $service
+    ) {}
+
     /**
-     * Lista todos os bolsistas aprovados
+     * RF15 - Lista bolsistas aprovados
      * GET /api/v1/admin/bolsistas-aprovados
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Bolsista::with('user')
-            ->orderBy('created_at', 'desc');
+        $filtros = $request->only(['turno', 'ativo', 'matricula', 'sort_by', 'sort_order']);
+        $perPage = $request->integer('per_page', 20);
+        
+        $bolsistas = $this->service->listarBolsistas($filtros, $perPage);
 
-        // Filtros
-        if ($request->has('ativo')) {
-            $query->where('ativo', $request->boolean('ativo'));
-        }
+        // Formatar dados
+        $data = $bolsistas->map(function ($b) {
+            return [
+                'id' => $b->id,
+                'matricula' => $b->matricula,
+                'turno' => $b->turno,
+                'ativo' => $b->ativo,
+                'created_at' => DateHelper::formatarDataHoraBR($b->created_at),
+            ];
+        });
 
-        if ($request->has('vinculado')) {
-            if ($request->boolean('vinculado')) {
-                $query->whereNotNull('user_id');
-            } else {
-                $query->whereNull('user_id');
-            }
-        }
+        // Estatísticas
+        $stats = $this->service->estatisticas();
 
-        if ($request->has('search')) {
-            $search = $request->input('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('matricula', 'like', "%{$search}%")
-                  ->orWhere('nome', 'like', "%{$search}%");
-            });
-        }
-
-        $bolsistas = $query->paginate($request->input('per_page', 20));
-
-        return response()->json([
-            'data' => $bolsistas->map(function ($b) {
-                return [
-                    'id' => $b->id,
-                    'matricula' => $b->matricula,
-                    'nome' => $b->nome,
-                    'curso' => $b->curso,
-                    'turno' => $b->turno,
-                    'dias_semana' => $b->dias_semana,
-                    'ativo' => $b->ativo,
-                    'vinculado' => $b->user_id !== null,
-                    'user_id' => $b->user_id,
-                    'user_nome' => $b->user?->nome,
-                    'vinculado_em' => $b->vinculado_em?->format('d/m/Y H:i'),
-                    'created_at' => $b->created_at->format('d/m/Y H:i'),
-                ];
-            }),
-            'errors' => [],
-            'meta' => [
-                'total' => $bolsistas->total(),
-                'per_page' => $bolsistas->perPage(),
-                'current_page' => $bolsistas->currentPage(),
-                'last_page' => $bolsistas->lastPage(),
-                'pendentes' => Bolsista::whereNull('user_id')->where('ativo', true)->count(),
-                'vinculados' => Bolsista::whereNotNull('user_id')->count(),
-                'inativos' => Bolsista::where('ativo', false)->count(),
-            ],
-        ]);
+        return ApiResponse::standardResponse(
+            data: $data,
+            meta: [
+                'pagination' => [
+                    'total' => $bolsistas->total(),
+                    'per_page' => $bolsistas->perPage(),
+                    'current_page' => $bolsistas->currentPage(),
+                    'last_page' => $bolsistas->lastPage(),
+                ],
+                'stats' => $stats,
+            ]
+        );
     }
 
     /**
-     * Adicionar bolsista manualmente
+     * RF15 - Adicionar bolsista à lista de aprovados
      * POST /api/v1/admin/bolsistas-aprovados
      */
     public function store(Request $request): JsonResponse
     {
         $request->validate([
-            'matricula' => 'required|string|unique:bolsistas,matricula',
-            'nome' => 'nullable|string|max:255',
-            'curso' => 'nullable|string|max:255',
-            'turno' => 'nullable|in:almoco,jantar',
-            'dias_semana' => 'nullable|array',
-            'dias_semana.*' => 'integer|min:0|max:6',
+            'matricula' => 'required|string|max:20',
+            'turno' => 'required|in:almoco,jantar',
         ]);
 
-        $bolsista = Bolsista::create([
-            'matricula' => $request->input('matricula'),
-            'nome' => $request->input('nome'),
-            'curso' => $request->input('curso'),
-            'turno' => $request->input('turno'),
-            'dias_semana' => $request->input('dias_semana', [1, 2, 3, 4, 5]),
-            'ativo' => true,
-        ]);
+        try {
+            $bolsista = $this->service->adicionarBolsista(
+                matricula: $request->input('matricula'),
+                turno: $request->input('turno')
+            );
 
-        return response()->json([
-            'data' => [
-                'id' => $bolsista->id,
-                'matricula' => $bolsista->matricula,
-                'nome' => $bolsista->nome,
-                'status' => 'Aguardando cadastro do estudante',
-            ],
-            'errors' => [],
-            'meta' => ['message' => '✅ Bolsista adicionado à lista de aprovados.'],
-        ], 201);
+            return ApiResponse::standardCreated(
+                data: [
+                    'id' => $bolsista->id,
+                    'matricula' => $bolsista->matricula,
+                    'turno' => $bolsista->turno,
+                ],
+                meta: ['message' => '✅ Matrícula adicionada à lista de aprovados.']
+            );
+            
+        } catch (\Exception $e) {
+            return ApiResponse::standardError('bolsista', $e->getMessage(), 422);
+        }
     }
 
     /**
-     * Detalhes de um bolsista
+     * RF15 - Detalhes de um bolsista aprovado
      * GET /api/v1/admin/bolsistas-aprovados/{id}
      */
     public function show(int $id): JsonResponse
     {
-        $bolsista = Bolsista::with('user')->find($id);
+        try {
+            $bolsista = $this->service->buscarBolsista($id);
 
-        if (!$bolsista) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['bolsista' => ['Bolsista não encontrado.']],
-                'meta' => [],
-            ], 404);
-        }
-
-        return response()->json([
-            'data' => [
+            return ApiResponse::standardSuccess([
                 'id' => $bolsista->id,
                 'matricula' => $bolsista->matricula,
-                'nome' => $bolsista->nome,
-                'curso' => $bolsista->curso,
                 'turno' => $bolsista->turno,
-                'dias_semana' => $bolsista->dias_semana,
                 'ativo' => $bolsista->ativo,
-                'vinculado' => $bolsista->user_id !== null,
-                'user' => $bolsista->user ? [
-                    'id' => $bolsista->user->id,
-                    'nome' => $bolsista->user->nome,
-                    'email' => $bolsista->user->email,
-                ] : null,
-                'vinculado_em' => $bolsista->vinculado_em?->format('d/m/Y H:i'),
-            ],
-            'errors' => [],
-            'meta' => [],
-        ]);
+                'created_at' => DateHelper::formatarDataHoraBR($bolsista->created_at),
+            ]);
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return ApiResponse::standardNotFound('bolsista', 'Bolsista não encontrado.');
+        }
     }
 
     /**
-     * Atualizar bolsista
+     * RF15 - Atualizar dados do bolsista aprovado
      * PUT /api/v1/admin/bolsistas-aprovados/{id}
      */
     public function update(Request $request, int $id): JsonResponse
     {
-        $bolsista = Bolsista::find($id);
-
-        if (!$bolsista) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['bolsista' => ['Bolsista não encontrado.']],
-                'meta' => [],
-            ], 404);
-        }
-
         $request->validate([
-            'matricula' => 'sometimes|string|unique:bolsistas,matricula,' . $id,
-            'nome' => 'nullable|string|max:255',
-            'curso' => 'nullable|string|max:255',
-            'turno' => 'nullable|in:almoco,jantar',
-            'dias_semana' => 'nullable|array',
-            'dias_semana.*' => 'integer|min:0|max:6',
-            'ativo' => 'sometimes|boolean',
+            'matricula' => 'sometimes|string|max:20',
+            'turno' => 'sometimes|in:almoco,jantar',
         ]);
 
-        $bolsista->update($request->only([
-            'matricula', 'nome', 'curso', 'turno', 'dias_semana', 'ativo'
-        ]));
+        try {
+            $bolsista = $this->service->atualizarBolsista(
+                id: $id,
+                data: $request->only(['matricula', 'turno'])
+            );
 
-        return response()->json([
-            'data' => [
-                'id' => $bolsista->id,
-                'matricula' => $bolsista->matricula,
-            ],
-            'errors' => [],
-            'meta' => ['message' => '✅ Bolsista atualizado.'],
-        ]);
+            return ApiResponse::standardSuccess(
+                data: [
+                    'id' => $bolsista->id,
+                    'matricula' => $bolsista->matricula,
+                ],
+                meta: ['message' => '✅ Bolsista atualizado.']
+            );
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return ApiResponse::standardNotFound('bolsista', 'Bolsista não encontrado.');
+        } catch (\Exception $e) {
+            return ApiResponse::standardError('bolsista', $e->getMessage(), 422);
+        }
     }
 
     /**
-     * Desativar bolsista (não deleta, apenas marca como inativo)
+     * RF15 - Desativar bolsista (soft delete)
      * DELETE /api/v1/admin/bolsistas-aprovados/{id}
      */
     public function destroy(int $id): JsonResponse
     {
-        $bolsista = Bolsista::find($id);
+        try {
+            $this->service->desativarBolsista($id);
 
-        if (!$bolsista) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['bolsista' => ['Bolsista não encontrado.']],
-                'meta' => [],
-            ], 404);
+            return ApiResponse::standardSuccess(
+                data: ['id' => $id],
+                meta: ['message' => '✅ Bolsista desativado.']
+            );
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return ApiResponse::standardNotFound('bolsista', 'Bolsista não encontrado.');
         }
-
-        // Desativa ao invés de deletar
-        $bolsista->update(['ativo' => false]);
-
-        // Se já estava vinculado a um usuário, desmarcar como bolsista
-        if ($bolsista->user_id) {
-            $bolsista->user->update(['bolsista' => false]);
-        }
-
-        return response()->json([
-            'data' => ['id' => $id],
-            'errors' => [],
-            'meta' => ['message' => '✅ Bolsista desativado.'],
-        ]);
     }
 
     /**
-     * Reativar bolsista
+     * RF15 - Reativar bolsista
      * POST /api/v1/admin/bolsistas-aprovados/{id}/reativar
      */
     public function reativar(int $id): JsonResponse
     {
-        $bolsista = Bolsista::find($id);
+        try {
+            $bolsista = $this->service->reativarBolsista($id);
 
-        if (!$bolsista) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['bolsista' => ['Bolsista não encontrado.']],
-                'meta' => [],
-            ], 404);
+            return ApiResponse::standardSuccess(
+                data: ['id' => $bolsista->id],
+                meta: ['message' => '✅ Bolsista reativado.']
+            );
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return ApiResponse::standardNotFound('bolsista', 'Bolsista não encontrado.');
         }
-
-        $bolsista->update(['ativo' => true]);
-
-        // Se estava vinculado a um usuário, remarcar como bolsista
-        if ($bolsista->user_id) {
-            $bolsista->user->update(['bolsista' => true]);
-        }
-
-        return response()->json([
-            'data' => ['id' => $id],
-            'errors' => [],
-            'meta' => ['message' => '✅ Bolsista reativado.'],
-        ]);
     }
 }

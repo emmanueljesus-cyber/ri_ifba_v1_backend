@@ -3,222 +3,153 @@
 namespace App\Http\Controllers\api\v1\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Services\UserService;
 use App\Http\Requests\Admin\StoreUserRequest;
 use App\Http\Requests\Admin\UpdateUserRequest;
 use App\Http\Responses\ApiResponse;
-use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
+/**
+ * Controller para gerenciamento de usuários (RF14)
+ * 
+ * Responsabilidades:
+ * - Orquestração HTTP (validação, formatação)
+ * - Delegação para UserService
+ */
 class UserController extends Controller
 {
+    public function __construct(
+        private UserService $service
+    ) {}
+
     /**
-     * Listar todos os usuários
+     * RF14 - Listar todos os usuários
      * GET /api/v1/admin/usuarios
      */
     public function index(Request $request): JsonResponse
     {
-        $query = User::query();
+        $filtros = $request->only([
+            'perfil', 'bolsista', 'desligado', 'busca', 'sort_by', 'sort_order'
+        ]);
+        
+        $perPage = $request->integer('per_page', 15);
+        $usuarios = $this->service->listarUsuarios($filtros, $perPage);
 
-        // Filtro por perfil
-        if ($request->has('perfil')) {
-            $query->where('perfil', $request->perfil);
-        }
-
-        // Filtro por bolsista
-        if ($request->has('bolsista')) {
-            $query->where('bolsista', $request->boolean('bolsista'));
-        }
-
-        // Filtro por status (desligado)
-        if ($request->has('desligado')) {
-            $query->where('desligado', $request->boolean('desligado'));
-        } else {
-            // Por padrão, não mostrar desligados
-            $query->where('desligado', false);
-        }
-
-        // Busca por nome ou matrícula
-        if ($request->has('busca')) {
-            $busca = $request->busca;
-            $query->where(function ($q) use ($busca) {
-                $q->where('nome', 'ILIKE', "%{$busca}%")
-                  ->orWhere('matricula', 'ILIKE', "%{$busca}%")
-                  ->orWhere('email', 'ILIKE', "%{$busca}%");
-            });
-        }
-
-        // Ordenação
-        $sortBy = $request->get('sort_by', 'nome');
-        $sortOrder = $request->get('sort_order', 'asc');
-        $query->orderBy($sortBy, $sortOrder);
-
-        // Paginação
-        $perPage = $request->get('per_page', 15);
-        $usuarios = $query->paginate($perPage);
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Usuários recuperados com sucesso',
-            'data' => $usuarios->items(),
-            'meta' => [
-                'current_page' => $usuarios->currentPage(),
-                'per_page' => $usuarios->perPage(),
-                'total' => $usuarios->total(),
-                'last_page' => $usuarios->lastPage(),
-            ]
-        ], 200);
+        return ApiResponse::success(
+            data: $usuarios->items(),
+            message: 'Usuários recuperados com sucesso'
+        );
     }
 
     /**
-     * Criar novo usuário
+     * RF14 - Criar novo usuário
      * POST /api/v1/admin/usuarios
      */
     public function store(StoreUserRequest $request): JsonResponse
     {
-        $data = $request->validated();
-
-        // Hash da senha
-        if (isset($data['password'])) {
-            $data['password'] = bcrypt($data['password']);
+        try {
+            $usuario = $this->service->criarUsuario($request->validated());
+            return ApiResponse::created($usuario, 'Usuário criado com sucesso');
+            
+        } catch (\Exception $e) {
+            return ApiResponse::error($e->getMessage(), null, 422);
         }
-
-        $usuario = User::create($data);
-
-        return ApiResponse::created($usuario, 'Usuário criado com sucesso');
     }
 
     /**
-     * Buscar usuário por ID
+     * RF14 - Buscar usuário por ID
      * GET /api/v1/admin/usuarios/{id}
      */
     public function show(int $id): JsonResponse
     {
-        $usuario = User::find($id);
-
-        if (!$usuario) {
+        try {
+            $usuario = $this->service->buscarUsuario($id);
+            return ApiResponse::success($usuario, 'Usuário recuperado com sucesso');
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return ApiResponse::notFound('Usuário não encontrado');
         }
-
-        return ApiResponse::success(
-            $usuario,
-            'Usuário recuperado com sucesso'
-        );
     }
 
     /**
-     * Atualizar usuário
+     * RF14 - Atualizar usuário
      * PUT/PATCH /api/v1/admin/usuarios/{id}
      */
     public function update(UpdateUserRequest $request, int $id): JsonResponse
     {
-        $usuario = User::find($id);
-
-        if (!$usuario) {
+        try {
+            $usuario = $this->service->atualizarUsuario($id, $request->validated());
+            return ApiResponse::success($usuario, 'Usuário atualizado com sucesso');
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return ApiResponse::notFound('Usuário não encontrado');
+        } catch (\Exception $e) {
+            return ApiResponse::error($e->getMessage(), null, 422);
         }
-
-        $data = $request->validated();
-
-        // Hash da senha se fornecida
-        if (isset($data['password'])) {
-            $data['password'] = bcrypt($data['password']);
-        }
-
-        $usuario->update($data);
-
-        return ApiResponse::success(
-            $usuario->fresh(),
-            'Usuário atualizado com sucesso'
-        );
     }
 
     /**
-     * Desativar usuário (soft delete)
+     * RF14 - Desativar usuário (soft delete)
      * DELETE /api/v1/admin/usuarios/{id}
      */
     public function destroy(int $id): JsonResponse
     {
-        $usuario = User::find($id);
-
-        if (!$usuario) {
+        try {
+            $this->service->desativarUsuario($id);
+            return ApiResponse::success(null, 'Usuário desativado com sucesso');
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return ApiResponse::notFound('Usuário não encontrado');
+        } catch (\Exception $e) {
+            return ApiResponse::error($e->getMessage(), null, 422);
         }
-
-        // Soft delete - marca como desligado
-        $usuario->update(['desligado' => true]);
-
-        return ApiResponse::success(
-            null,
-            'Usuário desativado com sucesso'
-        );
     }
 
     /**
-     * Reativar usuário
+     * RF14 - Reativar usuário
      * POST /api/v1/admin/usuarios/{id}/reativar
      */
     public function reativar(int $id): JsonResponse
     {
-        $usuario = User::where('id', $id)->where('desligado', true)->first();
-
-        if (!$usuario) {
-            return ApiResponse::notFound('Usuário não encontrado ou já está ativo');
+        try {
+            $usuario = $this->service->reativarUsuario($id);
+            return ApiResponse::success($usuario, 'Usuário reativado com sucesso');
+            
+        } catch (\Exception $e) {
+            return ApiResponse::error($e->getMessage(), null, 404);
         }
-
-        $usuario->update(['desligado' => false]);
-
-        return ApiResponse::success(
-            $usuario->fresh(),
-            'Usuário reativado com sucesso'
-        );
     }
 
     /**
-     * Buscar usuário por matrícula
+     * RF14 - Buscar usuário por matrícula
      * GET /api/v1/admin/usuarios/matricula/{matricula}
      */
     public function buscarPorMatricula(string $matricula): JsonResponse
     {
-        $usuario = User::where('matricula', $matricula)->first();
+        $usuario = $this->service->buscarPorMatricula($matricula);
 
         if (!$usuario) {
             return ApiResponse::notFound('Usuário não encontrado');
         }
 
-        return ApiResponse::success(
-            $usuario,
-            'Usuário recuperado com sucesso'
-        );
+        return ApiResponse::success($usuario, 'Usuário recuperado com sucesso');
     }
 
     /**
-     * Listar apenas bolsistas ativos
+     * RF14 - Listar apenas bolsistas ativos
      * GET /api/v1/admin/usuarios/bolsistas
      */
     public function listarBolsistas(Request $request): JsonResponse
     {
-        $query = User::where('bolsista', true)
-            ->where('desligado', false);
+        $filtros = $request->only(['turno']);
+        $perPage = $request->integer('per_page', 15);
+        
+        $bolsistas = $this->service->listarBolsistas($filtros, $perPage);
 
-        // Filtro por turno
-        if ($request->has('turno')) {
-            $query->where('turno', $request->turno);
-        }
-
-        // Ordenação
-        $query->orderBy('nome', 'asc');
-
-        $bolsistas = $query->get();
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Bolsistas recuperados com sucesso',
-            'data' => $bolsistas,
-            'meta' => [
-                'total' => $bolsistas->count()
-            ]
-        ], 200);
+        return ApiResponse::success(
+            data: $bolsistas->items(),
+            message: 'Bolsistas recuperados com sucesso'
+        );
     }
 }
-

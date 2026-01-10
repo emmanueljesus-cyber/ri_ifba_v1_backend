@@ -3,93 +3,79 @@
 namespace App\Http\Controllers\api\v1\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Justificativa;
-use App\Models\User;
-use App\Enums\StatusJustificativa;
-use App\Enums\StatusPresenca;
+use App\Services\JustificativaService;
+use App\Http\Responses\ApiResponse;
+use App\Helpers\DateHelper;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
-use Carbon\Carbon;
 
+/**
+ * Controller para gerenciamento de justificativas de faltas (RF10)
+ * 
+ * Responsabilidades:
+ * - Orquestração HTTP (validação de requests, formatação de respostas)
+ * - Delegação de lógica de negócio para JustificativaService
+ */
 class JustificativaController extends Controller
 {
+    public function __construct(
+        private JustificativaService $service
+    ) {}
+
     /**
      * RF10 - Listar justificativas de faltas
      * GET /api/v1/admin/justificativas
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Justificativa::with(['user', 'refeicao.cardapio', 'avaliador']);
+        $filtros = $request->only([
+            'status', 'user_id', 'tipo', 'data_inicio', 'data_fim', 'turno',
+            'sort_by', 'sort_order'
+        ]);
+        
+        $perPage = $request->integer('per_page', 15);
+        $justificativas = $this->service->listarJustificativas($filtros, $perPage);
 
-        // Filtros
-        if ($request->has('status')) {
-            $query->where('status', $request->input('status'));
-        }
-
-        if ($request->has('user_id')) {
-            $query->where('user_id', $request->input('user_id'));
-        }
-
-        if ($request->has('tipo')) {
-            $query->where('tipo', $request->input('tipo'));
-        }
-
-        if ($request->has('data_inicio') && $request->has('data_fim')) {
-            $query->whereBetween('enviado_em', [
-                Carbon::parse($request->input('data_inicio'))->startOfDay(),
-                Carbon::parse($request->input('data_fim'))->endOfDay(),
-            ]);
-        }
-
-        // Ordenação
-        $orderBy = $request->input('order_by', 'enviado_em');
-        $orderDir = $request->input('order_dir', 'desc');
-        $query->orderBy($orderBy, $orderDir);
-
-        // Paginação
-        $perPage = $request->input('per_page', 15);
-        $justificativas = $query->paginate($perPage);
-
+        // Formatar dados para resposta
         $data = $justificativas->map(function ($just) {
             return [
                 'id' => $just->id,
                 'usuario' => [
-                    'id' => $just->user->id,
-                    'nome' => $just->user->nome,
-                    'matricula' => $just->user->matricula,
+                    'id' => $just->usuario->id,
+                    'nome' => $just->usuario->nome,
+                    'matricula' => $just->usuario->matricula,
                 ],
-                'refeicao' => $just->refeicao ? [
-                    'id' => $just->refeicao->id,
-                    'data' => $just->refeicao->data_do_cardapio->format('d/m/Y'),
-                    'turno' => $just->refeicao->turno->value,
+                'refeicao' => $just->presenca ? [
+                    'id' => $just->presenca->refeicao->id,
+                    'data' => DateHelper::formatarDataBR($just->presenca->refeicao->data_do_cardapio),
+                    'turno' => $just->presenca->refeicao->turno,
                 ] : null,
-                'tipo' => $just->tipo->value ?? $just->tipo,
                 'motivo' => $just->motivo,
-                'tem_anexo' => !empty($just->anexo),
-                'status' => $just->status ?? 'pendente',
-                'enviado_em' => $just->enviado_em->format('d/m/Y H:i'),
-                'avaliado_por' => $just->avaliador?->nome,
-                'avaliado_em' => $just->avaliado_em?->format('d/m/Y H:i'),
-                'motivo_rejeicao' => $just->motivo_rejeicao,
+                'tem_anexo' => !empty($just->anexo_path),
+                'status_justificativa' => $just->status_justificativa->value,
+                'criado_em' => DateHelper::formatarDataHoraBR($just->created_at),
+                'aprovado_por' => $just->aprovadoPor?->nome,
+                'aprovado_em' => $just->aprovado_em ? DateHelper::formatarDataHoraBR($just->aprovado_em) : null,
+                'observacao_admin' => $just->observacao_admin,
             ];
         });
 
-        return response()->json([
-            'data' => $data,
-            'errors' => [],
-            'meta' => [
-                'total' => $justificativas->total(),
-                'per_page' => $justificativas->perPage(),
-                'current_page' => $justificativas->currentPage(),
-                'last_page' => $justificativas->lastPage(),
-                'stats' => [
-                    'pendentes' => Justificativa::where('status', 'pendente')->count(),
-                    'aprovadas' => Justificativa::where('status', 'aprovada')->count(),
-                    'rejeitadas' => Justificativa::where('status', 'rejeitada')->count(),
+        // Estatísticas
+        $stats = $this->service->estatisticas($filtros);
+
+        return ApiResponse::standardResponse(
+            data: $data,
+            meta: [
+                'pagination' => [
+                    'total' => $justificativas->total(),
+                    'per_page' => $justificativas->perPage(),
+                    'current_page' => $justificativas->currentPage(),
+                    'last_page' => $justificativas->lastPage(),
                 ],
-            ],
-        ]);
+                'stats' => $stats,
+            ]
+        );
     }
 
     /**
@@ -98,51 +84,42 @@ class JustificativaController extends Controller
      */
     public function show(int $id): JsonResponse
     {
-        $just = Justificativa::with(['user', 'refeicao.cardapio', 'avaliador'])->find($id);
+        try {
+            $just = $this->service->buscarJustificativa($id);
 
-        if (!$just) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['justificativa' => ['Justificativa não encontrada.']],
-                'meta' => [],
-            ], 404);
-        }
-
-        return response()->json([
-            'data' => [
+            return ApiResponse::standardSuccess([
                 'id' => $just->id,
                 'usuario' => [
-                    'id' => $just->user->id,
-                    'nome' => $just->user->nome,
-                    'matricula' => $just->user->matricula,
-                    'email' => $just->user->email,
-                    'curso' => $just->user->curso,
+                    'id' => $just->usuario->id,
+                    'nome' => $just->usuario->nome,
+                    'matricula' => $just->usuario->matricula,
+                    'email' => $just->usuario->email,
+                    'curso' => $just->usuario->curso,
                 ],
-                'refeicao' => $just->refeicao ? [
-                    'id' => $just->refeicao->id,
-                    'data' => $just->refeicao->data_do_cardapio->format('d/m/Y'),
-                    'turno' => $just->refeicao->turno->value,
-                    'cardapio' => $just->refeicao->cardapio ? [
-                        'prato_principal' => $just->refeicao->cardapio->prato_principal_ptn01,
+                'refeicao' => $just->presenca ? [
+                    'id' => $just->presenca->refeicao->id,
+                    'data' => DateHelper::formatarDataBR($just->presenca->refeicao->data_do_cardapio),
+                    'turno' => $just->presenca->refeicao->turno,
+                    'cardapio' => $just->presenca->refeicao->cardapio ? [
+                        'prato_principal' => $just->presenca->refeicao->cardapio->prato_principal_ptn01,
                     ] : null,
                 ] : null,
-                'tipo' => $just->tipo->value ?? $just->tipo,
-                'tipo_texto' => $just->getTipoTexto(),
                 'motivo' => $just->motivo,
-                'anexo' => $just->anexo,
-                'tem_anexo' => !empty($just->anexo),
-                'status' => $just->status ?? 'pendente',
-                'enviado_em' => $just->enviado_em->format('d/m/Y H:i'),
-                'avaliador' => $just->avaliador ? [
-                    'id' => $just->avaliador->id,
-                    'nome' => $just->avaliador->nome,
+                'anexo_path' => $just->anexo_path,
+                'tem_anexo' => !empty($just->anexo_path),
+                'status_justificativa' => $just->status_justificativa->value,
+                'criado_em' => DateHelper::formatarDataHoraBR($just->created_at),
+                'aprovador' => $just->aprovadoPor ? [
+                    'id' => $just->aprovadoPor->id,
+                    'nome' => $just->aprovadoPor->nome,
                 ] : null,
-                'avaliado_em' => $just->avaliado_em?->format('d/m/Y H:i'),
-                'motivo_rejeicao' => $just->motivo_rejeicao,
-            ],
-            'errors' => [],
-            'meta' => [],
-        ]);
+                'aprovado_em' => $just->aprovado_em ? DateHelper::formatarDataHoraBR($just->aprovado_em) : null,
+                'observacao_admin' => $just->observacao_admin,
+            ]);
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return ApiResponse::standardNotFound('justificativa', 'Justificativa não encontrada.');
+        }
     }
 
     /**
@@ -151,55 +128,32 @@ class JustificativaController extends Controller
      */
     public function aprovar(Request $request, int $id): JsonResponse
     {
-        $just = Justificativa::with(['user', 'refeicao'])->find($id);
-
-        if (!$just) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['justificativa' => ['Justificativa não encontrada.']],
-                'meta' => [],
-            ], 404);
-        }
-
-        if (($just->status ?? 'pendente') !== 'pendente') {
-            return response()->json([
-                'data' => null,
-                'errors' => ['justificativa' => ['Esta justificativa já foi avaliada.']],
-                'meta' => ['status_atual' => $just->status],
-            ], 422);
-        }
-
-        $adminId = $request->user()?->id ?? 1;
-
-        $just->update([
-            'status' => 'aprovada',
-            'avaliado_por' => $adminId,
-            'avaliado_em' => now(),
+        $request->validate([
+            'observacao' => 'nullable|string|max:500'
         ]);
 
-        // Atualizar presença para falta justificada se existir
-        if ($just->refeicao) {
-            $presenca = \App\Models\Presenca::where('user_id', $just->user_id)
-                ->where('refeicao_id', $just->refeicao_id)
-                ->first();
+        try {
+            $justificativa = $this->service->aprovarJustificativa(
+                id: $id,
+                adminId: $request->user()->id,
+                observacao: $request->input('observacao')
+            );
 
-            if ($presenca) {
-                $presenca->update([
-                    'status_da_presenca' => StatusPresenca::FALTA_JUSTIFICADA,
-                ]);
-            }
+            return ApiResponse::standardSuccess(
+                data: [
+                    'id' => $justificativa->id,
+                    'status_justificativa' => $justificativa->status_justificativa->value,
+                    'usuario' => $justificativa->usuario->nome,
+                    'aprovado_em' => DateHelper::formatarDataHoraBR($justificativa->aprovado_em),
+                ],
+                meta: ['message' => '✅ Justificativa aprovada com sucesso.']
+            );
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $ e) {
+            return ApiResponse::standardNotFound('justificativa', 'Justificativa não encontrada.');
+        } catch (\Exception $e) {
+            return ApiResponse::standardError('justificativa', $e->getMessage(), 422);
         }
-
-        return response()->json([
-            'data' => [
-                'id' => $just->id,
-                'status' => 'aprovada',
-                'usuario' => $just->user->nome,
-                'avaliado_em' => now()->format('d/m/Y H:i'),
-            ],
-            'errors' => [],
-            'meta' => ['message' => '✅ Justificativa aprovada com sucesso.'],
-        ]);
     }
 
     /**
@@ -209,60 +163,32 @@ class JustificativaController extends Controller
     public function rejeitar(Request $request, int $id): JsonResponse
     {
         $request->validate([
-            'motivo' => 'nullable|string|max:500',
+            'observacao' => 'required|string|max:500'
         ]);
 
-        $just = Justificativa::with(['user', 'refeicao'])->find($id);
+        try {
+            $justificativa = $this->service->rejeitarJustificativa(
+                id: $id,
+                adminId: $request->user()->id,
+                observacao: $request->input('observacao')
+            );
 
-        if (!$just) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['justificativa' => ['Justificativa não encontrada.']],
-                'meta' => [],
-            ], 404);
+            return ApiResponse::standardSuccess(
+                data: [
+                    'id' => $justificativa->id,
+                    'status_justificativa' => $justificativa->status_justificativa->value,
+                    'usuario' => $justificativa->usuario->nome,
+                    'observacao_admin' => $justificativa->observacao_admin,
+                    'aprovado_em' => DateHelper::formatarDataHoraBR($justificativa->aprovado_em),
+                ],
+                meta: ['message' => '❌ Justificativa rejeitada.']
+            );
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return ApiResponse::standardNotFound('justificativa', 'Justificativa não encontrada.');
+        } catch (\Exception $e) {
+            return ApiResponse::standardError('justificativa', $e->getMessage(), 422);
         }
-
-        if (($just->status ?? 'pendente') !== 'pendente') {
-            return response()->json([
-                'data' => null,
-                'errors' => ['justificativa' => ['Esta justificativa já foi avaliada.']],
-                'meta' => ['status_atual' => $just->status],
-            ], 422);
-        }
-
-        $adminId = $request->user()?->id ?? 1;
-
-        $just->update([
-            'status' => 'rejeitada',
-            'avaliado_por' => $adminId,
-            'avaliado_em' => now(),
-            'motivo_rejeicao' => $request->input('motivo'),
-        ]);
-
-        // Atualizar presença para falta injustificada se existir
-        if ($just->refeicao) {
-            $presenca = \App\Models\Presenca::where('user_id', $just->user_id)
-                ->where('refeicao_id', $just->refeicao_id)
-                ->first();
-
-            if ($presenca) {
-                $presenca->update([
-                    'status_da_presenca' => StatusPresenca::FALTA_INJUSTIFICADA,
-                ]);
-            }
-        }
-
-        return response()->json([
-            'data' => [
-                'id' => $just->id,
-                'status' => 'rejeitada',
-                'usuario' => $just->user->nome,
-                'motivo_rejeicao' => $request->input('motivo'),
-                'avaliado_em' => now()->format('d/m/Y H:i'),
-            ],
-            'errors' => [],
-            'meta' => ['message' => '❌ Justificativa rejeitada.'],
-        ]);
     }
 
     /**
@@ -271,34 +197,23 @@ class JustificativaController extends Controller
      */
     public function downloadAnexo(int $id)
     {
-        $just = Justificativa::find($id);
+        try {
+            $just = $this->service->buscarJustificativa($id);
 
-        if (!$just) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['justificativa' => ['Justificativa não encontrada.']],
-                'meta' => [],
-            ], 404);
+            if (empty($just->anexo_path)) {
+                return ApiResponse::standardNotFound('anexo', 'Esta justificativa não possui anexo.');
+            }
+
+            $path = 'justificativas/' . $just->anexo_path;
+
+            if (!Storage::exists($path)) {
+                return ApiResponse::standardNotFound('anexo', 'Arquivo não encontrado no servidor.');
+            }
+
+            return Storage::download($path, $just->anexo_path);
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return ApiResponse::standardNotFound('justificativa', 'Justificativa não encontrada.');
         }
-
-        if (empty($just->anexo)) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['anexo' => ['Esta justificativa não possui anexo.']],
-                'meta' => [],
-            ], 404);
-        }
-
-        $path = 'justificativas/' . $just->anexo;
-
-        if (!Storage::exists($path)) {
-            return response()->json([
-                'data' => null,
-                'errors' => ['anexo' => ['Arquivo não encontrado no servidor.']],
-                'meta' => [],
-            ], 404);
-        }
-
-        return Storage::download($path, $just->anexo);
     }
 }
