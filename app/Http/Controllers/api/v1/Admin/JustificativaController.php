@@ -149,7 +149,7 @@ class JustificativaController extends Controller
                 meta: ['message' => '✅ Justificativa aprovada com sucesso.']
             );
             
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $ e) {
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return ApiResponse::standardNotFound('justificativa', 'Justificativa não encontrada.');
         } catch (\Exception $e) {
             return ApiResponse::standardError('justificativa', $e->getMessage(), 422);
