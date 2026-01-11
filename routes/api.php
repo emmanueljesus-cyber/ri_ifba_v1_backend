@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\api\v1\Admin\BolsistaAprovadoController;
+use App\Http\Controllers\api\v1\Estudante\JustificativaController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\api\V1\Admin\CardapioController as AdminCardapioController;
 use App\Http\Controllers\api\V1\Admin\PresencaController as AdminPresencaController;
@@ -44,12 +46,12 @@ Route::prefix('v1')->group(function () {
 
     Route::prefix('estudante')->middleware($estudanteMiddleware)->group(function () {
         Route::get('cardapio/hoje', [EstudanteCardapioController::class, 'hoje']);
-        
+
         // Justificativas do estudante
-        Route::prefix('justificativas')->group(function () {
-            Route::get('/', [\App\Http\Controllers\api\v1\Estudante\JustificativaController::class, 'index']);
-            Route::post('/', [\App\Http\Controllers\api\v1\Estudante\JustificativaController::class, 'store']);
-            Route::get('/{id}', [\App\Http\Controllers\api\v1\Estudante\JustificativaController::class, 'show']);
+        Route::prefix('justificativas')->group(callback: function () {
+            Route::get('/', [JustificativaController::class, 'index']);
+            Route::post('/', [JustificativaController::class, 'store']);
+            Route::get('/{id}', [JustificativaController::class, 'show']);
         });
     });
 
@@ -108,12 +110,12 @@ Route::prefix('v1')->group(function () {
         // Lista de Bolsistas Aprovados (tabela bolsistas - RF15)
         // -----------------------------------------------------------------
         Route::prefix('bolsistas-aprovados')->group(function () {
-            Route::get('/', [\App\Http\Controllers\api\v1\Admin\BolsistaAprovadoController::class, 'index']);
-            Route::post('/', [\App\Http\Controllers\api\v1\Admin\BolsistaAprovadoController::class, 'store']);
-            Route::get('/{id}', [\App\Http\Controllers\api\v1\Admin\BolsistaAprovadoController::class, 'show']);
-            Route::put('/{id}', [\App\Http\Controllers\api\v1\Admin\BolsistaAprovadoController::class, 'update']);
-            Route::delete('/{id}', [\App\Http\Controllers\api\v1\Admin\BolsistaAprovadoController::class, 'destroy']);
-            Route::post('/{id}/reativar', [\App\Http\Controllers\api\v1\Admin\BolsistaAprovadoController::class, 'reativar']);
+            Route::get('/', [BolsistaAprovadoController::class, 'index']);
+            Route::post('/', [BolsistaAprovadoController::class, 'store']);
+            Route::get('/{id}', [BolsistaAprovadoController::class, 'show']);
+            Route::put('/{id}', [BolsistaAprovadoController::class, 'update']);
+            Route::delete('/{id}', [BolsistaAprovadoController::class, 'destroy']);
+            Route::post('/{id}/reativar', [BolsistaAprovadoController::class, 'reativar']);
         });
 
         // -----------------------------------------------------------------
