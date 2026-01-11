@@ -28,6 +28,7 @@ class User extends Authenticatable
         'desligado_motivo',
         'curso',
         'turno',
+        'preferencia_alimentar',
     ];
 
     protected $hidden = [

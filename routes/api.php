@@ -3,6 +3,9 @@
 use App\Http\Controllers\api\v1\Admin\BolsistaAprovadoController;
 use App\Http\Controllers\api\v1\Estudante\JustificativaController;
 use App\Http\Controllers\api\v1\Estudante\NotificacaoController;
+use App\Http\Controllers\api\v1\Estudante\PerfilController;
+use App\Http\Controllers\api\v1\Estudante\HistoricoController;
+use App\Http\Controllers\api\v1\Estudante\FilaExtraController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\api\V1\Admin\CardapioController as AdminCardapioController;
 use App\Http\Controllers\api\V1\Admin\PresencaController as AdminPresencaController;
@@ -48,11 +51,28 @@ Route::prefix('v1')->group(function () {
     Route::prefix('estudante')->middleware($estudanteMiddleware)->group(function () {
         Route::get('cardapio/hoje', [EstudanteCardapioController::class, 'hoje']);
 
-        // Justificativas do estudante
+        // RF05 - Perfil e preferência alimentar
+        Route::get('perfil', [PerfilController::class, 'show']);
+        Route::put('perfil', [PerfilController::class, 'update']);
+        Route::put('perfil/preferencia', [PerfilController::class, 'atualizarPreferencia']);
+
+        // RF04 - Histórico de refeições e faltas
+        Route::get('historico', [HistoricoController::class, 'index']);
+        Route::get('historico/resumo', [HistoricoController::class, 'resumo']);
+
+        // RF02 - Justificativas do estudante
         Route::prefix('justificativas')->group(callback: function () {
             Route::get('/', [JustificativaController::class, 'index']);
             Route::post('/', [JustificativaController::class, 'store']);
             Route::get('/{id}', [JustificativaController::class, 'show']);
+        });
+
+        // RF06/RF07 - Fila de extras
+        Route::prefix('fila-extras')->group(function () {
+            Route::get('/', [FilaExtraController::class, 'minhasInscricoes']);
+            Route::post('/', [FilaExtraController::class, 'inscrever']);
+            Route::get('/posicao', [FilaExtraController::class, 'posicao']);
+            Route::delete('/{id}', [FilaExtraController::class, 'cancelar']);
         });
 
         // Notificações do estudante
