@@ -137,4 +137,138 @@ class CardapioServiceTest extends TestCase
         $this->assertTrue(method_exists($this->service, 'cardapioSemanal'));
         $this->assertTrue(method_exists($this->service, 'cardapioMensal'));
     }
+
+    /**
+     * CT14 - Testa criação de um novo cardápio.
+     */
+    public function test_pode_criar_cardapio(): void
+    {
+        $user = User::factory()->create();
+        $data = [
+            'data_do_cardapio' => '2035-03-01',
+            'prato_principal_ptn01' => 'Frango Assado',
+            'prato_principal_ptn02' => 'Omelete',
+            'guarnicao' => 'Purê',
+            'acompanhamento_01' => 'Arroz Branco',
+            'acompanhamento_02' => 'Feijão Tropeiro',
+            'salada' => 'Alface',
+            'turno' => 'almoco',
+            'capacidade' => 300
+        ];
+
+        $cardapio = $this->service->create($data, $user->id);
+
+        $this->assertInstanceOf(Cardapio::class, $cardapio);
+        $this->assertDatabaseHas('cardapios', [
+            'data_do_cardapio' => '2035-03-01',
+            'prato_principal_ptn01' => 'Frango Assado',
+            'criado_por' => $user->id
+        ]);
+        $this->assertDatabaseHas('refeicoes', [
+            'cardapio_id' => $cardapio->id,
+            'turno' => 'almoco',
+            'capacidade' => 300
+        ]);
+    }
+
+    /**
+     * CT15 - Testa atualização de um cardápio existente.
+     */
+    public function test_pode_atualizar_cardapio(): void
+    {
+        $cardapio = Cardapio::factory()->create([
+            'prato_principal_ptn01' => 'Carne Cozida',
+            'data_do_cardapio' => '2035-03-02'
+        ]);
+
+        // A refeição é criada automaticamente pelo observer do model
+        // Garantimos que ela existe para o teste
+        $this->assertDatabaseHas('refeicoes', [
+            'cardapio_id' => $cardapio->id,
+            'turno' => 'almoco'
+        ]);
+
+        $dadosAtualizacao = [
+            'prato_principal_ptn01' => 'Carne Assada',
+            'turno' => 'jantar', // Mudando turno para Jantar (que tb é criado por padrão)
+            'capacidade' => 150
+        ];
+
+        // Se o factory cria almoco e jantar, e atualizamos para jantar, deve funcionar.
+        $atualizado = $this->service->update($cardapio, $dadosAtualizacao);
+
+        $this->assertEquals('Carne Assada', $atualizado->prato_principal_ptn01);
+        $this->assertDatabaseHas('cardapios', [
+            'id' => $cardapio->id,
+            'prato_principal_ptn01' => 'Carne Assada'
+        ]);
+        // Verifica se a refeição do turno Jantar foi atualizada
+        $this->assertDatabaseHas('refeicoes', [
+            'cardapio_id' => $cardapio->id,
+            'turno' => 'jantar',
+            'capacidade' => 150
+        ]);
+    }
+
+    /**
+     * CT16 - Testa remoção de um cardápio.
+     */
+    public function test_pode_deletar_cardapio(): void
+    {
+        $cardapio = Cardapio::factory()->create();
+
+        $this->service->delete($cardapio);
+
+        $this->assertDatabaseMissing('cardapios', ['id' => $cardapio->id]);
+    }
+
+    /**
+     * CT17 - Testa createOrUpdate criando novo registro.
+     */
+    public function test_create_or_update_cria_novo(): void
+    {
+        $user = User::factory()->create();
+        $data = [
+            'data_do_cardapio' => '2035-03-03',
+            'prato_principal_ptn01' => 'Peixe Frito',
+            'prato_principal_ptn02' => 'Ovos',
+            'acompanhamento_01' => 'Arroz',
+            'acompanhamento_02' => 'Feijão',
+            'turno' => 'almoco',
+            'capacidade' => 200
+        ];
+
+        $resultado = $this->service->createOrUpdate($data, $user->id);
+
+        $this->assertTrue($resultado['created']);
+        $this->assertInstanceOf(Cardapio::class, $resultado['cardapio']);
+        $this->assertEquals('Peixe Frito', $resultado['cardapio']->prato_principal_ptn01);
+    }
+
+    /**
+     * CT18 - Testa createOrUpdate atualizando registro existente.
+     */
+    public function test_create_or_update_atualiza_existente(): void
+    {
+        $user = User::factory()->create();
+        $cardapio = Cardapio::factory()->create([
+            'data_do_cardapio' => '2035-03-04',
+            'prato_principal_ptn01' => 'Prato Antigo'
+        ]);
+
+        $data = [
+            'data_do_cardapio' => '2035-03-04',
+            'prato_principal_ptn01' => 'Prato Novo',
+            'prato_principal_ptn02' => 'Opção 2', // Campos obrigatórios no array
+            'acompanhamento_01' => 'Arroz',
+            'acompanhamento_02' => 'Feijão',
+            'turno' => 'almoco'
+        ];
+
+        $resultado = $this->service->createOrUpdate($data, $user->id);
+
+        $this->assertFalse($resultado['created']);
+        $this->assertEquals('Prato Novo', $resultado['cardapio']->prato_principal_ptn01);
+        $this->assertEquals('Prato Novo', $cardapio->refresh()->prato_principal_ptn01);
+    }
 }
