@@ -7,8 +7,12 @@ use App\Models\Presenca;
 use App\Models\User;
 use App\Enums\StatusJustificativa;
 use App\Enums\StatusPresenca;
+use App\Mail\JustificativaDecisaoMail;
+use App\Services\NotificacaoService;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 /**
@@ -97,7 +101,7 @@ class JustificativaService
      */
     public function aprovarJustificativa(int $id, int $adminId, ?string $observacao = null): Justificativa
     {
-        return DB::transaction(function () use ($id, $adminId, $observacao) {
+        $justificativa = DB::transaction(function () use ($id, $adminId, $observacao) {
             $justificativa = $this->buscarJustificativa($id);
 
             // Validar se pode ser aprovada
@@ -129,6 +133,11 @@ class JustificativaService
                 'aprovadoPor'
             ]);
         });
+
+        // RF10 - Notificar estudante por e-mail
+        $this->notificarEstudante($justificativa);
+
+        return $justificativa;
     }
 
     /**
@@ -152,7 +161,7 @@ class JustificativaService
             throw new \Exception('Observação é obrigatória ao rejeitar uma justificativa.');
         }
 
-        return DB::transaction(function () use ($id, $adminId, $observacao) {
+        $justificativa = DB::transaction(function () use ($id, $adminId, $observacao) {
             $justificativa = $this->buscarJustificativa($id);
 
             // Validar se pode ser rejeitada
@@ -184,6 +193,11 @@ class JustificativaService
                 'aprovadoPor'
             ]);
         });
+
+        // RF10 - Notificar estudante por e-mail
+        $this->notificarEstudante($justificativa);
+
+        return $justificativa;
     }
 
     /**
@@ -252,5 +266,76 @@ class JustificativaService
             'rejeitadas' => $rejeitadas,
             'taxa_aprovacao' => $taxaAprovacao,
         ];
+    }
+
+    /**
+     * RF10 - Notifica o estudante sobre a decisão da justificativa
+     * 
+     * Cria:
+     * 1. Notificação in-app (sempre)
+     * 2. E-mail (se configurado para enviar)
+     * 
+     * @param Justificativa $justificativa
+     * @return void
+     */
+    protected function notificarEstudante(Justificativa $justificativa): void
+    {
+        $usuario = $justificativa->usuario;
+        
+        if (!$usuario) {
+            Log::warning('RF10: Não foi possível notificar - usuário não encontrado', [
+                'justificativa_id' => $justificativa->id,
+            ]);
+            return;
+        }
+
+        // 1. Criar notificação in-app (SEMPRE funciona)
+        try {
+            $notificacaoService = app(NotificacaoService::class);
+            $isAprovada = $justificativa->status_justificativa === \App\Enums\StatusJustificativa::APROVADA;
+
+            if ($isAprovada) {
+                $notificacaoService->notificarJustificativaAprovada(
+                    userId: $usuario->id,
+                    justificativaId: $justificativa->id,
+                    observacao: $justificativa->observacao_admin
+                );
+            } else {
+                $notificacaoService->notificarJustificativaRejeitada(
+                    userId: $usuario->id,
+                    justificativaId: $justificativa->id,
+                    motivo: $justificativa->observacao_admin ?? 'Sem observação'
+                );
+            }
+
+            Log::info('RF10: Notificação in-app criada', [
+                'justificativa_id' => $justificativa->id,
+                'user_id' => $usuario->id,
+                'decisao' => $justificativa->status_justificativa->value,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('RF10: Falha ao criar notificação in-app', [
+                'justificativa_id' => $justificativa->id,
+                'erro' => $e->getMessage(),
+            ]);
+        }
+
+        // 2. Enviar e-mail (se não for driver 'log')
+        try {
+            if (config('mail.default') !== 'log' && $usuario->email) {
+                Mail::to($usuario->email)->queue(new JustificativaDecisaoMail($justificativa));
+
+                Log::info('RF10: E-mail enviado', [
+                    'justificativa_id' => $justificativa->id,
+                    'estudante' => $usuario->email,
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('RF10: Falha ao enviar e-mail', [
+                'justificativa_id' => $justificativa->id,
+                'erro' => $e->getMessage(),
+            ]);
+        }
     }
 }

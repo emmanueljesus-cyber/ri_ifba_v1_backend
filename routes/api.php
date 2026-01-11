@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\api\v1\Admin\BolsistaAprovadoController;
 use App\Http\Controllers\api\v1\Estudante\JustificativaController;
+use App\Http\Controllers\api\v1\Estudante\NotificacaoController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\api\V1\Admin\CardapioController as AdminCardapioController;
 use App\Http\Controllers\api\V1\Admin\PresencaController as AdminPresencaController;
@@ -52,6 +53,15 @@ Route::prefix('v1')->group(function () {
             Route::get('/', [JustificativaController::class, 'index']);
             Route::post('/', [JustificativaController::class, 'store']);
             Route::get('/{id}', [JustificativaController::class, 'show']);
+        });
+
+        // Notificações do estudante
+        Route::prefix('notificacoes')->group(function () {
+            Route::get('/', [NotificacaoController::class, 'index']);
+            Route::get('/nao-lidas', [NotificacaoController::class, 'naoLidas']);
+            Route::get('/contador', [NotificacaoController::class, 'contador']);
+            Route::post('/{id}/ler', [NotificacaoController::class, 'marcarComoLida']);
+            Route::post('/ler-todas', [NotificacaoController::class, 'marcarTodasComoLidas']);
         });
     });
 
