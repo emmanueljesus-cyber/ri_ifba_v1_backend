@@ -1,0 +1,102 @@
+@startuml DiagramaCasoUso_Administracao
+
+!theme plain
+skinparam actorStyle awesome
+skinparam packageBackgroundColor #FFFFCC
+skinparam usecaseBackgroundColor #FFFFC0
+
+title Sistema do Refeitório Institucional - Administração
+
+left to right direction
+
+actor "Usuário" as Usuario
+actor "Administrador\nRI" as Admin
+
+Usuario <|-- Admin
+
+rectangle "Sistema do Refeitório Institucional - Administração" {
+    
+    ' Casos de uso comuns
+    usecase "Autenticar-se" as UC_Auth
+    usecase "Visualizar Cardápio\nSemanal/Diário" as UC_Cardapio
+    
+    ' Gerenciamento de Cardápio
+    usecase "Gerenciar Cardápio" as UC_GerCardapio
+    usecase "CRUD de Cardápio" as UC_CRUDCardapio
+    usecase "Importar Cardápio\n(Planilha)" as UC_ImportCardapio
+    
+    ' Gerenciamento de Bolsistas
+    usecase "Gerenciar Bolsistas" as UC_GerBolsistas
+    usecase "Importar Bolsistas" as UC_ImportBolsistas
+    usecase "Desligar/Reintegrar\nBolsista" as UC_DesligarBolsista
+    
+    ' Gerenciamento de Usuários
+    usecase "Gerenciar Usuários" as UC_GerUsuarios
+    usecase "Listar Bolsistas\ndo Dia" as UC_ListarDia
+    
+    ' Presenças
+    usecase "Registrar Presença" as UC_Presenca
+    usecase "Validar por\nQR Code" as UC_QRCode
+    usecase "Validar por\nMatrícula" as UC_Matricula
+    
+    ' Justificativas
+    usecase "Verificar\nJustificativas" as UC_Justificativas
+    usecase "Consultar Anexos" as UC_Anexos
+    usecase "Aprovar/Rejeitar" as UC_AprovarRejeitar
+    
+    ' Dashboard e Relatórios
+    usecase "Acessar Dashboard" as UC_Dashboard
+    usecase "Gerar Relatório" as UC_Relatorio
+    
+    ' Relacionamentos Usuario
+    Usuario --> UC_Auth
+    Usuario --> UC_Cardapio
+    
+    ' Relacionamentos Admin - Cardápio
+    Admin --> UC_GerCardapio
+    UC_GerCardapio ..> UC_CRUDCardapio : <<include>>
+    UC_GerCardapio ..> UC_ImportCardapio : <<include>>
+    
+    ' Relacionamentos Admin - Bolsistas
+    Admin --> UC_GerBolsistas
+    UC_GerBolsistas ..> UC_ImportBolsistas : <<include>>
+    UC_GerBolsistas ..> UC_DesligarBolsista : <<extend>>
+    
+    ' Relacionamentos Admin - Usuários
+    Admin --> UC_GerUsuarios
+    Admin --> UC_ListarDia
+    
+    ' Relacionamentos Admin - Presenças
+    Admin --> UC_Presenca
+    UC_Presenca ..> UC_QRCode : <<extend>>
+    UC_Presenca ..> UC_Matricula : <<extend>>
+    
+    ' Relacionamentos Admin - Justificativas
+    Admin --> UC_Justificativas
+    UC_Justificativas ..> UC_Anexos : <<include>>
+    UC_Justificativas ..> UC_AprovarRejeitar : <<include>>
+    
+    ' Relacionamentos Admin - Dashboard/Relatórios
+    Admin --> UC_Dashboard
+    Admin --> UC_Relatorio
+    
+    ' Notas
+    note right of UC_Presenca
+        Pré-requisito:
+        Admin autenticado
+        Valida presença do
+        bolsista
+    end note
+    
+    note right of UC_ListarDia
+        Filtrar por turno, status
+        Considera dias vinculados
+    end note
+    
+    note right of UC_Justificativas
+        Pré-requisito:
+        Justificativa posterior
+    end note
+}
+
+@enduml
