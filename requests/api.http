@@ -1,0 +1,709 @@
+### ============================================================================
+### API RI IFBA - HTTP Client para PHPStorm
+### Base URL: http://localhost:8000/api/v1
+### ============================================================================
+
+### Variáveis de ambiente
+@host = http://localhost:8000
+@baseUrl = {{host}}/api/v1
+
+
+### ============================================================================
+### ROTAS PÚBLICAS - Cardápio
+### ============================================================================
+
+### Cardápio do Dia
+GET {{baseUrl}}/cardapio/hoje
+Accept: application/json
+
+###
+
+### Cardápio Semanal
+GET {{baseUrl}}/cardapio/semanal
+Accept: application/json
+
+###
+
+### Cardápio Mensal
+GET {{baseUrl}}/cardapio/mensal
+Accept: application/json
+
+
+### ============================================================================
+### ROTAS ESTUDANTE
+### ============================================================================
+
+### Cardápio do Dia (Estudante)
+GET {{baseUrl}}/estudante/cardapio/hoje
+Accept: application/json
+
+###
+
+### -------------------------------------------------------------------------
+### Perfil (RF05)
+### -------------------------------------------------------------------------
+
+### Ver Perfil
+GET {{baseUrl}}/estudante/perfil
+Accept: application/json
+
+###
+
+### Atualizar Perfil
+PUT {{baseUrl}}/estudante/perfil
+Content-Type: application/json
+Accept: application/json
+
+{
+    "nome": "Nome do Estudante",
+    "email": "estudante@ifba.edu.br"
+}
+
+###
+
+### Atualizar Preferência Alimentar
+PUT {{baseUrl}}/estudante/perfil/preferencia
+Content-Type: application/json
+Accept: application/json
+
+{
+    "preferencia_alimentar": "ovolactovegetariano"
+}
+
+###
+
+### Selecionar Dias de Uso do Refeitório
+PUT {{baseUrl}}/estudante/perfil/dias-semana
+Content-Type: application/json
+Accept: application/json
+
+{
+    "dias": [1, 2, 3, 4, 5]
+}
+
+###
+
+### Upload de Foto de Perfil
+# Nota: Para testar no PHPStorm, use o ícone de clipe para anexar arquivo
+# LGPD: Campo 'consentimento' é obrigatório
+POST {{baseUrl}}/estudante/perfil/foto
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="foto"; filename="foto.jpg"
+Content-Type: image/jpeg
+
+< ./test_photo.jpg
+--boundary
+Content-Disposition: form-data; name="consentimento"
+
+true
+--boundary--
+
+###
+
+### Remover Foto de Perfil
+DELETE {{baseUrl}}/estudante/perfil/foto
+Accept: application/json
+
+###
+
+### -------------------------------------------------------------------------
+### Histórico (RF04)
+### -------------------------------------------------------------------------
+
+### Listar Histórico de Refeições
+GET {{baseUrl}}/estudante/historico
+Accept: application/json
+
+###
+
+### Listar Histórico com Filtros
+GET {{baseUrl}}/estudante/historico?data_inicio=2026-01-01&data_fim=2026-01-31
+Accept: application/json
+
+###
+
+### Resumo do Histórico
+GET {{baseUrl}}/estudante/historico/resumo
+Accept: application/json
+
+###
+
+### -------------------------------------------------------------------------
+### Justificativas (RF02)
+### -------------------------------------------------------------------------
+
+### Listar Justificativas do Estudante
+GET {{baseUrl}}/estudante/justificativas
+Accept: application/json
+
+###
+
+### Criar Nova Justificativa
+POST {{baseUrl}}/estudante/justificativas
+Content-Type: application/json
+Accept: application/json
+
+{
+    "presenca_id": 1,
+    "motivo": "Consulta médica",
+    "descricao": "Tive uma consulta médica agendada no horário do almoço"
+}
+
+###
+
+### Ver Justificativa Específica
+GET {{baseUrl}}/estudante/justificativas/1
+Accept: application/json
+
+###
+
+### -------------------------------------------------------------------------
+### Fila de Extras (RF06/RF07)
+### -------------------------------------------------------------------------
+
+### Minhas Inscrições na Fila
+GET {{baseUrl}}/estudante/fila-extras
+Accept: application/json
+
+###
+
+### Inscrever na Fila de Extras
+POST {{baseUrl}}/estudante/fila-extras
+Content-Type: application/json
+Accept: application/json
+
+{
+    "refeicao_id": 1
+}
+
+###
+
+### Ver Posição na Fila (Polling em tempo real)
+GET {{baseUrl}}/estudante/fila-extras/posicao
+Accept: application/json
+
+###
+
+### Cancelar Inscrição
+DELETE {{baseUrl}}/estudante/fila-extras/1
+Accept: application/json
+
+###
+
+### -------------------------------------------------------------------------
+### Notificações
+### -------------------------------------------------------------------------
+
+### Listar Todas as Notificações
+GET {{baseUrl}}/estudante/notificacoes
+Accept: application/json
+
+###
+
+### Notificações Não Lidas
+GET {{baseUrl}}/estudante/notificacoes/nao-lidas
+Accept: application/json
+
+###
+
+### Contador de Notificações
+GET {{baseUrl}}/estudante/notificacoes/contador
+Accept: application/json
+
+###
+
+### Marcar Notificação como Lida
+POST {{baseUrl}}/estudante/notificacoes/1/ler
+Accept: application/json
+
+###
+
+### Marcar Todas as Notificações como Lidas
+POST {{baseUrl}}/estudante/notificacoes/ler-todas
+Accept: application/json
+
+
+### ============================================================================
+### ROTAS ADMIN - Cardápios
+### ============================================================================
+
+### Listar Todos os Cardápios
+GET {{baseUrl}}/admin/cardapios
+Accept: application/json
+
+###
+
+### Criar Novo Cardápio
+POST {{baseUrl}}/admin/cardapios
+Content-Type: application/json
+Accept: application/json
+
+{
+    "data": "2026-01-15",
+    "tipo_refeicao": "almoco",
+    "principal": "Frango grelhado",
+    "acompanhamento": "Arroz, Feijão, Salada",
+    "vegetariano": "Lasanha de Legumes",
+    "sobremesa": "Fruta da estação"
+}
+
+###
+
+### Ver Cardápio Específico
+GET {{baseUrl}}/admin/cardapios/1
+Accept: application/json
+
+###
+
+### Atualizar Cardápio
+PUT {{baseUrl}}/admin/cardapios/1
+Content-Type: application/json
+Accept: application/json
+
+{
+    "principal": "Peixe grelhado",
+    "acompanhamento": "Arroz integral, Feijão, Salada verde"
+}
+
+###
+
+### Deletar Cardápio
+DELETE {{baseUrl}}/admin/cardapios/1
+Accept: application/json
+
+###
+
+### Deletar Múltiplos Cardápios
+POST {{baseUrl}}/admin/cardapios/delete-multiple
+Content-Type: application/json
+Accept: application/json
+
+{
+    "ids": [1, 2, 3]
+}
+
+###
+
+### Deletar por Período
+POST {{baseUrl}}/admin/cardapios/delete-by-date
+Content-Type: application/json
+Accept: application/json
+
+{
+    "data_inicio": "2026-01-01",
+    "data_fim": "2026-01-31"
+}
+
+
+### ============================================================================
+### ROTAS ADMIN - Presenças
+### ============================================================================
+
+### Listar Presenças
+GET {{baseUrl}}/admin/presencas
+Accept: application/json
+
+###
+
+### Confirmar Presença
+POST {{baseUrl}}/admin/presencas/confirmar
+Content-Type: application/json
+Accept: application/json
+
+{
+    "user_id": 1,
+    "refeicao_id": 1
+}
+
+###
+
+### Validar Lote de Presenças
+POST {{baseUrl}}/admin/presencas/validar-lote
+Content-Type: application/json
+Accept: application/json
+
+{
+    "user_ids": [1, 2, 3],
+    "refeicao_id": 1
+}
+
+###
+
+### Validar por QR Code
+POST {{baseUrl}}/admin/presencas/validar-qrcode
+Content-Type: application/json
+Accept: application/json
+
+{
+    "qr_code": "codigo-do-qr-code"
+}
+
+###
+
+### Gerar QR Code
+GET {{baseUrl}}/admin/presencas/1/qrcode
+Accept: application/json
+
+###
+
+### Confirmar Presença por ID
+POST {{baseUrl}}/admin/presencas/1/confirmar
+Accept: application/json
+
+###
+
+### Remover Confirmação
+POST {{baseUrl}}/admin/presencas/1/remover
+Accept: application/json
+
+###
+
+### Marcar Falta
+POST {{baseUrl}}/admin/presencas/1/marcar-falta
+Accept: application/json
+
+###
+
+### Cancelar Presença
+POST {{baseUrl}}/admin/presencas/1/cancelar
+Accept: application/json
+
+
+### ============================================================================
+### ROTAS ADMIN - Bolsistas (RF09, RF10, RF13, RF15)
+### ============================================================================
+
+### Lista Geral de Bolsistas (RF10)
+GET {{baseUrl}}/admin/bolsistas
+Accept: application/json
+
+###
+
+### Bolsistas do Dia (RF09)
+GET {{baseUrl}}/admin/bolsistas/dia
+Accept: application/json
+
+###
+
+### Buscar para Confirmação (RF13)
+GET {{baseUrl}}/admin/bolsistas/buscar?termo=joao
+Accept: application/json
+
+###
+
+### Confirmar por QR Code (RF13)
+POST {{baseUrl}}/admin/bolsistas/qrcode
+Content-Type: application/json
+Accept: application/json
+
+{
+    "qr_code": "codigo-do-qr-code"
+}
+
+###
+
+### Confirmar Lote de Bolsistas
+POST {{baseUrl}}/admin/bolsistas/confirmar-lote
+Content-Type: application/json
+Accept: application/json
+
+{
+    "user_ids": [1, 2, 3]
+}
+
+###
+
+### Confirmar Presença de Bolsista
+POST {{baseUrl}}/admin/bolsistas/1/confirmar-presenca
+Accept: application/json
+
+###
+
+### Marcar Falta de Bolsista
+POST {{baseUrl}}/admin/bolsistas/1/marcar-falta
+Accept: application/json
+
+###
+
+### Estudantes por Turno
+GET {{baseUrl}}/admin/estudantes/turno?turno=matutino
+Accept: application/json
+
+
+### ============================================================================
+### ROTAS ADMIN - Bolsistas Aprovados (RF15)
+### ============================================================================
+
+### Listar Bolsistas Aprovados
+GET {{baseUrl}}/admin/bolsistas-aprovados
+Accept: application/json
+
+###
+
+### Adicionar Bolsista Aprovado
+POST {{baseUrl}}/admin/bolsistas-aprovados
+Content-Type: application/json
+Accept: application/json
+
+{
+    "matricula": "20231234567",
+    "nome": "Novo Bolsista"
+}
+
+###
+
+### Ver Bolsista Aprovado
+GET {{baseUrl}}/admin/bolsistas-aprovados/1
+Accept: application/json
+
+###
+
+### Atualizar Bolsista Aprovado
+PUT {{baseUrl}}/admin/bolsistas-aprovados/1
+Content-Type: application/json
+Accept: application/json
+
+{
+    "nome": "Nome Atualizado"
+}
+
+###
+
+### Remover Bolsista Aprovado
+DELETE {{baseUrl}}/admin/bolsistas-aprovados/1
+Accept: application/json
+
+###
+
+### Reativar Bolsista
+POST {{baseUrl}}/admin/bolsistas-aprovados/1/reativar
+Accept: application/json
+
+
+### ============================================================================
+### ROTAS ADMIN - Relatórios de Validações
+### ============================================================================
+
+### Listar Validações
+GET {{baseUrl}}/admin/relatorios/validacoes
+Accept: application/json
+
+###
+
+### Validações por Admin
+GET {{baseUrl}}/admin/relatorios/validacoes/por-admin
+Accept: application/json
+
+###
+
+### Timeline de Validações
+GET {{baseUrl}}/admin/relatorios/validacoes/timeline
+Accept: application/json
+
+###
+
+### Validações por Refeição
+GET {{baseUrl}}/admin/relatorios/validacoes/refeicao/1
+Accept: application/json
+
+
+### ============================================================================
+### ROTAS ADMIN - Justificativas (RF10)
+### ============================================================================
+
+### Listar Justificativas Pendentes
+GET {{baseUrl}}/admin/justificativas
+Accept: application/json
+
+###
+
+### Ver Justificativa
+GET {{baseUrl}}/admin/justificativas/1
+Accept: application/json
+
+###
+
+### Aprovar Justificativa
+POST {{baseUrl}}/admin/justificativas/1/aprovar
+Content-Type: application/json
+Accept: application/json
+
+{
+    "observacao": "Justificativa válida"
+}
+
+###
+
+### Rejeitar Justificativa
+POST {{baseUrl}}/admin/justificativas/1/rejeitar
+Content-Type: application/json
+Accept: application/json
+
+{
+    "motivo_rejeicao": "Documentação insuficiente"
+}
+
+###
+
+### Download do Anexo
+GET {{baseUrl}}/admin/justificativas/1/anexo
+Accept: application/octet-stream
+
+
+### ============================================================================
+### ROTAS ADMIN - Dashboard (RF11)
+### ============================================================================
+
+### Dashboard Geral
+GET {{baseUrl}}/admin/dashboard
+Accept: application/json
+
+###
+
+### Resumo do Dashboard
+GET {{baseUrl}}/admin/dashboard/resumo
+Accept: application/json
+
+###
+
+### Taxa de Presença
+GET {{baseUrl}}/admin/dashboard/taxa-presenca
+Accept: application/json
+
+###
+
+### Dashboard de Faltas
+GET {{baseUrl}}/admin/dashboard/faltas
+Accept: application/json
+
+###
+
+### Dashboard de Extras
+GET {{baseUrl}}/admin/dashboard/extras
+Accept: application/json
+
+###
+
+### Evolução (Gráfico)
+GET {{baseUrl}}/admin/dashboard/evolucao
+Accept: application/json
+
+###
+
+### Lista de Faltosos
+GET {{baseUrl}}/admin/dashboard/faltosos
+Accept: application/json
+
+
+### ============================================================================
+### ROTAS ADMIN - Relatórios Gerais (RF12)
+### ============================================================================
+
+### Relatório de Presenças
+GET {{baseUrl}}/admin/relatorios/presencas
+Accept: application/json
+
+###
+
+### Relatório Mensal
+GET {{baseUrl}}/admin/relatorios/mensal?mes=01&ano=2026
+Accept: application/json
+
+###
+
+### Relatório Semanal
+GET {{baseUrl}}/admin/relatorios/semanal
+Accept: application/json
+
+###
+
+### Relatório por Bolsista
+GET {{baseUrl}}/admin/relatorios/bolsista/1
+Accept: application/json
+
+###
+
+### Exportar Relatório (Excel/PDF)
+GET {{baseUrl}}/admin/relatorios/exportar?formato=excel
+Accept: application/json
+
+###
+
+### Exportar Relatório Semanal (Excel)
+GET {{baseUrl}}/admin/relatorios/exportar-semanal
+Accept: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+
+###
+
+### Relatório Consolidado
+GET {{baseUrl}}/admin/relatorios/consolidado
+Accept: application/json
+
+
+### ============================================================================
+### ROTAS ADMIN - Gerenciamento de Usuários (RF14)
+### ============================================================================
+
+### Listar Todos os Usuários
+GET {{baseUrl}}/admin/usuarios
+Accept: application/json
+
+###
+
+### Criar Novo Usuário
+POST {{baseUrl}}/admin/usuarios
+Content-Type: application/json
+Accept: application/json
+
+{
+    "nome": "Novo Usuário",
+    "email": "novo@ifba.edu.br",
+    "matricula": "20261234567",
+    "password": "senha123",
+    "tipo": "estudante",
+    "turno": "matutino"
+}
+
+###
+
+### Listar Apenas Bolsistas
+GET {{baseUrl}}/admin/usuarios/bolsistas
+Accept: application/json
+
+###
+
+### Buscar por Matrícula
+GET {{baseUrl}}/admin/usuarios/matricula/20261234567
+Accept: application/json
+
+###
+
+### Ver Usuário por ID
+GET {{baseUrl}}/admin/usuarios/1
+Accept: application/json
+
+###
+
+### Atualizar Usuário
+PUT {{baseUrl}}/admin/usuarios/1
+Content-Type: application/json
+Accept: application/json
+
+{
+    "nome": "Nome Atualizado",
+    "email": "atualizado@ifba.edu.br"
+}
+
+###
+
+### Desativar Usuário
+DELETE {{baseUrl}}/admin/usuarios/1
+Accept: application/json
+
+###
+
+### Reativar Usuário
+POST {{baseUrl}}/admin/usuarios/1/reativar
+Accept: application/json

@@ -55,6 +55,9 @@ Route::prefix('v1')->group(function () {
         Route::get('perfil', [PerfilController::class, 'show']);
         Route::put('perfil', [PerfilController::class, 'update']);
         Route::put('perfil/preferencia', [PerfilController::class, 'atualizarPreferencia']);
+        Route::put('perfil/dias-semana', [PerfilController::class, 'atualizarDiasSemana']);
+        Route::post('perfil/foto', [PerfilController::class, 'atualizarFoto']);
+        Route::delete('perfil/foto', [PerfilController::class, 'removerFoto']);
 
         // RF04 - Histórico de refeições e faltas
         Route::get('historico', [HistoricoController::class, 'index']);

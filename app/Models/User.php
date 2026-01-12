@@ -29,6 +29,7 @@ class User extends Authenticatable
         'curso',
         'turno',
         'preferencia_alimentar',
+        'foto_perfil',
     ];
 
     protected $hidden = [
@@ -133,6 +134,17 @@ class User extends Authenticatable
     public function getIsAtivoAttribute()
     {
         return !$this->desligado;
+    }
+
+    /**
+     * Retorna a URL completa da foto de perfil
+     */
+    public function getFotoUrlAttribute(): ?string
+    {
+        if ($this->foto_perfil) {
+            return asset('storage/' . $this->foto_perfil);
+        }
+        return null;
     }
 
     // ========== MÉTODOS AUXILIARES ==========
