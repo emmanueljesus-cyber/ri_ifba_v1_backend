@@ -1,12 +1,376 @@
 # 🐳 Docker e Banco de Dados - Guia Completo
 
 ## 📋 Índice
-1. [Como o Docker Funciona Neste Projeto](#como-funciona)
-2. [Banco de Dados Automático](#banco-automatico)
-3. [Por Que Não Funcionou Após Baixar?](#troubleshooting)
-4. [Como Rodar em Máquina Nova](#setup-nova-maquina)
-5. [Credenciais e Variáveis de Ambiente](#credenciais)
-6. [FAQ](#faq)
+1. [🚀 INÍCIO RÁPIDO - Clone e Rode em 5 Minutos](#inicio-rapido)
+2. [Como o Docker Funciona Neste Projeto](#como-funciona)
+3. [Banco de Dados Automático](#banco-automatico)
+4. [Por Que Não Funcionou Após Baixar?](#troubleshooting)
+5. [Como Rodar em Máquina Nova](#setup-nova-maquina)
+6. [Credenciais e Variáveis de Ambiente](#credenciais)
+7. [FAQ](#faq)
+
+---
+
+## 🚀 INÍCIO RÁPIDO - Clone e Rode em 5 Minutos {#inicio-rapido}
+
+### ⚡ Passo a Passo Completo (Copy & Paste)
+
+#### ✅ Pré-requisitos (Verifique Antes):
+
+1. **Docker Desktop rodando no Windows**
+   - Abra o Docker Desktop
+   - Aguarde aparecer "Docker Desktop is running" (ícone verde)
+
+2. **WSL2 configurado**
+   - Abra o terminal WSL (Ubuntu)
+
+---
+
+### 📝 PASSO 1: Configurar Permissões do Docker (Apenas 1ª Vez)
+
+**⚠️ IMPORTANTE:** Você precisa de permissão `sudo` apenas para configurar pela primeira vez. Depois disso, não precisa mais!
+
+```bash
+# Adicionar seu usuário ao grupo docker
+sudo usermod -aG docker $USER
+
+# Recarregar grupos (SEM precisar fazer logout)
+newgrp docker
+
+# Testar se funcionou (NÃO precisa mais de sudo)
+docker ps
+```
+
+**✅ Se mostrar uma tabela** (mesmo que vazia), funcionou!  
+**❌ Se der "permission denied"**, reinicie o WSL:
+```bash
+# No PowerShell do Windows
+wsl --shutdown
+
+# Aguarde 5 segundos e abra o WSL novamente
+wsl
+```
+
+---
+
+### 📝 PASSO 2: Clonar o Projeto
+
+```bash
+# Navegue para onde quer guardar o projeto
+cd ~
+# ou
+cd /mnt/c/Users/SEU_USUARIO/Documents
+
+# Clone o repositório
+git clone https://github.com/emmanueljesus-cyber/ri_ifba_v1_backend.git
+
+# Entre na pasta
+cd ri_ifba_v1_backend
+
+# Verifique se está tudo OK
+ls -la
+```
+
+**✅ Deve mostrar:** `Makefile`, `docker-compose.yml`, `artisan`, etc.
+
+---
+
+### 📝 PASSO 3: Subir os Containers (Comando Único!)
+
+```bash
+# Comando mágico que faz TUDO automaticamente
+make setup
+```
+
+**🎯 O que este comando faz automaticamente:**
+
+1. ✅ Copia `.env.docker` → `.env` (configurações Docker)
+2. ✅ Constrói imagem Docker (PHP 8.4 + extensões)
+3. ✅ Sobe 5 containers (Nginx, Laravel, PostgreSQL, Redis, Queue)
+4. ✅ Instala dependências PHP (Composer)
+5. ✅ Gera `APP_KEY` automaticamente
+6. ✅ Cria banco de dados `ri_ifba_v1`
+7. ✅ Executa migrations (cria 20+ tabelas)
+8. ✅ Executa seeders (cria 26 usuários de teste)
+9. ✅ Limpa cache
+
+**⏱️ Tempo:** 5-10 minutos (primeira vez)
+
+**💡 Você verá mensagens como:**
+```
+🚀 Configurando projeto...
+docker compose build
+[+] Building ...
+🔧 Instalando dependências PHP...
+⚙️ Preparando ambiente...
+🔑 Gerando APP_KEY...
+📊 Executando migrations...
+🌱 Populando banco de dados...
+✅ Setup concluído!
+```
+
+---
+
+### 📝 PASSO 4: Verificar se Está Tudo Funcionando
+
+```bash
+# Ver status dos containers
+docker compose ps
+```
+
+**✅ SUCESSO - Todos devem estar "Up":**
+```
+NAME               STATUS
+ri-ifba-app        Up 2 minutes
+ri-ifba-nginx      Up 2 minutes
+ri-ifba-postgres   Up 2 minutes (healthy)
+ri-ifba-redis      Up 2 minutes (healthy)
+ri-ifba-queue      Up 2 minutes
+```
+
+**❌ ERRO - Se algum estiver "Restarting" ou "Exited":**
+```bash
+# Ver logs do container com problema
+docker compose logs nome-do-container
+
+# Exemplo:
+docker compose logs nginx
+docker compose logs queue-worker
+```
+
+➡️ **Se houver erro, veja a seção [Troubleshooting](#troubleshooting) abaixo**
+
+---
+
+### 📝 PASSO 5: Testar a API
+
+```bash
+# Testar rota pública (cardápio do dia)
+curl http://localhost:8000/api/v1/cardapio/hoje
+```
+
+**✅ SUCESSO - Deve retornar JSON:**
+```json
+{
+  "data": {...},
+  "errors": [],
+  "meta": {
+    "timestamp": "2026-01-13T10:30:00Z"
+  }
+}
+```
+
+**❌ ERRO - "Failed to connect":**
+- Nginx não está rodando
+- Veja logs: `docker compose logs nginx`
+
+---
+
+### 📝 PASSO 6: Acessar no Navegador
+
+Abra no seu navegador:
+
+| Serviço | URL | Credenciais |
+|---------|-----|-------------|
+| **Backend API** | http://localhost:8000 | - |
+| **Adminer (Banco)** | http://localhost:8080 | Ver abaixo ↓ |
+
+**Credenciais do Adminer:**
+```
+Sistema: PostgreSQL
+Servidor: postgres
+Usuário: postgres
+Senha: 201099
+Base de dados: ri_ifba_v1
+```
+
+---
+
+### 🎉 PRONTO! Projeto Rodando!
+
+**Credenciais de Acesso (Login na API):**
+
+| Perfil | Matrícula | Senha | Acesso |
+|--------|-----------|-------|--------|
+| **Admin** | 10000000001 | password | `/api/v1/admin/*` |
+| **Bolsista** | 20231160001 | password | `/api/v1/estudante/bolsista/*` |
+| **Não-Bolsista** | 20232160001 | password | `/api/v1/estudante/nao-bolsista/*` |
+
+**Teste o login:**
+```bash
+curl -X POST http://localhost:8000/api/v1/login \
+  -H "Content-Type: application/json" \
+  -d '{"matricula":"10000000001","password":"password"}'
+```
+
+---
+
+### 🔄 Comandos Úteis (Dia a Dia)
+
+**⚠️ IMPORTANTE:** Após configurar permissões (Passo 1), você **NÃO precisa mais usar `sudo`**!
+
+```bash
+# Ver containers rodando
+docker compose ps
+
+# Ver logs em tempo real
+docker compose logs -f app
+
+# Parar todos os containers
+docker compose down
+
+# Subir novamente (rápido - já está buildado)
+docker compose up -d
+
+# Reiniciar um container específico
+docker compose restart nginx
+
+# Acessar shell do container Laravel
+docker compose exec app bash
+
+# Rodar comandos Laravel
+docker compose exec app php artisan migrate
+docker compose exec app php artisan tinker
+
+# Ver uso de recursos
+docker stats
+
+# Limpar tudo e recomeçar (CUIDADO: apaga banco!)
+docker compose down -v
+make setup
+```
+
+---
+
+### ❓ Preciso Usar `sudo` Sempre?
+
+**NÃO!** ❌
+
+| Situação | Comando | Precisa `sudo`? |
+|----------|---------|-----------------|
+| **Primeira configuração** | `sudo usermod -aG docker $USER` | ✅ SIM (só 1 vez) |
+| **Recarregar grupos** | `newgrp docker` | ❌ NÃO |
+| **Depois de configurado** | `docker compose up` | ❌ NÃO |
+| **Comandos make** | `make setup`, `make up`, `make down` | ❌ NÃO |
+| **Ver containers** | `docker compose ps` | ❌ NÃO |
+| **Ver logs** | `docker compose logs` | ❌ NÃO |
+
+**Resumo:**
+- ✅ **Use `sudo` apenas UMA VEZ** para adicionar seu usuário ao grupo docker
+- ❌ **Depois disso, NUNCA mais precisa de `sudo`**
+- ⚠️ **Se pedir `sudo` após configurado, algo está errado** (veja [Troubleshooting](#troubleshooting))
+
+---
+
+### 🐛 Problemas Comuns (Resolução Rápida)
+
+#### ❌ "permission denied" (mesmo após usermod)
+
+**Causa:** Grupo docker não foi recarregado.
+
+**Solução:**
+```bash
+# Recarregar grupos
+newgrp docker
+
+# OU reiniciar WSL (no PowerShell do Windows)
+wsl --shutdown
+# Aguarde 5 segundos
+wsl
+```
+
+---
+
+#### ❌ "no configuration file provided: not found" (Nginx)
+
+**Causa:** Arquivos `nginx.conf` corrompidos.
+
+**Solução:**
+```bash
+# Parar containers
+docker compose down
+
+# Verificar se é um arquivo válido
+file docker/nginx/nginx.conf
+
+# Se for diretório ou der erro, restaurar do Git
+rm -rf docker/nginx/nginx.conf docker/nginx/conf.d/laravel.conf
+git checkout docker/nginx/nginx.conf docker/nginx/conf.d/laravel.conf
+
+# Subir novamente
+docker compose up -d
+```
+
+---
+
+#### ❌ Queue Worker reiniciando ("Undefined table: cache")
+
+**Causa:** `.env` com `CACHE_DRIVER=database` em vez de `redis`.
+
+**Solução:**
+```bash
+# Parar containers
+docker compose down
+
+# Copiar configuração correta
+cp .env.docker .env
+
+# Verificar
+grep "CACHE_DRIVER" .env
+# Deve mostrar: CACHE_DRIVER=redis
+
+# Subir novamente
+docker compose up -d
+```
+
+---
+
+#### ❌ "Clock skew detected"
+
+**Causa:** Relógio do WSL dessincronizado.
+
+**Solução:**
+```bash
+sudo hwclock -s
+```
+
+---
+
+#### ❌ "Failed to connect to localhost port 8000"
+
+**Causa:** Nginx não está rodando.
+
+**Solução:**
+```bash
+# Ver status
+docker compose ps
+
+# Se nginx não está "Up", ver logs
+docker compose logs nginx
+
+# Reiniciar nginx
+docker compose restart nginx
+
+# Aguardar 5 segundos e testar
+curl http://localhost:8000/api/v1/cardapio/hoje
+```
+
+---
+
+### 📚 Próximos Passos
+
+✅ **Projeto rodando?** Excelente! Agora você pode:
+
+1. **Desenvolver:** Edite os arquivos e as mudanças aparecem automaticamente
+2. **Testar rotas:** Use Postman, Insomnia ou curl
+3. **Ver banco de dados:** Acesse http://localhost:8080 (Adminer)
+4. **Ler documentação:** Veja os arquivos `.md` na raiz do projeto
+
+**Documentação recomendada:**
+- `DOCKER_GUIDE.md` - Comandos avançados
+- `README.md` - Visão geral do projeto
+- `CREDENCIAIS_ACESSO.md` - Lista completa de usuários
+- `routes/api.php` - Rotas disponíveis
 
 ---
 
@@ -520,6 +884,29 @@ Password: 201099
 ---
 
 ## ❓ FAQ - Perguntas Frequentes {#faq}
+
+### ❓ Preciso usar `sudo` para todos os comandos Docker?
+
+❌ **NÃO!** Você só precisa de `sudo` **UMA ÚNICA VEZ** para configurar as permissões:
+
+```bash
+# Apenas na PRIMEIRA vez:
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+**Depois disso, todos os comandos funcionam SEM `sudo`:**
+```bash
+docker ps                    # ✅ SEM sudo
+docker compose up -d         # ✅ SEM sudo
+docker compose logs app      # ✅ SEM sudo
+make setup                   # ✅ SEM sudo
+make up                      # ✅ SEM sudo
+```
+
+**⚠️ Se pedir `sudo` após configurado:**
+1. Grupo docker não foi recarregado → rode: `newgrp docker`
+2. WSL precisa ser reiniciado → no PowerShell: `wsl --shutdown` e reabra
 
 ### ❓ O Docker cria o banco automaticamente?
 
