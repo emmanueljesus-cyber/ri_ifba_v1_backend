@@ -189,10 +189,11 @@ class CardapioService
         return Cardapio::hoje()->with(['criador', 'refeicoes'])->first();
     }
 
-    public function cardapioSemanal(?string $turno = null)
+    public function cardapioSemanal(?string $turno = null, ?string $data = null)
     {
-        $inicio = now()->startOfWeek();
-        $fim = now()->endOfWeek();
+        $dataRef = $data ? \Carbon\Carbon::parse($data) : now();
+        $inicio = $dataRef->copy()->startOfWeek();
+        $fim = $dataRef->copy()->endOfWeek();
 
         return Cardapio::with(['criador', 'refeicoes'])
             ->dataEntre($inicio->toDateString(), $fim->toDateString())

@@ -17,6 +17,7 @@ use App\Http\Controllers\api\V1\Admin\RelatorioController as AdminRelatorioGeral
 use App\Http\Controllers\api\v1\Admin\UserController as AdminUserController;
 use App\Http\Controllers\api\V1\Estudante\CardapioController as EstudanteCardapioController;
 use App\Http\Controllers\api\V1\Publico\CardapioController as PublicoCardapioController;
+use App\Http\Controllers\api\v1\AuthController;
 
 /*
 |--------------------------------------------------------------------------
@@ -41,6 +42,17 @@ Route::prefix('v1')->group(function () {
         Route::get('hoje', [PublicoCardapioController::class, 'hoje']);
         Route::get('semanal', [PublicoCardapioController::class, 'semanal']);
         Route::get('mensal', [PublicoCardapioController::class, 'mensal']);
+    });
+
+    // =========================================================================
+    // AUTENTICAÇÃO
+    // =========================================================================
+    Route::post('login', [AuthController::class, 'login']);
+    Route::post('register', [AuthController::class, 'register']);
+    
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('logout', [AuthController::class, 'logout']);
+        Route::get('me', [AuthController::class, 'me']);
     });
 
     // =========================================================================

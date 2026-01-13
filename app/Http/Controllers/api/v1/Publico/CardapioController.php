@@ -25,7 +25,8 @@ class CardapioController extends Controller
     public function semanal(Request $request)
     {
         $turno = $request->query('turno');
-        $cardapios = $this->service->cardapioSemanal($turno);
+        $data = $request->query('data');
+        $cardapios = $this->service->cardapioSemanal($turno, $data);
         return CardapioResource::collection($cardapios);
     }
 
