@@ -1,0 +1,175 @@
+version: '3.8'
+
+services:
+  # ==================================================
+  # APLICAÇÃO LARAVEL (PHP-FPM)
+  # ==================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        USER_ID: ${USER_ID:-1000}
+        GROUP_ID: ${GROUP_ID:-1000}
+    image: ri-ifba-backend:dev
+    container_name: ri-ifba-app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+      - ./docker/php/php.ini:/usr/local/etc/php/conf.d/custom.ini
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE:-ri_ifba_v1}
+      - DB_USERNAME=${DB_USERNAME:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-201099}
+      - CACHE_DRIVER=redis
+      - SESSION_DRIVER=redis
+      - QUEUE_CONNECTION=redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ri-ifba-network
+
+  # ==================================================
+  # NGINX (Servidor Web)
+  # ==================================================
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: ri-ifba-nginx
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8000}:80"
+    volumes:
+      - ./:/var/www/html
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d
+      - ./storage/logs/nginx:/var/log/nginx
+    depends_on:
+      - app
+    networks:
+      - ri-ifba-network
+
+  # ==================================================
+  # POSTGRESQL (Banco de Dados)
+  # ==================================================
+  postgres:
+    image: postgres:16.11-alpine
+    container_name: ri-ifba-postgres
+    restart: unless-stopped
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-ri_ifba_v1}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-201099}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ri-ifba-network
+
+  # ==================================================
+  # REDIS (Cache & Queue)
+  # ==================================================
+  redis:
+    image: redis:7-alpine
+    container_name: ri-ifba-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis}
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - ri-ifba-network
+
+  # ==================================================
+  # QUEUE WORKER (Processamento de filas)
+  # ==================================================
+  queue-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        USER_ID: ${USER_ID:-1000}
+        GROUP_ID: ${GROUP_ID:-1000}
+    image: ri-ifba-backend:dev
+    container_name: ri-ifba-queue
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+    command: php artisan queue:work --tries=3 --timeout=90 --sleep=3
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE:-ri_ifba_v1}
+      - DB_USERNAME=${DB_USERNAME:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-201099}
+      - QUEUE_CONNECTION=redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ri-ifba-network
+
+  # ==================================================
+  # ADMINER (Gerenciador de Banco - Opcional)
+  # ==================================================
+  adminer:
+    image: adminer:4.8.1
+    container_name: ri-ifba-adminer
+    restart: unless-stopped
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: dracula
+    depends_on:
+      - postgres
+    networks:
+      - ri-ifba-network
+    profiles:
+      - tools
+
+# ==================================================
+# VOLUMES
+# ==================================================
+volumes:
+  postgres-data:
+    driver: local
+    name: ri-ifba-postgres-data
+  redis-data:
+    driver: local
+    name: ri-ifba-redis-data
+
+# ==================================================
+# NETWORKS
+# ==================================================
+networks:
+  ri-ifba-network:
+    driver: bridge
+    name: ri-ifba-network
+

@@ -2,36 +2,268 @@
 
 Sistema web para gerenciamento de refeições do Restaurante Institucional do IFBA, desenvolvido com Laravel 12.
 
+## 🚀 Começando Rápido
+
+### Com Docker (Recomendado):
+```bash
+git clone https://github.com/SEU_USUARIO/ri_ifba_v1_backend.git
+cd ri_ifba_v1_backend
+make setup
+```
+**Pronto!** Acesse http://localhost:8000 🎉
+
+### Sem Docker (WSL):
+```bash
+git clone https://github.com/SEU_USUARIO/ri_ifba_v1_backend.git
+cd ri_ifba_v1_backend
+wsl composer install
+cp .env.example .env
+wsl php artisan key:generate
+# Configure .env com suas credenciais do banco
+wsl php artisan migrate --seed
+wsl php artisan serve
+```
+
+---
+
 ## 📋 Sobre o Projeto
 
-Sistema completo para controle de:
-- ✅ Cardápios diários
-- ✅ Confirmação de presenças (QR Code + Manual)
-- ✅ Gestão de bolsistas
-- ✅ **Gerenciamento de usuários (CRUD completo)** ⭐ NOVO
-- ✅ Relatórios de validação
-- ✅ Marcação de faltas justificadas/injustificadas
-- ✅ Importação de cardápios via Excel
+Sistema web completo para gerenciamento do Restaurante Institucional do IFBA, com **controle de acesso baseado em perfis** e módulos funcionais especializados.
+
+### 👥 Perfis de Acesso
+
+O sistema possui **3 perfis de usuários** com permissões distintas:
+
+| Perfil | Descrição | Acesso |
+|--------|-----------|--------|
+| **👨‍💼 Admin** | Gestor do sistema | Acesso completo a todos os módulos |
+| **👨‍🎓 Bolsista** | Estudante com bolsa alimentação | Acesso limitado (consulta e justificativas próprias) |
+| **👤 Não Bolsista** | Estudante sem bolsa | Acesso público (apenas consulta de cardápios) |
+
+### 📦 Módulos do Sistema
+
+#### 🍽️ **Módulo de Cardápios**
+Gerenciamento completo dos cardápios do restaurante.
+
+**Funcionalidades:**
+- ✅ Cadastro, edição e exclusão de cardápios
+- ✅ Importação em massa via Excel (XLSX, XLS, CSV)
+- ✅ Consulta de cardápio por período (dia, semana, mês)
+- ✅ Organização por turno (almoço/jantar)
+
+**Acesso por perfil:**
+- **Admin:** CRUD completo + importação Excel
+- **Bolsista:** Apenas consulta
+- **Não Bolsista:** Apenas consulta
+
+---
+
+#### ✅ **Módulo de Presenças**
+Controle e validação de presenças dos bolsistas nas refeições.
+
+**Funcionalidades:**
+- ✅ Confirmação de presença manual (admin)
+- ✅ Validação via QR Code (em desenvolvimento)
+- ✅ Visualização de lista de bolsistas do dia
+- ✅ Busca por matrícula
+- ✅ Histórico de presenças
+
+**Acesso por perfil:**
+- **Admin:** Validar presenças de todos os bolsistas
+- **Bolsista:** Ver apenas histórico próprio
+- **Não Bolsista:** Sem acesso
+
+---
+
+#### 📝 **Módulo de Justificativas**
+Gerenciamento de faltas justificadas e injustificadas.
+
+**Funcionalidades:**
+- ✅ Envio de justificativa de falta (antes ou depois)
+- ✅ Análise e aprovação/reprovação de justificativas
+- ✅ Marcação de faltas injustificadas
+- ✅ Anexo de documentos comprobatórios
+- ✅ Notificações por email
+
+**Acesso por perfil:**
+- **Admin:** Analisar e decidir sobre todas as justificativas
+- **Bolsista:** Enviar e acompanhar justificativas próprias
+- **Não Bolsista:** Sem acesso
+
+---
+
+#### 👥 **Módulo de Gestão de Usuários**
+Administração completa de usuários do sistema.
+
+**Funcionalidades:**
+- ✅ CRUD completo de usuários
+- ✅ Gerenciamento de perfis (admin, estudante)
+- ✅ Controle de bolsistas (ativar/desligar)
+- ✅ Definição de limite de faltas por mês
+- ✅ Histórico de alterações
+
+**Acesso por perfil:**
+- **Admin:** Acesso completo
+- **Bolsista:** Sem acesso
+- **Não Bolsista:** Sem acesso
+
+---
+
+#### 📊 **Módulo de Relatórios**
+Geração de relatórios gerenciais e estatísticos.
+
+**Funcionalidades:**
+- ✅ Relatório de validações de presença
+- ✅ Relatório de validações por admin
+- ✅ Timeline de validações
+- ✅ Estatísticas de faltas e presenças
+- ✅ Exportação em Excel/PDF
+
+**Acesso por perfil:**
+- **Admin:** Acesso completo a todos os relatórios
+- **Bolsista:** Sem acesso
+- **Não Bolsista:** Sem acesso
+
+---
+
+### 🔐 Resumo de Permissões por Módulo
+
+| Módulo | Admin | Bolsista | Não Bolsista |
+|--------|:-----:|:--------:|:------------:|
+| **Cardápios** | ✅ CRUD + Import | 👁️ Consulta | 👁️ Consulta |
+| **Presenças** | ✅ Validar todas | 👁️ Ver próprias | ❌ |
+| **Justificativas** | ✅ Analisar todas | ✅ Enviar próprias | ❌ |
+| **Usuários** | ✅ CRUD completo | ❌ | ❌ |
+| **Relatórios** | ✅ Todos | ❌ | ❌ |
+
+**Legenda:** ✅ Acesso completo | 👁️ Apenas leitura | ❌ Sem acesso
 
 ---
 
 ## 🚀 Tecnologias
 
-- **Backend:** Laravel 12 (PHP 8.2+)
-- **Banco de Dados:** PostgreSQL (SQLite para testes)
-- **Autenticação:** Laravel Sanctum
-- **Importação Excel:** Maatwebsite/Excel
+- **Backend:** Laravel 12.44.0 (PHP 8.4.16)
+- **Banco de Dados:** PostgreSQL 16.11
+- **Autenticação:** Laravel Sanctum 4.2.1
+- **Importação Excel:** Maatwebsite/Excel 3.1.67
+- **Cache & Queue:** Redis 7
+- **Servidor Web:** Nginx 1.25
+- **Containerização:** Docker + Docker Compose
+- **Testes:** PHPUnit 11.5.46
+- **Qualidade:** PHPStan 2.1.33 + Larastan 3.8.1
+
+**📊 Versões Completas:** Ver `VERSOES_DEPENDENCIAS.md`  
+**🐳 Docker Setup:** Ver `DOCKER_GUIDE.md` e `DEPLOY_GUIDE.md`
 
 ---
 
 ## 📦 Instalação
 
-### **Requisitos:**
-- PHP 8.2 ou superior
-- Composer
-- PostgreSQL
+### 🐳 Opção 1: Docker (Recomendado)
 
-### **Passos:**
+**A forma mais rápida e fácil!** Ambiente completo isolado com PostgreSQL, Redis e Nginx.
+
+#### Setup Rápido (1 comando):
+
+```bash
+# 1. Clone o repositório
+git clone https://github.com/SEU_USUARIO/ri_ifba_v1_backend.git
+cd ri_ifba_v1_backend
+
+# 2. Setup completo automático
+make setup
+```
+
+**✨ O que acontece automaticamente:**
+- ✅ Copia `.env.docker` para `.env`
+- ✅ Sobe todos os containers (Nginx, Laravel, PostgreSQL, Redis)
+- ✅ **Gera `APP_KEY` automaticamente**
+- ✅ Instala dependências do Composer
+- ✅ Executa migrations
+- ✅ Popula banco com dados de teste
+
+**Pronto! 🎉** Acesse:
+- 🌐 Backend API: http://localhost:8000
+- 🗄️ Adminer (Gerenciador BD): http://localhost:8080
+
+#### Configuração do Banco de Dados:
+
+O Docker usa as seguintes credenciais (já configuradas no `.env.docker`):
+
+```env
+DB_CONNECTION=pgsql
+DB_HOST=postgres          # Nome do container
+DB_PORT=5432
+DB_DATABASE=ri_ifba_v1
+DB_USERNAME=postgres
+DB_PASSWORD=201099
+```
+
+**💡 Dica:** O `APP_KEY` é gerado automaticamente pelo `entrypoint.sh` quando o container sobe!
+
+#### Comandos Úteis:
+
+```bash
+# Gerenciamento de containers
+make up          # Iniciar containers
+make down        # Parar containers
+make restart     # Reiniciar containers
+make logs        # Ver logs em tempo real
+make ps          # Status dos containers
+
+# Desenvolvimento
+make shell       # Acessar shell da aplicação
+make tinker      # Laravel Tinker
+make test        # Executar testes
+
+# Banco de dados
+make migrate     # Executar migrations
+make seed        # Popular dados de teste
+make db-shell    # Acessar PostgreSQL
+make db-backup   # Fazer backup do banco
+
+# Qualidade de código
+make pint        # Formatar código
+make phpstan     # Análise estática
+
+# Informações
+make info        # Ver versões instaladas
+make help        # Ver TODOS os comandos (50+)
+```
+
+#### Credenciais de Acesso (Usuários de Teste):
+
+| Perfil | Matrícula | Senha | Descrição |
+|--------|-----------|-------|-----------|
+| **Admin** | 10000000001 | password | Acesso completo |
+| **Bolsistas** | 20231160001-020 | password | 20 usuários |
+| **Não Bolsistas** | 20232160001-005 | password | 5 usuários |
+
+**📋 Lista completa:** Ver `CREDENCIAIS_ACESSO.md`
+
+#### Documentação Docker:
+
+- **📖 Guia Completo:** `DOCKER_GUIDE.md` - Uso detalhado, troubleshooting
+- **🚀 Deploy Produção:** `DEPLOY_GUIDE.md` - Passo a passo para deploy
+- **🔑 APP_KEY Automático:** `APP_KEY_AUTOMATICO.md` - Como funciona
+- **🗄️ Configuração BD:** `CONFIGURACAO_BANCO.md` - Credenciais e conexão
+
+---
+
+### 💻 Opção 2: Instalação Manual (WSL/Linux)
+
+**Para quem prefere rodar sem Docker.**
+
+#### Requisitos:
+- **PHP:** 8.2+ (Testado: 8.4.16)
+- **Composer:** 2.0+ (Testado: 2.9.3)
+- **PostgreSQL:** 12+ (Testado: 16.11)
+- **Node.js:** 18+ (Opcional - Testado: 20.19.6 LTS)
+- **WSL2:** Ubuntu 24.04 LTS (recomendado para Windows)
+
+#### Passos de Instalação:
+
+**⚠️ No Windows, execute os comandos via WSL:**
 
 ```bash
 # 1. Clone o repositório
@@ -39,31 +271,83 @@ git clone https://github.com/SEU_USUARIO/ri_ifba_v1_backend.git
 cd ri_ifba_v1_backend
 
 # 2. Instale as dependências
-composer install
+wsl composer install
 
 # 3. Configure o ambiente
 cp .env.example .env
-php artisan key:generate
+wsl php artisan key:generate
 
 # 4. Configure o banco de dados no .env
+nano .env
+# Editar:
 DB_CONNECTION=pgsql
 DB_HOST=127.0.0.1
 DB_PORT=5432
-DB_DATABASE=ri_ifba
-DB_USERNAME=seu_usuario
-DB_PASSWORD=sua_senha
+DB_DATABASE=ri_ifba_v1
+DB_USERNAME=postgres
+DB_PASSWORD=sua_senha_aqui
 
 # 5. Execute as migrations
-php artisan migrate
+wsl php artisan migrate
 
 # 6. (Opcional) Popule o banco com dados de teste
-php artisan db:seed
+wsl php artisan db:seed
 
 # 7. Inicie o servidor
-php artisan serve
+wsl php artisan serve
 ```
 
-Acesse: `http://localhost:8000`
+**Acesse:** http://localhost:8000
+
+#### Credenciais de Teste:
+
+Após executar `php artisan db:seed`, você terá:
+
+- **Admin:** 10000000001 / password
+- **Bolsistas:** 20231160001 até 20231160020 / password
+- **Não Bolsistas:** 20232160001 até 20232160005 / password
+
+**📋 Credenciais de Teste:** Ver `CREDENCIAIS_ACESSO.md`  
+**📊 Versões & Dependências:** Ver `VERSOES_DEPENDENCIAS.md`
+
+---
+
+## 🔑 APP_KEY Automático (Docker)
+
+Quando você usa Docker, o `APP_KEY` é **gerado automaticamente** pelo script `entrypoint.sh` ao subir o container!
+
+**Você NÃO precisa executar `php artisan key:generate` manualmente!** ✅
+
+### Como funciona:
+
+1. Container inicia
+2. Script `entrypoint.sh` detecta se `APP_KEY` está vazio
+3. Gera automaticamente: `php artisan key:generate --force`
+4. Aplicação pronta para uso!
+
+**📚 Documentação:** Ver `APP_KEY_AUTOMATICO.md`
+
+---
+
+## 🗄️ Configuração do Banco de Dados
+
+### Docker (Automático):
+```env
+DB_HOST=postgres          # Nome do container
+DB_DATABASE=ri_ifba_v1
+DB_USERNAME=postgres
+DB_PASSWORD=201099
+```
+
+### Instalação Manual (WSL):
+```env
+DB_HOST=127.0.0.1         # Localhost
+DB_DATABASE=ri_ifba_v1
+DB_USERNAME=postgres
+DB_PASSWORD=sua_senha
+```
+
+**📚 Documentação:** Ver `CONFIGURACAO_BANCO.md`
 
 ---
 
@@ -258,6 +542,53 @@ Documentação na pasta `docs/`. Arquivos legados em `docs/archive/`.
    ↓
 5. Se refeição cancelada → "cancelado"
 ```
+
+---
+
+## 📚 Documentação Disponível
+
+Este projeto possui documentação completa e detalhada:
+
+### 🐳 Docker
+- **`DOCKER_GUIDE.md`** - Guia completo de uso do Docker (350+ linhas)
+  - Arquitetura
+  - Comandos
+  - Troubleshooting
+  - Monitoramento
+  
+- **`DEPLOY_GUIDE.md`** - Guia de deploy em produção (450+ linhas)
+  - Checklist pré-deploy
+  - Configuração SSL/HTTPS
+  - Backup automático
+  - Segurança
+
+- **`DOCKER_SUMMARY.md`** - Sumário executivo
+  - Visão geral
+  - Benefícios
+  - Próximos passos
+
+### 🔑 Configuração
+- **`APP_KEY_AUTOMATICO.md`** - Geração automática do APP_KEY
+- **`CONFIGURACAO_BANCO.md`** - Configuração do banco de dados
+- **`CREDENCIAIS_ACESSO.md`** - Lista de usuários e senhas de teste
+
+### 📊 Versões & Dependências
+- **`VERSOES_DEPENDENCIAS.md`** - Versões completas do stack
+  - PHP, Laravel, PostgreSQL, Redis, etc
+  - Lista de dependências (150+ pacotes)
+  - Comandos úteis
+
+### 📖 Documentação Técnica (pasta `docs/`)
+- Análise de requisitos
+- Diagramas UML
+- Modelagem do banco
+- Casos de uso
+- Frontend guidelines
+
+### 🚀 Começar Agora
+1. **Para desenvolvimento:** Siga `DOCKER_GUIDE.md`
+2. **Para produção:** Siga `DEPLOY_GUIDE.md`
+3. **Para credenciais:** Veja `CREDENCIAIS_ACESSO.md`
 
 ---
 

@@ -1,0 +1,211 @@
+version: '3.8'
+
+services:
+  # ==================================================
+  # APLICAÇÃO LARAVEL (PHP-FPM) - PRODUÇÃO
+  # ==================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        USER_ID: 1000
+        GROUP_ID: 1000
+        NODE_VERSION: 20
+    image: ri-ifba-backend:${APP_VERSION:-latest}
+    container_name: ri-ifba-app-prod
+    restart: always
+    working_dir: /var/www/html
+    volumes:
+      - storage-data:/var/www/html/storage
+      - ./docker/php/php-prod.ini:/usr/local/etc/php/conf.d/custom.ini
+    environment:
+      - APP_ENV=production
+      - APP_DEBUG=false
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - CACHE_DRIVER=redis
+      - SESSION_DRIVER=redis
+      - QUEUE_CONNECTION=redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ri-ifba-network
+    healthcheck:
+      test: ["CMD", "php", "artisan", "health:check"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ==================================================
+  # NGINX (Servidor Web) - PRODUÇÃO
+  # ==================================================
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: ri-ifba-nginx-prod
+    restart: always
+    ports:
+      - "${APP_PORT:-80}:80"
+      - "${APP_SSL_PORT:-443}:443"
+    volumes:
+      - storage-data:/var/www/html/storage:ro
+      - ./docker/nginx/nginx-prod.conf:/etc/nginx/nginx.conf
+      - ./docker/nginx/conf.d-prod:/etc/nginx/conf.d
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      - app
+    networks:
+      - ri-ifba-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ==================================================
+  # POSTGRESQL (Banco de Dados) - PRODUÇÃO
+  # ==================================================
+  postgres:
+    image: postgres:16.11-alpine
+    container_name: ri-ifba-postgres-prod
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - postgres-backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ri-ifba-network
+    # Não expor porta em produção (apenas interno)
+    # Se precisar acessar externamente, use um túnel SSH
+
+  # ==================================================
+  # REDIS (Cache & Queue) - PRODUÇÃO
+  # ==================================================
+  redis:
+    image: redis:7-alpine
+    container_name: ri-ifba-redis-prod
+    restart: always
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--pass", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - ri-ifba-network
+
+  # ==================================================
+  # QUEUE WORKER - PRODUÇÃO
+  # ==================================================
+  queue-worker:
+    image: ri-ifba-backend:${APP_VERSION:-latest}
+    container_name: ri-ifba-queue-prod
+    restart: always
+    working_dir: /var/www/html
+    volumes:
+      - storage-data:/var/www/html/storage
+    command: php artisan queue:work --tries=3 --timeout=90 --sleep=3 --max-jobs=1000 --max-time=3600
+    environment:
+      - APP_ENV=production
+      - APP_DEBUG=false
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - QUEUE_CONNECTION=redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ri-ifba-network
+
+  # ==================================================
+  # SCHEDULER (Cron) - PRODUÇÃO
+  # ==================================================
+  scheduler:
+    image: ri-ifba-backend:${APP_VERSION:-latest}
+    container_name: ri-ifba-scheduler-prod
+    restart: always
+    working_dir: /var/www/html
+    volumes:
+      - storage-data:/var/www/html/storage
+    command: >
+      sh -c "while true; do
+        php artisan schedule:run --verbose --no-interaction &
+        sleep 60
+      done"
+    environment:
+      - APP_ENV=production
+      - APP_DEBUG=false
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ri-ifba-network
+
+# ==================================================
+# VOLUMES - PRODUÇÃO
+# ==================================================
+volumes:
+  postgres-data:
+    driver: local
+    name: ri-ifba-postgres-prod-data
+  postgres-backups:
+    driver: local
+    name: ri-ifba-postgres-backups
+  redis-data:
+    driver: local
+    name: ri-ifba-redis-prod-data
+  storage-data:
+    driver: local
+    name: ri-ifba-storage-data
+  nginx-logs:
+    driver: local
+    name: ri-ifba-nginx-logs
+
+# ==================================================
+# NETWORKS - PRODUÇÃO
+# ==================================================
+networks:
+  ri-ifba-network:
+    driver: bridge
+    name: ri-ifba-prod-network
+

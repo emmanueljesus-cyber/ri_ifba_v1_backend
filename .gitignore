@@ -3,6 +3,7 @@
 .env
 .env.backup
 .env.production
+.env.docker
 .phpactor.json
 .phpunit.result.cache
 /.fleet
@@ -22,3 +23,13 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Docker
+docker/nginx/ssl/*.pem
+docker/nginx/ssl/*.key
+docker/nginx/ssl/*.crt
+.docker/
+*.sql
+*.sql.gz
+backup_*.sql
+
