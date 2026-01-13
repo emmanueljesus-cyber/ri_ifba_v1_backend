@@ -49,7 +49,7 @@ Route::prefix('v1')->group(function () {
     // =========================================================================
     Route::post('login', [AuthController::class, 'login']);
     Route::post('register', [AuthController::class, 'register']);
-    
+
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('logout', [AuthController::class, 'logout']);
         Route::get('me', [AuthController::class, 'me']);
@@ -59,11 +59,23 @@ Route::prefix('v1')->group(function () {
     // ROTAS ESTUDANTE (auth condicional)
     // =========================================================================
     $estudanteMiddleware = config('app.debug') ? [] : ['auth:sanctum'];
+    $bolsistaMiddleware = config('app.debug') ? [] : ['auth:sanctum', 'ensure.is.bolsista'];
+    $naoBolsistaMiddleware = config('app.debug') ? [] : ['auth:sanctum', 'ensure.is.nao.bolsista'];
 
+    // -----------------------------------------------------------------
+    // ROTAS COMUNS A TODOS OS ESTUDANTES (bolsistas e não bolsistas)
+    // -----------------------------------------------------------------
     Route::prefix('estudante')->middleware($estudanteMiddleware)->group(function () {
+        // RF03 - Cardápio (acessível a todos os estudantes)
         Route::get('cardapio/hoje', [EstudanteCardapioController::class, 'hoje']);
+    });
 
-        // RF05 - Perfil e preferência alimentar
+    // -----------------------------------------------------------------
+    // ROTAS EXCLUSIVAS PARA BOLSISTAS (RF02, RF04, RF05)
+    // -----------------------------------------------------------------
+    Route::prefix('estudante')->middleware($bolsistaMiddleware)->group(function () {
+
+        // RF05 - Perfil e preferência alimentar (BOLSISTA)
         Route::get('perfil', [PerfilController::class, 'show']);
         Route::put('perfil', [PerfilController::class, 'update']);
         Route::put('perfil/preferencia', [PerfilController::class, 'atualizarPreferencia']);
@@ -71,18 +83,24 @@ Route::prefix('v1')->group(function () {
         Route::post('perfil/foto', [PerfilController::class, 'atualizarFoto']);
         Route::delete('perfil/foto', [PerfilController::class, 'removerFoto']);
 
-        // RF04 - Histórico de refeições e faltas
+        // RF04 - Histórico de refeições e faltas (BOLSISTA)
         Route::get('historico', [HistoricoController::class, 'index']);
         Route::get('historico/resumo', [HistoricoController::class, 'resumo']);
 
-        // RF02 - Justificativas do estudante
-        Route::prefix('justificativas')->group(callback: function () {
+        // RF02 - Justificativas do estudante (BOLSISTA)
+        Route::prefix('justificativas')->group(function () {
             Route::get('/', [JustificativaController::class, 'index']);
             Route::post('/', [JustificativaController::class, 'store']);
             Route::get('/{id}', [JustificativaController::class, 'show']);
         });
+    });
 
-        // RF06/RF07 - Fila de extras
+    // -----------------------------------------------------------------
+    // ROTAS EXCLUSIVAS PARA NÃO BOLSISTAS (RF06, RF07)
+    // -----------------------------------------------------------------
+    Route::prefix('estudante')->middleware($naoBolsistaMiddleware)->group(function () {
+
+        // RF06/RF07 - Fila de extras (NÃO BOLSISTA)
         Route::prefix('fila-extras')->group(function () {
             Route::get('/', [FilaExtraController::class, 'minhasInscricoes']);
             Route::post('/', [FilaExtraController::class, 'inscrever']);
@@ -90,7 +108,17 @@ Route::prefix('v1')->group(function () {
             Route::delete('/{id}', [FilaExtraController::class, 'cancelar']);
         });
 
-        // Notificações do estudante
+        // RF05 - Perfil básico (NÃO BOLSISTA - sem preferência alimentar)
+        Route::get('perfil', [PerfilController::class, 'show']);
+        Route::put('perfil', [PerfilController::class, 'update']);
+        Route::post('perfil/foto', [PerfilController::class, 'atualizarFoto']);
+        Route::delete('perfil/foto', [PerfilController::class, 'removerFoto']);
+
+        // RF04 - Histórico básico (NÃO BOLSISTA)
+        Route::get('historico', [HistoricoController::class, 'index']);
+        Route::get('historico/resumo', [HistoricoController::class, 'resumo']);
+
+        // Notificações (NÃO BOLSISTA - para avisos de fila extras)
         Route::prefix('notificacoes')->group(function () {
             Route::get('/', [NotificacaoController::class, 'index']);
             Route::get('/nao-lidas', [NotificacaoController::class, 'naoLidas']);

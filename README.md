@@ -4,17 +4,28 @@ Sistema web para gerenciamento de refeições do Restaurante Institucional do IF
 
 ## 🚀 Começando Rápido
 
+> **📖 GUIA COMPLETO:** Ver arquivo **[`COMO_RODAR.md`](COMO_RODAR.md)** - Passo a passo detalhado de como clonar e rodar o projeto!
+
 ### Com Docker (Recomendado):
 ```bash
-git clone https://github.com/SEU_USUARIO/ri_ifba_v1_backend.git
+git clone https://github.com/emmanueljesus-cyber/ri_ifba_v1_backend.git
 cd ri_ifba_v1_backend
+
+# Apenas WSL/Linux: resolver permissão do Docker
+sudo usermod -aG docker $USER && newgrp docker
+
+# Executar setup
 make setup
 ```
 **Pronto!** Acesse http://localhost:8000 🎉
 
+**Login:** Admin: `10000000001` / Senha: `password`
+
+---
+
 ### Sem Docker (WSL):
 ```bash
-git clone https://github.com/SEU_USUARIO/ri_ifba_v1_backend.git
+git clone https://github.com/emmanueljesus-cyber/ri_ifba_v1_backend.git
 cd ri_ifba_v1_backend
 wsl composer install
 cp .env.example .env

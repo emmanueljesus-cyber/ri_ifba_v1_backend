@@ -14,6 +14,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'ensure.is.admin' => \App\Http\Middleware\EnsureIsAdmin::class,
+            'ensure.is.bolsista' => \App\Http\Middleware\EnsureIsBolsista::class,
+            'ensure.is.nao.bolsista' => \App\Http\Middleware\EnsureIsNaoBolsista::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
