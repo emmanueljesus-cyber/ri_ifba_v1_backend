@@ -159,6 +159,22 @@ Geração de relatórios gerenciais e estatísticos.
 
 ## 📦 Instalação
 
+### ⚠️ Pré-requisitos
+
+#### Para usar Docker (Opção 1):
+- **Docker Desktop** instalado e rodando
+  - Windows: [Download Docker Desktop](https://www.docker.com/products/docker-desktop)
+  - Ativar integração WSL 2 nas configurações
+  - **📖 Guia completo:** `INSTALACAO_DOCKER_WSL.md`
+
+#### Para instalação manual (Opção 2):
+- **PHP:** 8.2+ (Testado: 8.4.16)
+- **Composer:** 2.0+ (Testado: 2.9.3)
+- **PostgreSQL:** 12+ (Testado: 16.11)
+- **WSL2:** Ubuntu 24.04 LTS (Windows)
+
+---
+
 ### 🐳 Opção 1: Docker (Recomendado)
 
 **A forma mais rápida e fácil!** Ambiente completo isolado com PostgreSQL, Redis e Nginx.
