@@ -1,58 +1,8 @@
-# Docker
-.dockerignore
-Dockerfile*
-docker-compose*.yml
 .git
-.gitignore
-.gitattributes
-
-# Laravel
-/vendor
-/node_modules
-/public/hot
-/public/storage
-/storage/*.key
-/storage/logs/*
-!/storage/logs/.gitkeep
 .env
-.env.backup
-.env.production
-.phpunit.result.cache
-Homestead.json
-Homestead.yaml
-npm-debug.log
-yarn-error.log
-
-# IDE
-.idea
-.vscode
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Testes
-/tests
-/phpunit.xml
-/.phpunit.cache
-/coverage
-
-# Docs
-/docs
+vendor
+node_modules
+storage/logs/*
+storage/framework/cache/*
+tests
 *.md
-README.md
-CHANGELOG.md
-LICENSE
-
-# CI/CD
-.github
-.gitlab-ci.yml
-.travis.yml
-
-# Outros
-/postman
-/requests
-*.log
-.editorconfig
-.styleci.yml
-
