@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   # ==================================================
@@ -64,7 +63,7 @@ services:
     container_name: ri-ifba-postgres
     restart: unless-stopped
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "${DB_PORT_EXTERNAL:-54320}:5432"
     environment:
       POSTGRES_DB: ${DB_DATABASE:-ri_ifba_v1}
       POSTGRES_USER: ${DB_USERNAME:-postgres}
