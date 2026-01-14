@@ -16,26 +16,23 @@ class DatabaseSeeder extends Seeder
         $this->call([
             // 1. Primeiro importa a lista de bolsistas aprovados
             BolsistasAprovadosSeeder::class,
-            
+
             // 2. Cria usuários (admin, bolsistas, não-bolsistas)
             UserSeeder::class,
-            
-            // 3. Cria cardápios da semana
-            CardapioSeeder::class,
-            
-            // 4. Cria refeições (almoço/jantar) para cada cardápio
-            RefeicaoSeeder::class,
-            
-            // 5. Vincula bolsistas aos dias da semana
+
+            // 3. Cria cardápios do mês inteiro + refeições (almoço/jantar)
+            CardapioMensalSeeder::class,
+
+            // 4. Vincula bolsistas aos dias da semana específicos
             UsuarioDiaSemanaSeeder::class,
-            
-            // 6. Cria presenças para simulação
+
+            // 5. Cria presenças para simulação
             PresencaSeeder::class,
-            
-            // 7. Cria justificativas para faltas
+
+            // 6. Cria justificativas para faltas
             JustificativaSeeder::class,
-            
-            // 8. Cria inscrições na fila extra (não-bolsistas)
+
+            // 7. Cria inscrições na fila extra (não-bolsistas)
             FilaExtraSeeder::class,
         ]);
 

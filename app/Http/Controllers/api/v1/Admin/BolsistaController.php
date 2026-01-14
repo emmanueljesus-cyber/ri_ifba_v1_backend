@@ -465,6 +465,99 @@ class BolsistaController extends Controller
         }
     }
 
+    /**
+     * Exportar template Excel para importação de bolsistas
+     * GET /api/v1/admin/bolsistas/template
+     */
+    public function exportTemplate(): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    {
+        return Excel::download(
+            new \App\Exports\BolsistaTemplateExport(),
+            'template_bolsistas_' . now()->format('Y-m-d') . '.xlsx'
+        );
+    }
+
+    /**
+     * Desligar bolsista
+     * POST /api/v1/admin/bolsistas/{id}/desligar
+     */
+    public function desligar(Request $request, int $id): JsonResponse
+    {
+        $request->validate([
+            'motivo' => 'required|string|min:10',
+        ]);
+
+        $bolsista = \App\Models\Bolsista::find($id);
+
+        if (!$bolsista) {
+            return ApiResponse::standardNotFound('bolsista', 'Bolsista não encontrado.');
+        }
+
+        if ($bolsista->desligado) {
+            return ApiResponse::standardError('bolsista', 'Bolsista já está desligado.', 400);
+        }
+
+        $bolsista->desligar($request->input('motivo'));
+
+        return ApiResponse::standardSuccess(
+            data: ['bolsista_id' => $bolsista->id, 'desligado_em' => $bolsista->desligado_em],
+            meta: ['message' => 'Bolsista desligado com sucesso.']
+        );
+    }
+
+    /**
+     * Reativar bolsista
+     * POST /api/v1/admin/bolsistas/{id}/reativar
+     */
+    public function reativar(int $id): JsonResponse
+    {
+        $bolsista = \App\Models\Bolsista::find($id);
+
+        if (!$bolsista) {
+            return ApiResponse::standardNotFound('bolsista', 'Bolsista não encontrado.');
+        }
+
+        if (!$bolsista->desligado) {
+            return ApiResponse::standardError('bolsista', 'Bolsista já está ativo.', 400);
+        }
+
+        $bolsista->reativar();
+
+        return ApiResponse::standardSuccess(
+            data: ['bolsista_id' => $bolsista->id, 'reativado_em' => now()],
+            meta: ['message' => 'Bolsista reativado com sucesso.']
+        );
+    }
+
+    /**
+     * Listar bolsistas com risco de desligamento (3+ faltas)
+     * GET /api/v1/admin/bolsistas/alerta-faltas
+     */
+    public function alertaFaltas(): JsonResponse
+    {
+        $bolsistas = \App\Models\Bolsista::where('desligado', false)
+            ->whereNotNull('user_id')
+            ->get()
+            ->filter(fn($b) => $b->deveSereNotificado())
+            ->map(function($b) {
+                return [
+                    'id' => $b->id,
+                    'user_id' => $b->user_id,
+                    'nome' => $b->user->nome ?? $b->nome,
+                    'matricula' => $b->matricula,
+                    'faltas_nao_justificadas' => $b->contarFaltasNaoJustificadas(),
+                ];
+            })->values();
+
+        return ApiResponse::standardSuccess(
+            data: $bolsistas,
+            meta: [
+                'total' => $bolsistas->count(),
+                'message' => 'Bolsistas com 3 ou mais faltas não justificadas.',
+            ]
+        );
+    }
+
     // ==================== MÉTODOS PRIVADOS ====================
 
     /**

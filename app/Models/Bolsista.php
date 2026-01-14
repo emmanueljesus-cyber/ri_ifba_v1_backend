@@ -20,12 +20,17 @@ class Bolsista extends Model
         'ativo',
         'user_id',
         'vinculado_em',
+        'desligado',
+        'desligado_em',
+        'desligado_motivo',
     ];
 
     protected $casts = [
         'dias_semana' => 'array',
         'ativo' => 'boolean',
+        'desligado' => 'boolean',
         'vinculado_em' => 'datetime',
+        'desligado_em' => 'datetime',
     ];
 
     /**
@@ -127,5 +132,66 @@ class Bolsista extends Model
         }
 
         return false;
+    }
+
+    /**
+     * Desliga o bolsista com um motivo
+     */
+    public function desligar(string $motivo): void
+    {
+        $this->update([
+            'desligado' => true,
+            'desligado_em' => now(),
+            'desligado_motivo' => $motivo,
+            'ativo' => false,
+        ]);
+
+        // Atualizar usuário vinculado se existir
+        if ($this->user_id) {
+            $this->user->update(['bolsista' => false]);
+        }
+    }
+
+    /**
+     * Reativa o bolsista
+     */
+    public function reativar(): void
+    {
+        $this->update([
+            'desligado' => false,
+            'desligado_em' => null,
+            'desligado_motivo' =>null,
+            'ativo' => true,
+        ]);
+
+        // Atualizar usuário vinculado se existir
+        if ($this->user_id) {
+            $this->user->update(['bolsista' => true]);
+        }
+    }
+
+    /**
+     * Conta faltas não justificadas do bolsista
+     */
+    public function contarFaltasNaoJustificadas(): int
+    {
+        if (!$this->user_id) {
+            return 0;
+        }
+
+        return \App\Models\Presenca::where('user_id', $this->user_id)
+            ->where('status', 'falta')
+            ->whereDoesntHave('justificativa', function ($query) {
+                $query->where('status', 'aprovada');
+            })
+            ->count();
+    }
+
+    /**
+     * Verifica se bolsista deve ser notificado por excesso de faltas
+     */
+    public function deveSereNotificado(): bool
+    {
+        return !$this->desligado && $this->contarFaltasNaoJustificadas() >= 3;
     }
 }

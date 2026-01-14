@@ -76,9 +76,10 @@ docker compose down -v && ./setup.sh
 
 | Arquivo | Descrição |
 |---------|-----------|
-| [DOCKER_GUIDE.md](DOCKER_GUIDE.md) | Guia completo do Docker |
-| [DEPLOY_GUIDE.md](DEPLOY_GUIDE.md) | Como fazer deploy em produção |
+| [DEPLOY_GUIDE.md](docs/DEPLOY_GUIDE.md) | Como fazer deploy em produção |
 | [requests/api.http](requests/api.http) | Exemplos de requisições da API |
+
+> 📂 **Documentação completa de desenvolvimento:** Veja a pasta [`docs/`](docs/) com explicações detalhadas sobre seeders, regras de negócio, configurações e troubleshooting.
 
 ---
 

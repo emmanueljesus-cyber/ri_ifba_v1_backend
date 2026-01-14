@@ -172,11 +172,15 @@ Route::prefix('v1')->group(function () {
             Route::get('/', [AdminBolsistaController::class, 'todosBolsistas']);           // RF10 - Lista geral
             Route::get('/dia', [AdminBolsistaController::class, 'bolsistasDoDia']);        // RF09 - Lista do dia
             Route::get('/buscar', [AdminBolsistaController::class, 'buscarParaConfirmacao']); // RF13 - Busca manual
+            Route::get('/template', [AdminBolsistaController::class, 'exportTemplate']);   // Exportar template Excel
+            Route::get('/alerta-faltas', [AdminBolsistaController::class, 'alertaFaltas']); // Bolsistas com risco de desligamento
             Route::post('/import', [AdminBolsistaController::class, 'import']);            // RF15 - Importar Excel/CSV
             Route::post('/qrcode', [AdminBolsistaController::class, 'confirmarPorQrCode']); // RF13 - QR Code
             Route::post('/confirmar-lote', [AdminBolsistaController::class, 'confirmarLote']);
             Route::post('/{userId}/confirmar-presenca', [AdminBolsistaController::class, 'confirmarPresenca']);
             Route::post('/{userId}/marcar-falta', [AdminBolsistaController::class, 'marcarFalta']);
+            Route::post('/{id}/desligar', [AdminBolsistaController::class, 'desligar']);  // Desligar bolsista
+            Route::post('/{id}/reativar', [AdminBolsistaController::class, 'reativar']);  // Reativar bolsista
         });
 
         // -----------------------------------------------------------------

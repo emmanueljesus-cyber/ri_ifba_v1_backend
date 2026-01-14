@@ -33,3 +33,49 @@ docker/nginx/ssl/*.crt
 *.sql.gz
 backup_*.sql
 
+# Documentação de desenvolvimento (não deve subir para produção)
+/docs/
+
+# Arquivos temporários
+COMMIT_MESSAGE.txt
+*.tmp
+*.temp
+*.bak
+
+# IDE e editores
+*.swp
+*.swo
+*~
+.project
+.settings/
+.buildpath
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Node modules (se usar npm/yarn)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Arquivos de lock do Composer (opcional - debate se deve ou não incluir)
+# composer.lock
+
+# Cache do Laravel
+bootstrap/cache/*
+!bootstrap/cache/.gitkeep
+
+# Arquivos de sessão
+storage/framework/sessions/*
+!storage/framework/sessions/.gitkeep
+
+# Uploads e arquivos públicos
+public/uploads/
+storage/app/public/*
+!storage/app/public/.gitkeep
+
+# Arquivos de teste
+coverage/
+.phpunit.result.cache
