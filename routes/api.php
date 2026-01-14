@@ -47,12 +47,14 @@ Route::prefix('v1')->group(function () {
     // =========================================================================
     // AUTENTICAÇÃO
     // =========================================================================
-    Route::post('login', [AuthController::class, 'login']);
-    Route::post('register', [AuthController::class, 'register']);
+    Route::prefix('auth')->group(function () {
+        Route::post('login', [AuthController::class, 'login']);
+        Route::post('register', [AuthController::class, 'register']);
 
-    Route::middleware('auth:sanctum')->group(function () {
-        Route::post('logout', [AuthController::class, 'logout']);
-        Route::get('me', [AuthController::class, 'me']);
+        Route::middleware('auth:sanctum')->group(function () {
+            Route::post('logout', [AuthController::class, 'logout']);
+            Route::get('me', [AuthController::class, 'me']);
+        });
     });
 
     // =========================================================================
@@ -80,6 +82,7 @@ Route::prefix('v1')->group(function () {
         Route::put('perfil', [PerfilController::class, 'update']);
         Route::put('perfil/preferencia', [PerfilController::class, 'atualizarPreferencia']);
         Route::put('perfil/dias-semana', [PerfilController::class, 'atualizarDiasSemana']);
+        Route::put('perfil/senha', [PerfilController::class, 'alterarSenha']);
         Route::post('perfil/foto', [PerfilController::class, 'atualizarFoto']);
         Route::delete('perfil/foto', [PerfilController::class, 'removerFoto']);
 
@@ -103,6 +106,7 @@ Route::prefix('v1')->group(function () {
         // RF06/RF07 - Fila de extras (NÃO BOLSISTA)
         Route::prefix('fila-extras')->group(function () {
             Route::get('/', [FilaExtraController::class, 'minhasInscricoes']);
+            Route::get('/disponiveis', [FilaExtraController::class, 'refeicoesDisponiveis']);
             Route::post('/', [FilaExtraController::class, 'inscrever']);
             Route::get('/posicao', [FilaExtraController::class, 'posicao']);
             Route::delete('/{id}', [FilaExtraController::class, 'cancelar']);
@@ -111,6 +115,7 @@ Route::prefix('v1')->group(function () {
         // RF05 - Perfil básico (NÃO BOLSISTA - sem preferência alimentar)
         Route::get('perfil', [PerfilController::class, 'show']);
         Route::put('perfil', [PerfilController::class, 'update']);
+        Route::put('perfil/senha', [PerfilController::class, 'alterarSenha']);
         Route::post('perfil/foto', [PerfilController::class, 'atualizarFoto']);
         Route::delete('perfil/foto', [PerfilController::class, 'removerFoto']);
 

@@ -3,8 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\Cardapio;
-use App\Models\Refeicao;
-use App\Enums\TurnoRefeicao;
 use Illuminate\Database\Seeder;
 use Carbon\Carbon;
 
@@ -23,7 +21,8 @@ class CardapioMensalSeeder extends Seeder
 
         for ($data = $inicio->copy(); $data->lte($fim); $data->addDay()) {
             // Pular finais de semana (sábado = 6, domingo = 0)
-            if ($data->dayOfWeek === Carbon::SATURDAY || $data->dayOfWeek === Carbon::SUNDAY) {
+            if ($data->isSaturday() || $data->isSunday()) {
+                $this->command->info("   ⏭️  Pulando final de semana: {$data->format('d/m/Y')} ({$data->dayName})");
                 continue;
             }
 
@@ -35,7 +34,7 @@ class CardapioMensalSeeder extends Seeder
                 continue;
             }
 
-            // Criar cardápio
+            // Criar cardápio (refeições serão criadas automaticamente pelo model)
             $cardapio = Cardapio::create([
                 'data_do_cardapio' => $data->format('Y-m-d'),
                 'prato_principal_ptn01' => $this->getPratoPrincipal($data->dayOfWeek),
@@ -47,26 +46,11 @@ class CardapioMensalSeeder extends Seeder
                 'ovo_lacto_vegetariano' => $this->getPratoVegetariano($data->dayOfWeek),
                 'suco' => $this->getSuco($data->dayOfWeek),
                 'sobremesa' => $this->getSobremesa($data->dayOfWeek),
+                'turnos' => ['almoco', 'jantar'], // Define turnos (refeições criadas automaticamente)
             ]);
 
             $cardapiosCriados++;
-
-            // Criar refeições (almoço e jantar)
-            Refeicao::create([
-                'cardapio_id' => $cardapio->id,
-                'data_do_cardapio' => $data->format('Y-m-d'),
-                'turno' => TurnoRefeicao::ALMOCO,
-                'capacidade' => 100,
-            ]);
-
-            Refeicao::create([
-                'cardapio_id' => $cardapio->id,
-                'data_do_cardapio' => $data->format('Y-m-d'),
-                'turno' => TurnoRefeicao::JANTAR,
-                'capacidade' => 80,
-            ]);
-
-            $refeicoesCriadas += 2;
+            $refeicoesCriadas += 2; // 2 refeições criadas automaticamente pelo model
 
             $this->command->info("   ✅ Criado: {$data->format('d/m/Y')} - {$cardapio->prato_principal_ptn01}");
         }

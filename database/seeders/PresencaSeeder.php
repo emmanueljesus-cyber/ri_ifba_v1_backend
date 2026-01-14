@@ -52,7 +52,7 @@ class PresencaSeeder extends Seeder
 
         // Agrupa refeições por data
         foreach ($refeicoes as $refeicao) {
-            $data = $refeicao->data_do_cardapio;
+            $data = $refeicao->data_do_cardapio->format('Y-m-d'); // Converter para string
 
             if (!isset($diasProcessados[$data])) {
                 $diasProcessados[$data] = [

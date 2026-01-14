@@ -199,4 +199,93 @@ class FilaExtraController extends Controller
 
         return ApiResponse::standardSuccess($inscricoes);
     }
+
+    /**
+     * Lista refeições disponíveis hoje para não-bolsistas
+     * GET /api/v1/estudante/fila-extras/disponiveis
+     */
+    public function refeicoesDisponiveis(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $hoje = now()->toDateString();
+        $horaAtual = now();
+
+        // Buscar todas as refeições de hoje
+        $refeicoes = Refeicao::with(['cardapio', 'presencas'])
+            ->whereHas('cardapio', fn($q) => $q->where('data_do_cardapio', $hoje))
+            ->get();
+
+        $refeicoesDisponiveis = $refeicoes->map(function($refeicao) use ($user, $horaAtual) {
+            $turno = $refeicao->turno->value;
+
+            // Obter horários da configuração
+            $horarios = config('refeicoes.horarios');
+
+            $horarioInicio = Carbon::parse($refeicao->data_do_cardapio->toDateString() . ' ' . $horarios[$turno]['inicio']);
+            $horarioFim = Carbon::parse($refeicao->data_do_cardapio->toDateString() . ' ' . $horarios[$turno]['fim']);
+
+            // Verificar se está no horário de exibição (até o fim do turno)
+            $estaNoHorario = $horaAtual->lessThanOrEqualTo($horarioFim);
+
+            // Calcular vagas disponíveis
+            $capacidadeTotal = $refeicao->capacidade ?? 100;
+            $totalBolsistas = \App\Models\User::where('bolsista', true)
+                ->where('desligado', false)
+                ->count();
+
+            // Contar presenças confirmadas + justificativas antecipadas
+            $presencasConfirmadas = $refeicao->presencas()
+                ->where('status_da_presenca', 'presente')
+                ->count();
+
+            $justificativasAntecipadas = \App\Models\Justificativa::where('refeicao_id', $refeicao->id)
+                ->whereIn('status', ['aprovada', 'pendente'])
+                ->count();
+
+            // Vagas = capacidade - (bolsistas que vão comer)
+            // Bolsistas que vão comer = total de bolsistas - justificativas
+            $bolsistasQueVaoComer = $totalBolsistas - $justificativasAntecipadas;
+            $vagasDisponiveis = max(0, $capacidadeTotal - $bolsistasQueVaoComer);
+
+            // Verificar se o usuário já está inscrito
+            $minhaInscricao = FilaExtra::where('user_id', $user->id)
+                ->where('refeicao_id', $refeicao->id)
+                ->first();
+
+            return [
+                'refeicao_id' => $refeicao->id,
+                'turno' => $turno,
+                'turno_label' => $turno === 'almoco' ? 'Almoço' : 'Jantar',
+                'horario_inicio' => $horarios[$turno]['inicio'],
+                'horario_fim' => $horarios[$turno]['fim'],
+                'esta_no_horario' => $estaNoHorario,
+                'pode_inscrever' => $estaNoHorario && !$minhaInscricao,
+                'vagas_disponiveis' => $vagasDisponiveis,
+                'capacidade_total' => $capacidadeTotal,
+                'presencas_confirmadas' => $presencasConfirmadas,
+                'inscrito' => $minhaInscricao !== null,
+                'inscricao_id' => $minhaInscricao?->id,
+                'posicao_fila' => $minhaInscricao ? $minhaInscricao->getPosicaoFila() : null,
+                'status_inscricao' => $minhaInscricao?->status_fila_extras?->value,
+                'cardapio' => [
+                    'id' => $refeicao->cardapio->id,
+                    'prato_principal_ptn01' => $refeicao->cardapio->prato_principal_ptn01,
+                    'prato_principal_ptn02' => $refeicao->cardapio->prato_principal_ptn02,
+                    'guarnicao' => $refeicao->cardapio->guarnicao,
+                    'acompanhamento_01' => $refeicao->cardapio->acompanhamento_01,
+                    'acompanhamento_02' => $refeicao->cardapio->acompanhamento_02,
+                    'salada' => $refeicao->cardapio->salada,
+                    'ovo_lacto_vegetariano' => $refeicao->cardapio->ovo_lacto_vegetariano,
+                    'suco' => $refeicao->cardapio->suco,
+                    'sobremesa' => $refeicao->cardapio->sobremesa,
+                ],
+            ];
+        })->filter(fn($r) => $r['esta_no_horario']); // Retornar apenas as que estão no horário
+
+        return ApiResponse::standardSuccess([
+            'refeicoes' => $refeicoesDisponiveis->values(),
+            'data' => $hoje,
+            'hora_atual' => $horaAtual->format('H:i:s'),
+        ]);
+    }
 }

@@ -1,0 +1,32 @@
+<?php
+
+return [
+    /*
+    |--------------------------------------------------------------------------
+    | CORS Configuration
+    |--------------------------------------------------------------------------
+    | This configuration allows the frontend dev server (localhost:5173) to
+    | access the API with credentials (cookies) for Sanctum authentication.
+    */
+    'paths' => [
+        'api/*',
+        'sanctum/csrf-cookie'
+    ],
+
+    'allowed_methods' => ['*'],
+
+    // Allow the frontend dev origin; recommend overriding via FRONTEND_URL in production/dev environments
+    'allowed_origins' => [env('FRONTEND_URL', 'http://localhost:5173')],
+
+    'allowed_origins_patterns' => [],
+
+    'allowed_headers' => ['*'],
+
+    'exposed_headers' => [],
+
+    'max_age' => 0,
+
+    // Important: allow credentials so Sanctum cookies are sent/accepted
+    'supports_credentials' => true,
+];
+

@@ -7,6 +7,8 @@ use App\Http\Responses\ApiResponse;
 use App\Services\ImagemPerfilService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
 
 /**
  * Controller para perfil do estudante (RF05)
@@ -83,7 +85,7 @@ class PerfilController extends Controller
     /**
      * Atualiza foto de perfil do estudante
      * POST /api/v1/estudante/perfil/foto
-     * 
+     *
      * LGPD: Requer consentimento explícito do usuário
      */
     public function atualizarFoto(Request $request): JsonResponse
@@ -124,10 +126,7 @@ class PerfilController extends Controller
         $user = $request->user();
 
         if (!$user->foto_perfil) {
-            return ApiResponse::standardError(
-                errors: ['foto' => 'Nenhuma foto de perfil para remover.'],
-                statusCode: 404
-            );
+            return ApiResponse::standardError('foto', 'Nenhuma foto de perfil para remover.', 404);
         }
 
         // Remove arquivo do storage
@@ -161,10 +160,7 @@ class PerfilController extends Controller
 
         // Verifica se é bolsista
         if (!$user->bolsista) {
-            return ApiResponse::standardError(
-                errors: ['dias' => 'Apenas bolsistas podem selecionar dias de uso.'],
-                statusCode: 403
-            );
+            return ApiResponse::standardError('dias', 'Apenas bolsistas podem selecionar dias de uso.', 403);
         }
 
         // Remove dias antigos
@@ -198,6 +194,43 @@ class PerfilController extends Controller
                 'dias_nomes' => $diasSelecionados,
             ],
             meta: ['mensagem' => 'Dias de uso atualizados com sucesso!']
+        );
+    }
+
+    /**
+     * Altera a senha do usuário
+     * PUT /api/v1/estudante/perfil/senha
+     */
+    public function alterarSenha(Request $request): JsonResponse
+    {
+        $request->validate([
+            'current_password' => 'required|string',
+            'password' => ['required', 'string', 'confirmed', Password::min(6)],
+        ], [
+            'current_password.required' => 'A senha atual é obrigatória.',
+            'password.required' => 'A nova senha é obrigatória.',
+            'password.confirmed' => 'A confirmação da senha não confere.',
+            'password.min' => 'A senha deve ter no mínimo 6 caracteres.',
+        ]);
+
+        $user = $request->user();
+
+        if (!$user) {
+            return ApiResponse::standardError('user', 'Usuário não encontrado.', 401);
+        }
+
+        // Verifica se a senha atual está correta
+        if (!Hash::check($request->input('current_password'), $user->password)) {
+            return ApiResponse::standardError('current_password', 'A senha atual está incorreta.', 422);
+        }
+
+        // Atualiza a senha
+        $user->password = Hash::make($request->input('password'));
+        $user->save();
+
+        return ApiResponse::standardSuccess(
+            data: [],
+            meta: ['mensagem' => 'Senha alterada com sucesso!']
         );
     }
 }

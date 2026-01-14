@@ -29,5 +29,19 @@ return [
      */
     'turnos_padrao' => ['almoco', 'jantar'],
 
+    /**
+     * Horários das refeições
+     */
+    'horarios' => [
+        'almoco' => [
+            'inicio' => env('HORARIO_ALMOCO_INICIO', '11:00'),
+            'fim' => env('HORARIO_ALMOCO_FIM', '13:00'),
+        ],
+        'jantar' => [
+            'inicio' => env('HORARIO_JANTAR_INICIO', '17:00'),
+            'fim' => env('HORARIO_JANTAR_FIM', '19:00'),
+        ],
+    ],
+
 ];
 

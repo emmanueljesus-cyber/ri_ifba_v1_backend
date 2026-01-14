@@ -20,7 +20,8 @@ class DatabaseSeeder extends Seeder
             // 2. Cria usuários (admin, bolsistas, não-bolsistas)
             UserSeeder::class,
 
-            // 3. Cria cardápios do mês inteiro + refeições (almoço/jantar)
+            // 3. Cria cardápios do mês inteiro (apenas dias úteis) + refeições (almoço/jantar)
+            // Nota: CardapioSeeder é obsoleto - use CardapioMensalSeeder que cria ~20-23 cardápios
             CardapioMensalSeeder::class,
 
             // 4. Vincula bolsistas aos dias da semana específicos
