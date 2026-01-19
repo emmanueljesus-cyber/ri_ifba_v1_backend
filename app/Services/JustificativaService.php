@@ -34,11 +34,11 @@ class JustificativaService
      */
     public function listarJustificativas(array $filtros = [], int $perPage = 15): LengthAwarePaginator
     {
-        $query = Justificativa::with(['usuario', 'presenca.refeicao', 'aprovadoPor']);
+        $query = Justificativa::with(['usuario', 'refeicao', 'aprovadoPor']);
 
         // Filtro por status
         if (isset($filtros['status'])) {
-            $query->where('status_justificativa', $filtros['status']);
+            $query->where('status', $filtros['status']);
         }
 
         // Filtro por usuário
@@ -80,7 +80,7 @@ class JustificativaService
     {
         return Justificativa::with([
             'usuario',
-            'presenca.refeicao.cardapio',
+            'refeicao.cardapio',
             'aprovadoPor'
         ])->findOrFail($id);
     }
@@ -105,19 +105,19 @@ class JustificativaService
             $justificativa = $this->buscarJustificativa($id);
 
             // Validar se pode ser aprovada
-            if ($justificativa->status_justificativa !== StatusJustificativa::PENDENTE) {
+            if ($justificativa->status !== StatusJustificativa::PENDENTE) {
                 throw new \Exception(
                     'Apenas justificativas pendentes podem ser aprovadas. ' .
-                    'Status atual: ' . $justificativa->status_justificativa->value
+                    'Status atual: ' . $justificativa->status->value
                 );
             }
 
            // Atualizar justificativa
             $justificativa->update([
-                'status_justificativa' => StatusJustificativa::APROVADA,
-                'aprovado_por' => $adminId,
-                'aprovado_em' => now(),
-                'observacao_admin' => $observacao,
+                'status' => StatusJustificativa::APROVADA,
+                'avaliado_por' => $adminId,
+                'avaliado_em' => now(),
+                'motivo_rejeicao' => $observacao,
             ]);
 
             // Atualizar presença relacionada
@@ -165,19 +165,19 @@ class JustificativaService
             $justificativa = $this->buscarJustificativa($id);
 
             // Validar se pode ser rejeitada
-            if ($justificativa->status_justificativa !== StatusJustificativa::PENDENTE) {
+            if ($justificativa->status !== StatusJustificativa::PENDENTE) {
                 throw new \Exception(
                     'Apenas justificativas pendentes podem ser rejeitadas. ' .
-                    'Status atual: ' . $justificativa->status_justificativa->value
+                    'Status atual: ' . $justificativa->status->value
                 );
             }
 
             // Atualizar justificativa
             $justificativa->update([
-                'status_justificativa' => StatusJustificativa::REJEITADA,
-                'aprovado_por' => $adminId,
-                'aprovado_em' => now(),
-                'observacao_admin' => $observacao,
+                'status' => StatusJustificativa::REJEITADA,
+                'avaliado_por' => $adminId,
+                'avaliado_em' => now(),
+                'motivo_rejeicao' => $observacao,
             ]);
 
             // Atualizar presença relacionada
@@ -213,15 +213,15 @@ class JustificativaService
         return DB::transaction(function () use ($id, $adminId) {
             $justificativa = $this->buscarJustificativa($id);
 
-            if ($justificativa->status_justificativa === StatusJustificativa::PENDENTE) {
+            if ($justificativa->status === StatusJustificativa::PENDENTE) {
                 throw new \Exception('Justificativa já está pendente.');
             }
 
             $justificativa->update([
-                'status_justificativa' => StatusJustificativa::PENDENTE,
-                'aprovado_por' => null,
-                'aprovado_em' => null,
-                'observacao_admin' => 'Decisão cancelada por admin ID: ' . $adminId,
+                'status' => StatusJustificativa::PENDENTE,
+                'avaliado_por' => null,
+                'avaliado_em' => null,
+                'motivo_rejeicao' => 'Decisão cancelada por admin ID: ' . $adminId,
             ]);
 
             // Resetar presença para ausente (permitir nova decisão)
@@ -253,9 +253,9 @@ class JustificativaService
         }
 
         $total = $query->count();
-        $pendentes = (clone $query)->where('status_justificativa', StatusJustificativa::PENDENTE)->count();
-        $aprovadas = (clone $query)->where('status_justificativa', StatusJustificativa::APROVADA)->count();
-        $rejeitadas = (clone $query)->where('status_justificativa', StatusJustificativa::REJEITADA)->count();
+        $pendentes = (clone $query)->where('status', StatusJustificativa::PENDENTE)->count();
+        $aprovadas = (clone $query)->where('status', StatusJustificativa::APROVADA)->count();
+        $rejeitadas = (clone $query)->where('status', StatusJustificativa::REJEITADA)->count();
 
         $taxaAprovacao = $total > 0 ? round(($aprovadas / $total) * 100, 1) : 0;
 
@@ -292,26 +292,26 @@ class JustificativaService
         // 1. Criar notificação in-app (SEMPRE funciona)
         try {
             $notificacaoService = app(NotificacaoService::class);
-            $isAprovada = $justificativa->status_justificativa === \App\Enums\StatusJustificativa::APROVADA;
+            $isAprovada = $justificativa->status === \App\Enums\StatusJustificativa::APROVADA;
 
             if ($isAprovada) {
                 $notificacaoService->notificarJustificativaAprovada(
                     userId: $usuario->id,
                     justificativaId: $justificativa->id,
-                    observacao: $justificativa->observacao_admin
+                    observacao: $justificativa->motivo_rejeicao
                 );
             } else {
                 $notificacaoService->notificarJustificativaRejeitada(
                     userId: $usuario->id,
                     justificativaId: $justificativa->id,
-                    motivo: $justificativa->observacao_admin ?? 'Sem observação'
+                    motivo: $justificativa->motivo_rejeicao ?? 'Sem observação'
                 );
             }
 
             Log::info('RF10: Notificação in-app criada', [
                 'justificativa_id' => $justificativa->id,
                 'user_id' => $usuario->id,
-                'decisao' => $justificativa->status_justificativa->value,
+                'decisao' => $justificativa->status->value,
             ]);
 
         } catch (\Exception $e) {

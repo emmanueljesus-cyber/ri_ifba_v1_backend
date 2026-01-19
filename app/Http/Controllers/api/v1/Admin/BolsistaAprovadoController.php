@@ -47,7 +47,7 @@ class BolsistaAprovadoController extends Controller
         // Estatísticas
         $stats = $this->service->estatisticas();
 
-        return ApiResponse::standardResponse(
+        return ApiResponse::standardSuccess(
             data: $data,
             meta: [
                 'pagination' => [

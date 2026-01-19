@@ -46,18 +46,18 @@ class JustificativaController extends Controller
                     'nome' => $just->usuario->nome,
                     'matricula' => $just->usuario->matricula,
                 ],
-                'refeicao' => $just->presenca ? [
-                    'id' => $just->presenca->refeicao->id,
-                    'data' => DateHelper::formatarDataBR($just->presenca->refeicao->data_do_cardapio),
-                    'turno' => $just->presenca->refeicao->turno,
+                'refeicao' => $just->refeicao ? [
+                    'id' => $just->refeicao->id,
+                    'data' => DateHelper::formatarDataBR($just->refeicao->data_do_cardapio),
+                    'turno' => $just->refeicao->turno,
                 ] : null,
                 'motivo' => $just->motivo,
-                'tem_anexo' => !empty($just->anexo_path),
-                'status_justificativa' => $just->status_justificativa->value,
+                'tem_anexo' => !empty($just->anexo),
+                'status_justificativa' => $just->status->value,
                 'criado_em' => DateHelper::formatarDataHoraBR($just->created_at),
                 'aprovado_por' => $just->aprovadoPor?->nome,
-                'aprovado_em' => $just->aprovado_em ? DateHelper::formatarDataHoraBR($just->aprovado_em) : null,
-                'observacao_admin' => $just->observacao_admin,
+                'aprovado_em' => $just->avaliado_em ? DateHelper::formatarDataHoraBR($just->avaliado_em) : null,
+                'observacao_admin' => $just->motivo_rejeicao,
             ];
         });
 
@@ -96,25 +96,25 @@ class JustificativaController extends Controller
                     'email' => $just->usuario->email,
                     'curso' => $just->usuario->curso,
                 ],
-                'refeicao' => $just->presenca ? [
-                    'id' => $just->presenca->refeicao->id,
-                    'data' => DateHelper::formatarDataBR($just->presenca->refeicao->data_do_cardapio),
-                    'turno' => $just->presenca->refeicao->turno,
-                    'cardapio' => $just->presenca->refeicao->cardapio ? [
-                        'prato_principal' => $just->presenca->refeicao->cardapio->prato_principal_ptn01,
+                'refeicao' => $just->refeicao ? [
+                    'id' => $just->refeicao->id,
+                    'data' => DateHelper::formatarDataBR($just->refeicao->data_do_cardapio),
+                    'turno' => $just->refeicao->turno,
+                    'cardapio' => $just->refeicao->cardapio ? [
+                        'prato_principal' => $just->refeicao->cardapio->prato_principal_ptn01,
                     ] : null,
                 ] : null,
                 'motivo' => $just->motivo,
-                'anexo_path' => $just->anexo_path,
-                'tem_anexo' => !empty($just->anexo_path),
-                'status_justificativa' => $just->status_justificativa->value,
+                'anexo_path' => $just->anexo,
+                'tem_anexo' => !empty($just->anexo),
+                'status_justificativa' => $just->status->value,
                 'criado_em' => DateHelper::formatarDataHoraBR($just->created_at),
                 'aprovador' => $just->aprovadoPor ? [
                     'id' => $just->aprovadoPor->id,
                     'nome' => $just->aprovadoPor->nome,
                 ] : null,
-                'aprovado_em' => $just->aprovado_em ? DateHelper::formatarDataHoraBR($just->aprovado_em) : null,
-                'observacao_admin' => $just->observacao_admin,
+                'aprovado_em' => $just->avaliado_em ? DateHelper::formatarDataHoraBR($just->avaliado_em) : null,
+                'observacao_admin' => $just->motivo_rejeicao,
             ]);
             
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
@@ -142,9 +142,9 @@ class JustificativaController extends Controller
             return ApiResponse::standardSuccess(
                 data: [
                     'id' => $justificativa->id,
-                    'status_justificativa' => $justificativa->status_justificativa->value,
+                    'status_justificativa' => $justificativa->status->value,
                     'usuario' => $justificativa->usuario->nome,
-                    'aprovado_em' => DateHelper::formatarDataHoraBR($justificativa->aprovado_em),
+                    'aprovado_em' => DateHelper::formatarDataHoraBR($justificativa->avaliado_em),
                 ],
                 meta: ['message' => '✅ Justificativa aprovada com sucesso.']
             );
@@ -176,10 +176,10 @@ class JustificativaController extends Controller
             return ApiResponse::standardSuccess(
                 data: [
                     'id' => $justificativa->id,
-                    'status_justificativa' => $justificativa->status_justificativa->value,
+                    'status_justificativa' => $justificativa->status->value,
                     'usuario' => $justificativa->usuario->nome,
-                    'observacao_admin' => $justificativa->observacao_admin,
-                    'aprovado_em' => DateHelper::formatarDataHoraBR($justificativa->aprovado_em),
+                    'observacao_admin' => $justificativa->motivo_rejeicao,
+                    'aprovado_em' => DateHelper::formatarDataHoraBR($justificativa->avaliado_em),
                 ],
                 meta: ['message' => '❌ Justificativa rejeitada.']
             );
@@ -200,17 +200,17 @@ class JustificativaController extends Controller
         try {
             $just = $this->service->buscarJustificativa($id);
 
-            if (empty($just->anexo_path)) {
+            if (empty($just->anexo)) {
                 return ApiResponse::standardNotFound('anexo', 'Esta justificativa não possui anexo.');
             }
 
-            $path = 'justificativas/' . $just->anexo_path;
+            $path = 'justificativas/' . $just->anexo;
 
             if (!Storage::exists($path)) {
                 return ApiResponse::standardNotFound('anexo', 'Arquivo não encontrado no servidor.');
             }
 
-            return Storage::download($path, $just->anexo_path);
+            return Storage::download($path, $just->anexo);
             
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return ApiResponse::standardNotFound('justificativa', 'Justificativa não encontrada.');

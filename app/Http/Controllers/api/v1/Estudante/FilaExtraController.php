@@ -22,18 +22,38 @@ class FilaExtraController extends Controller
     ) {}
 
     /**
+     * Helper: Obter usuário autenticado ou fallback para dev
+     */
+    private function getUser(Request $request)
+    {
+        $user = $request->user();
+
+        // Fallback para desenvolvimento sem autenticação
+        if (!$user && config('app.debug')) {
+            $user = \App\Models\User::where('perfil', 'estudante')
+                ->where('bolsista', false)
+                ->first();
+
+            if (!$user) {
+                throw new \Exception('Nenhum estudante não-bolsista encontrado no banco de dados.');
+            }
+        }
+
+        return $user;
+    }
+
+    /**
      * RF06 - Inscrever-se na fila de extras
      * POST /api/v1/estudante/fila-extras
      */
     public function inscrever(Request $request): JsonResponse
     {
         $request->validate([
-            'turno' => 'required|in:almoco,jantar',
+            'refeicao_id' => 'required|exists:refeicoes,id',
         ]);
 
-        $user = $request->user();
-        $turno = $request->input('turno');
-        $hoje = now()->toDateString();
+        $user = $this->getUser($request);
+        $refeicaoId = $request->input('refeicao_id');
 
         // Verificar se é bolsista (bolsistas não podem entrar na fila)
         if ($user->bolsista) {
@@ -44,15 +64,13 @@ class FilaExtraController extends Controller
             );
         }
 
-        // Buscar refeição do dia
-        $refeicao = Refeicao::whereHas('cardapio', fn($q) => $q->where('data_do_cardapio', $hoje))
-            ->where('turno', $turno)
-            ->first();
+        // Buscar refeição
+        $refeicao = Refeicao::with('cardapio')->find($refeicaoId);
 
         if (!$refeicao) {
             return ApiResponse::standardError(
                 'refeicao',
-                'Não há refeição cadastrada para este turno hoje.',
+                'Refeição não encontrada.',
                 404
             );
         }
@@ -84,17 +102,28 @@ class FilaExtraController extends Controller
         $this->notificacaoService->notificarFilaConfirmada(
             userId: $user->id,
             posicao: $posicao,
-            turno: $turno
+            turno: $refeicao->turno->value
         );
 
-        return ApiResponse::standardCreated(
-            data: [
-                'inscricao_id' => $inscricao->id,
-                'posicao' => $posicao,
-                'turno' => $turno,
+        // Retornar dados completos da inscrição
+        return ApiResponse::standardCreated([
+            'id' => $inscricao->id,
+            'user_id' => $inscricao->user_id,
+            'refeicao_id' => $inscricao->refeicao_id,
+            'data_inscricao' => $inscricao->inscrito_em->format('Y-m-d H:i:s'),
+            'posicao' => $posicao,
+            'confirmado' => false,
+            'cancelado' => false,
+            'refeicao' => [
+                'id' => $refeicao->id,
+                'turno' => $refeicao->turno->value,
+                'data' => $refeicao->cardapio?->data_do_cardapio?->format('Y-m-d'),
+                'cardapio' => $refeicao->cardapio ? [
+                    'id' => $refeicao->cardapio->id,
+                    'prato_principal' => $refeicao->cardapio->prato_principal_ptn01,
+                ] : null,
             ],
-            meta: ['mensagem' => "Você está na posição {$posicao} da fila."]
-        );
+        ]);
     }
 
     /**
@@ -103,7 +132,7 @@ class FilaExtraController extends Controller
      */
     public function cancelar(Request $request, int $id): JsonResponse
     {
-        $user = $request->user();
+        $user = $this->getUser($request);
 
         $inscricao = FilaExtra::where('id', $id)
             ->where('user_id', $user->id)
@@ -128,7 +157,7 @@ class FilaExtraController extends Controller
      */
     public function posicao(Request $request): JsonResponse
     {
-        $user = $request->user();
+        $user = $this->getUser($request);
         $turno = $request->input('turno', 'almoco');
         $hoje = now()->toDateString();
 
@@ -181,21 +210,39 @@ class FilaExtraController extends Controller
      */
     public function minhasInscricoes(Request $request): JsonResponse
     {
-        $user = $request->user();
+        $user = $this->getUser($request);
 
         $inscricoes = FilaExtra::where('user_id', $user->id)
             ->with(['refeicao.cardapio'])
             ->orderByDesc('inscrito_em')
             ->limit(10)
             ->get()
-            ->map(fn($i) => [
-                'id' => $i->id,
-                'data' => $i->refeicao?->cardapio?->data_do_cardapio?->format('Y-m-d'),
-                'turno' => $i->refeicao?->turno,
-                'status' => $i->status_fila_extras->value,
-                'posicao' => $i->status_fila_extras === StatusFila::INSCRITO ? $i->getPosicaoFila() : null,
-                'inscrito_em' => $i->inscrito_em?->format('Y-m-d H:i:s'),
-            ]);
+            ->map(function($i) {
+                return [
+                    'id' => $i->id,
+                    'user_id' => $i->user_id,
+                    'refeicao_id' => $i->refeicao_id,
+                    'data_inscricao' => $i->inscrito_em?->format('Y-m-d H:i:s'),
+                    'posicao' => $i->status_fila_extras === StatusFila::INSCRITO ? $i->getPosicaoFila() : 0,
+                    'confirmado' => $i->status_fila_extras === StatusFila::APROVADO,
+                    'cancelado' => $i->status_fila_extras === StatusFila::REJEITADO,
+                    'refeicao' => $i->refeicao ? [
+                        'id' => $i->refeicao->id,
+                        'turno' => $i->refeicao->turno->value,
+                        'data' => $i->refeicao->cardapio?->data_do_cardapio?->format('Y-m-d') ?? null,
+                        'cardapio' => $i->refeicao->cardapio ? [
+                            'id' => $i->refeicao->cardapio->id,
+                            'prato_principal' => $i->refeicao->cardapio->prato_principal_ptn01,
+                            'acompanhamento' => $i->refeicao->cardapio->acompanhamento_01,
+                            'guarnicao' => $i->refeicao->cardapio->guarnicao,
+                            'salada' => $i->refeicao->cardapio->salada,
+                            'sobremesa' => $i->refeicao->cardapio->sobremesa,
+                        ] : null,
+                    ] : null,
+                    'created_at' => $i->created_at?->format('Y-m-d H:i:s'),
+                    'updated_at' => $i->updated_at?->format('Y-m-d H:i:s'),
+                ];
+            });
 
         return ApiResponse::standardSuccess($inscricoes);
     }
@@ -206,7 +253,7 @@ class FilaExtraController extends Controller
      */
     public function refeicoesDisponiveis(Request $request): JsonResponse
     {
-        $user = $request->user();
+        $user = $this->getUser($request);
         $hoje = now()->toDateString();
         $horaAtual = now();
 

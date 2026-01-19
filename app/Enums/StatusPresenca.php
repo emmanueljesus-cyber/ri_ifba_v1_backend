@@ -8,4 +8,6 @@ enum StatusPresenca: string
     case FALTA_JUSTIFICADA   = 'falta_justificada';
     case FALTA_INJUSTIFICADA = 'falta_injustificada';
     case CANCELADO           = 'cancelado';
+    case AUSENTE             = 'ausente';
+    case EXTRA               = 'extra';
 }

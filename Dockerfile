@@ -21,6 +21,17 @@ RUN apt-get update && apt-get install -y \
 # Instalar Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
+# Criar script de inicialização
+RUN echo '#!/bin/sh\n\
+cd /var/www/html\n\
+if [ ! -d "vendor" ]; then\n\
+  echo "Installing Composer dependencies..."\n\
+  composer install --no-interaction --prefer-dist --optimize-autoloader\n\
+fi\n\
+echo "Starting Laravel development server..."\n\
+php artisan serve --host=0.0.0.0 --port=8000' > /usr/local/bin/start-app.sh \
+    && chmod +x /usr/local/bin/start-app.sh
+
 EXPOSE 8000
 
-CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
+CMD ["sh", "/usr/local/bin/start-app.sh"]

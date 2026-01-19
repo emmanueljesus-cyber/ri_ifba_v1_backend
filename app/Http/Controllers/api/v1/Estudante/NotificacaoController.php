@@ -18,12 +18,33 @@ class NotificacaoController extends Controller
     ) {}
 
     /**
+     * Helper: Obter usuário autenticado ou fallback para dev
+     */
+    private function getUser(Request $request)
+    {
+        $user = $request->user();
+
+        // Fallback para desenvolvimento sem autenticação
+        if (!$user && config('app.debug')) {
+            $user = \App\Models\User::where('perfil', 'estudante')
+                ->where('bolsista', false)
+                ->first();
+
+            if (!$user) {
+                throw new \Exception('Nenhum estudante não-bolsista encontrado no banco de dados.');
+            }
+        }
+
+        return $user;
+    }
+
+    /**
      * Lista notificações do usuário autenticado
      * GET /api/v1/estudante/notificacoes
      */
     public function index(Request $request): JsonResponse
     {
-        $userId = $request->user()->id;
+        $userId = $this->getUser($request)->id;
         $perPage = $request->integer('per_page', 15);
 
         $notificacoes = $this->service->listarDoUsuario($userId, $perPage);
@@ -45,7 +66,7 @@ class NotificacaoController extends Controller
      */
     public function naoLidas(Request $request): JsonResponse
     {
-        $userId = $request->user()->id;
+        $userId = $this->getUser($request)->id;
         $notificacoes = $this->service->naoLidasDoUsuario($userId);
 
         return ApiResponse::standardSuccess(
@@ -60,7 +81,7 @@ class NotificacaoController extends Controller
      */
     public function contador(Request $request): JsonResponse
     {
-        $userId = $request->user()->id;
+        $userId = $this->getUser($request)->id;
         $count = $this->service->contarNaoLidas($userId);
 
         return ApiResponse::standardSuccess(['count' => $count]);
@@ -72,7 +93,7 @@ class NotificacaoController extends Controller
      */
     public function marcarComoLida(Request $request, int $id): JsonResponse
     {
-        $userId = $request->user()->id;
+        $userId = $this->getUser($request)->id;
         $notificacao = $this->service->marcarComoLida($id, $userId);
 
         if (!$notificacao) {
@@ -88,7 +109,7 @@ class NotificacaoController extends Controller
      */
     public function marcarTodasComoLidas(Request $request): JsonResponse
     {
-        $userId = $request->user()->id;
+        $userId = $this->getUser($request)->id;
         $count = $this->service->marcarTodasComoLidas($userId);
 
         return ApiResponse::standardSuccess(

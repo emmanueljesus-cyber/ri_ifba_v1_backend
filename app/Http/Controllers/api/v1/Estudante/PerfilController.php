@@ -20,12 +20,30 @@ class PerfilController extends Controller
     ) {}
 
     /**
+     * Helper: Obtém usuário autenticado ou fallback para debug
+     */
+    private function getUser(Request $request)
+    {
+        // Sempre retorna o usuário autenticado via Sanctum
+        return $request->user();
+    }
+
+    /**
      * RF05 - Exibe dados do perfil do estudante
      * GET /api/v1/estudante/perfil
      */
     public function show(Request $request): JsonResponse
     {
-        $user = $request->user();
+        $user = $this->getUser($request);
+
+        if (!$user) {
+            return ApiResponse::error(
+                config('app.debug')
+                    ? 'Nenhum estudante não-bolsista encontrado. Execute as seeders.'
+                    : 'Não autenticado',
+                config('app.debug') ? 404 : 401
+            );
+        }
 
         return ApiResponse::standardSuccess([
             'id' => $user->id,
@@ -52,7 +70,11 @@ class PerfilController extends Controller
             'preferencia_alimentar' => 'required|in:comum,ovolactovegetariano',
         ]);
 
-        $user = $request->user();
+        $user = $this->getUser($request);
+        if (!$user) {
+            return ApiResponse::error('Não autenticado', 401);
+        }
+
         $user->update([
             'preferencia_alimentar' => $request->input('preferencia_alimentar'),
         ]);
@@ -73,7 +95,11 @@ class PerfilController extends Controller
             'email' => 'sometimes|email',
         ]);
 
-        $user = $request->user();
+        $user = $this->getUser($request);
+        if (!$user) {
+            return ApiResponse::error('Não autenticado', 401);
+        }
+
         $user->update($request->only(['email']));
 
         return ApiResponse::standardSuccess(
@@ -98,7 +124,10 @@ class PerfilController extends Controller
             'consentimento.accepted' => 'Você deve autorizar o uso da foto para identificação.',
         ]);
 
-        $user = $request->user();
+        $user = $this->getUser($request);
+        if (!$user) {
+            return ApiResponse::error('Não autenticado', 401);
+        }
 
         // Remove foto antiga se existir
         $this->imagemService->remover($user->foto_perfil);
@@ -123,7 +152,10 @@ class PerfilController extends Controller
      */
     public function removerFoto(Request $request): JsonResponse
     {
-        $user = $request->user();
+        $user = $this->getUser($request);
+        if (!$user) {
+            return ApiResponse::error('Não autenticado', 401);
+        }
 
         if (!$user->foto_perfil) {
             return ApiResponse::standardError('foto', 'Nenhuma foto de perfil para remover.', 404);
@@ -156,7 +188,10 @@ class PerfilController extends Controller
             'dias.*.between' => 'Dias devem ser de Segunda (1) a Sexta (5).',
         ]);
 
-        $user = $request->user();
+        $user = $this->getUser($request);
+        if (!$user) {
+            return ApiResponse::error('Não autenticado', 401);
+        }
 
         // Verifica se é bolsista
         if (!$user->bolsista) {
@@ -213,7 +248,7 @@ class PerfilController extends Controller
             'password.min' => 'A senha deve ter no mínimo 6 caracteres.',
         ]);
 
-        $user = $request->user();
+        $user = $this->getUser($request);
 
         if (!$user) {
             return ApiResponse::standardError('user', 'Usuário não encontrado.', 401);

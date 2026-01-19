@@ -26,6 +26,7 @@ class CardapioService
         return DB::transaction(function () use ($data, $userId) {
             $cardapio = Cardapio::create([
                 'data_do_cardapio'      => $data['data_do_cardapio'],
+                'turnos'                => $data['turnos'] ?? ['almoco', 'jantar'],
                 'prato_principal_ptn01' => $data['prato_principal_ptn01'],
                 'prato_principal_ptn02' => $data['prato_principal_ptn02'],
                 'guarnicao'             => $data['guarnicao'] ?? null,
@@ -37,25 +38,6 @@ class CardapioService
                 'sobremesa'             => $data['sobremesa'] ?? null,
                 'criado_por'            => $userId,
             ]);
-
-            $turno = $data['turno'] ?? 'almoco';
-
-            // Como o observer do model já cria as refeições padrão,
-            // devemos buscar a existente ou criar se não existir (caso o turno não seja padrão)
-            $refeicao = $cardapio->refeicoes()->where('turno', $turno)->first();
-
-            if ($refeicao) {
-                $refeicao->update([
-                    'capacidade' => $data['capacidade'] ?? $refeicao->capacidade,
-                ]);
-            } else {
-                Refeicao::create([
-                    'cardapio_id'      => $cardapio->id,
-                    'data_do_cardapio' => $cardapio->data_do_cardapio,
-                    'turno'            => $turno,
-                    'capacidade'       => $data['capacidade'] ?? null,
-                ]);
-            }
 
             return $cardapio->load(['criador', 'refeicoes']);
         });
@@ -138,6 +120,7 @@ class CardapioService
         return DB::transaction(function () use ($cardapio, $data) {
             $cardapio->update([
                 'data_do_cardapio'      => $data['data_do_cardapio'] ?? $cardapio->data_do_cardapio,
+                'turnos'                => $data['turnos'] ?? $cardapio->turnos,
                 'prato_principal_ptn01' => $data['prato_principal_ptn01'] ?? $cardapio->prato_principal_ptn01,
                 'prato_principal_ptn02' => $data['prato_principal_ptn02'] ?? $cardapio->prato_principal_ptn02,
                 'guarnicao'             => $data['guarnicao'] ?? $cardapio->guarnicao,
@@ -148,32 +131,6 @@ class CardapioService
                 'suco'                  => $data['suco'] ?? $cardapio->suco,
                 'sobremesa'             => $data['sobremesa'] ?? $cardapio->sobremesa,
             ]);
-
-            $turno = $data['turno'] ?? 'almoco';
-            
-            // Busca refeição específica do turno ou usa a padrão 'almoco'
-            $refeicao = $cardapio->refeicoes()->where('turno', $turno)->first();
-            
-            // Se mudou o turno na requisição, precisamos garantir que estamos atualizando a refeição correta
-            // ou criando uma nova se não existir.
-            // Para manter compatibilidade com o código anterior, se a refeição não existir, criamos.
-            
-            if ($refeicao) {
-                 $refeicao->update([
-                    'data_do_cardapio' => $cardapio->data_do_cardapio,
-                    'capacidade'       => $data['capacidade'] ?? $refeicao->capacidade,
-                ]);
-            } else {
-                 Refeicao::create([
-                    'cardapio_id'      => $cardapio->id,
-                    'data_do_cardapio' => $cardapio->data_do_cardapio,
-                    'turno'            => $turno,
-                    'capacidade'       => $data['capacidade'] ?? null,
-                ]);
-            }
-            // Nota: Se a intenção do update era MUDAR o turno de uma refeição existente,
-            // isso é complexo pois Refeicao é identificada por (cardapio_id, turno).
-            // Vamos assumir que estamos atualizando a PROPRIEDADE da refeição daquele turno.
 
             return $cardapio->load(['criador', 'refeicoes']);
         });

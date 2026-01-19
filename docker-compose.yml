@@ -1,8 +1,11 @@
+# yaml
+version: "3.8"
 services:
   # Aplicação Laravel
   app:
     build: .
     container_name: ri-ifba-app
+    working_dir: /var/www/html
     ports:
       - "8000:8000"
     volumes:
@@ -16,6 +19,7 @@ services:
       - DB_DATABASE=ri_ifba_v1
       - DB_USERNAME=postgres
       - DB_PASSWORD=201099
+    restart: unless-stopped
 
   # Banco de dados PostgreSQL
   postgres:

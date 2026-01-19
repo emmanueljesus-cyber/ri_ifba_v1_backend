@@ -170,7 +170,7 @@ class User extends Authenticatable
      */
     public function isBolsista(): bool
     {
-        return $this->bolsista === true;
+        return $this->bolsista === true && !$this->desligado;
     }
 
     public function desligar($motivo)
@@ -180,6 +180,9 @@ class User extends Authenticatable
             'desligado_em' => now(),
             'desligado_motivo' => $motivo,
         ]);
+
+        // Revoga todos os tokens ao desligar o usuário
+        $this->tokens()->delete();
     }
 
     public function reativar()

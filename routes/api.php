@@ -15,6 +15,7 @@ use App\Http\Controllers\api\V1\Admin\JustificativaController as AdminJustificat
 use App\Http\Controllers\api\V1\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\api\V1\Admin\RelatorioController as AdminRelatorioGeralController;
 use App\Http\Controllers\api\v1\Admin\UserController as AdminUserController;
+use App\Http\Controllers\api\v1\Admin\ExtrasController as AdminExtrasController;
 use App\Http\Controllers\api\V1\Estudante\CardapioController as EstudanteCardapioController;
 use App\Http\Controllers\api\V1\Publico\CardapioController as PublicoCardapioController;
 use App\Http\Controllers\api\v1\AuthController;
@@ -27,9 +28,9 @@ use App\Http\Controllers\api\v1\AuthController;
 | Prefixo: /api/v1
 | Respostas padronizadas: { data, errors, meta }
 |
-| Toggle de autenticação:
-| - APP_DEBUG=true  → rotas admin/estudante SEM autenticação
-| - APP_DEBUG=false → rotas admin/estudante COM auth:sanctum
+| Autenticação:
+| - Rotas estudante: sempre auth:sanctum
+| - Rotas admin: em debug podem ser abertas; em produção usam auth:sanctum
 |
 */
 
@@ -58,11 +59,11 @@ Route::prefix('v1')->group(function () {
     });
 
     // =========================================================================
-    // ROTAS ESTUDANTE (auth condicional)
+    // ROTAS ESTUDANTE (sempre autenticadas via Sanctum)
     // =========================================================================
-    $estudanteMiddleware = config('app.debug') ? [] : ['auth:sanctum'];
-    $bolsistaMiddleware = config('app.debug') ? [] : ['auth:sanctum', 'ensure.is.bolsista'];
-    $naoBolsistaMiddleware = config('app.debug') ? [] : ['auth:sanctum', 'ensure.is.nao.bolsista'];
+    $estudanteMiddleware = ['auth:sanctum'];
+    $bolsistaMiddleware = ['auth:sanctum', 'ensure.is.bolsista'];
+    $naoBolsistaMiddleware = ['auth:sanctum', 'ensure.is.nao.bolsista'];
 
     // -----------------------------------------------------------------
     // ROTAS COMUNS A TODOS OS ESTUDANTES (bolsistas e não bolsistas)
@@ -70,6 +71,28 @@ Route::prefix('v1')->group(function () {
     Route::prefix('estudante')->middleware($estudanteMiddleware)->group(function () {
         // RF03 - Cardápio (acessível a todos os estudantes)
         Route::get('cardapio/hoje', [EstudanteCardapioController::class, 'hoje']);
+        Route::get('presenca/hoje', [EstudanteCardapioController::class, 'presencaHoje']);
+
+        // RF05 - Perfil básico (TODOS OS ESTUDANTES)
+        Route::get('perfil', [PerfilController::class, 'show']);
+        Route::put('perfil', [PerfilController::class, 'update']);
+        Route::put('perfil/senha', [PerfilController::class, 'alterarSenha']);
+        Route::post('perfil/foto', [PerfilController::class, 'atualizarFoto']);
+        Route::delete('perfil/foto', [PerfilController::class, 'removerFoto']);
+
+        // RF04 - Histórico (TODOS OS ESTUDANTES)
+        Route::get('historico', [HistoricoController::class, 'index']);
+        Route::get('historico/resumo', [HistoricoController::class, 'resumo']);
+
+        // Notificações (TODOS OS ESTUDANTES)
+        Route::prefix('notificacoes')->group(function () {
+            Route::get('/', [NotificacaoController::class, 'index']);
+            Route::get('/nao-lidas', [NotificacaoController::class, 'naoLidas']);
+            Route::get('/contador', [NotificacaoController::class, 'contador']);
+            Route::patch('/{id}/ler', [NotificacaoController::class, 'marcarComoLida']);
+            Route::patch('/marcar-todas-lidas', [NotificacaoController::class, 'marcarTodasComoLidas']);
+            Route::delete('/{id}', [NotificacaoController::class, 'destroy']);
+        });
     });
 
     // -----------------------------------------------------------------
@@ -77,18 +100,9 @@ Route::prefix('v1')->group(function () {
     // -----------------------------------------------------------------
     Route::prefix('estudante')->middleware($bolsistaMiddleware)->group(function () {
 
-        // RF05 - Perfil e preferência alimentar (BOLSISTA)
-        Route::get('perfil', [PerfilController::class, 'show']);
-        Route::put('perfil', [PerfilController::class, 'update']);
+        // RF05 - Preferência alimentar e dias da semana (APENAS BOLSISTA)
         Route::put('perfil/preferencia', [PerfilController::class, 'atualizarPreferencia']);
         Route::put('perfil/dias-semana', [PerfilController::class, 'atualizarDiasSemana']);
-        Route::put('perfil/senha', [PerfilController::class, 'alterarSenha']);
-        Route::post('perfil/foto', [PerfilController::class, 'atualizarFoto']);
-        Route::delete('perfil/foto', [PerfilController::class, 'removerFoto']);
-
-        // RF04 - Histórico de refeições e faltas (BOLSISTA)
-        Route::get('historico', [HistoricoController::class, 'index']);
-        Route::get('historico/resumo', [HistoricoController::class, 'resumo']);
 
         // RF02 - Justificativas do estudante (BOLSISTA)
         Route::prefix('justificativas')->group(function () {
@@ -110,26 +124,6 @@ Route::prefix('v1')->group(function () {
             Route::post('/', [FilaExtraController::class, 'inscrever']);
             Route::get('/posicao', [FilaExtraController::class, 'posicao']);
             Route::delete('/{id}', [FilaExtraController::class, 'cancelar']);
-        });
-
-        // RF05 - Perfil básico (NÃO BOLSISTA - sem preferência alimentar)
-        Route::get('perfil', [PerfilController::class, 'show']);
-        Route::put('perfil', [PerfilController::class, 'update']);
-        Route::put('perfil/senha', [PerfilController::class, 'alterarSenha']);
-        Route::post('perfil/foto', [PerfilController::class, 'atualizarFoto']);
-        Route::delete('perfil/foto', [PerfilController::class, 'removerFoto']);
-
-        // RF04 - Histórico básico (NÃO BOLSISTA)
-        Route::get('historico', [HistoricoController::class, 'index']);
-        Route::get('historico/resumo', [HistoricoController::class, 'resumo']);
-
-        // Notificações (NÃO BOLSISTA - para avisos de fila extras)
-        Route::prefix('notificacoes')->group(function () {
-            Route::get('/', [NotificacaoController::class, 'index']);
-            Route::get('/nao-lidas', [NotificacaoController::class, 'naoLidas']);
-            Route::get('/contador', [NotificacaoController::class, 'contador']);
-            Route::post('/{id}/ler', [NotificacaoController::class, 'marcarComoLida']);
-            Route::post('/ler-todas', [NotificacaoController::class, 'marcarTodasComoLidas']);
         });
     });
 
@@ -250,6 +244,21 @@ Route::prefix('v1')->group(function () {
             Route::get('/exportar', [AdminRelatorioGeralController::class, 'exportar']);
             Route::get('/exportar-semanal', [AdminRelatorioGeralController::class, 'exportarSemanal']); // Excel formato planilha
             Route::get('/consolidado', [AdminRelatorioGeralController::class, 'consolidado']);
+        });
+
+        // -----------------------------------------------------------------
+        // Gerenciamento de Fila de Extras (RF06, RF07 - Admin)
+        // -----------------------------------------------------------------
+        Route::prefix('extras')->group(function () {
+            Route::get('/', [AdminExtrasController::class, 'index']);                    // Listar todas inscrições
+            Route::get('/hoje', [AdminExtrasController::class, 'hoje']);                 // Inscrições do dia
+            Route::get('/estatisticas', [AdminExtrasController::class, 'estatisticas']); // Estatísticas
+            Route::get('/exportar', [AdminExtrasController::class, 'exportar']);         // Exportar relatório Excel
+            Route::post('/aprovar-lote', [AdminExtrasController::class, 'aprovarLote']); // Aprovar em lote
+            Route::post('/{id}/aprovar', [AdminExtrasController::class, 'aprovar']);     // Aprovar inscrição
+            Route::post('/{id}/rejeitar', [AdminExtrasController::class, 'rejeitar']);   // Rejeitar inscrição
+            Route::post('/{id}/confirmar-presenca', [AdminExtrasController::class, 'confirmarPresenca']); // Confirmar presença
+            Route::delete('/{id}', [AdminExtrasController::class, 'destroy']);           // Remover inscrição
         });
 
         // -----------------------------------------------------------------

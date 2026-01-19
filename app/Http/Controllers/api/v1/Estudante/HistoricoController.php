@@ -15,13 +15,34 @@ use Carbon\Carbon;
 class HistoricoController extends Controller
 {
     /**
+     * Helper: Obter usuário autenticado ou fallback para dev
+     */
+    private function getUser(Request $request)
+    {
+        $user = $request->user();
+
+        // Fallback para desenvolvimento sem autenticação
+        if (!$user && config('app.debug')) {
+            $user = \App\Models\User::where('perfil', 'estudante')
+                ->where('bolsista', false)
+                ->first();
+
+            if (!$user) {
+                throw new \Exception('Nenhum estudante não-bolsista encontrado no banco de dados.');
+            }
+        }
+
+        return $user;
+    }
+
+    /**
      * RF04 - Lista histórico de refeições e faltas
      * GET /api/v1/estudante/historico
      */
     public function index(Request $request): JsonResponse
     {
-        $user = $request->user();
-        
+        $user = $this->getUser($request);
+
         // Filtros de período
         $periodo = $request->input('periodo', 'mes'); // semana, mes, todos
         $dataInicio = $request->input('data_inicio');
@@ -69,7 +90,7 @@ class HistoricoController extends Controller
      */
     public function resumo(Request $request): JsonResponse
     {
-        $user = $request->user();
+        $user = $this->getUser($request);
         $periodo = $request->input('periodo', 'mes');
 
         $resumo = $this->calcularResumo($user, $periodo);

@@ -36,14 +36,30 @@ class Justificativa extends Model
 
     // ========== RELACIONAMENTOS ==========
 
+    public function usuario()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function refeicao()
     {
         return $this->belongsTo(Refeicao::class);
+    }
+
+    public function presenca()
+    {
+        return $this->hasOne(Presenca::class, 'refeicao_id', 'refeicao_id')
+            ->where('user_id', $this->user_id);
+    }
+
+    public function aprovadoPor()
+    {
+        return $this->belongsTo(User::class, 'avaliado_por');
     }
 
     public function avaliador()

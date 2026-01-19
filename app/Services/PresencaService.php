@@ -6,6 +6,12 @@ use App\Models\Presenca;
 use App\Models\Refeicao;
 use App\Models\User;
 use App\Enums\StatusPresenca;
+use App\Exceptions\TurnoObrigatorioException;
+use App\Exceptions\UsuarioNaoEncontradoException;
+use App\Exceptions\NaoEBolsistaException;
+use App\Exceptions\SemDireitoRefeicaoException;
+use App\Exceptions\RefeicaoNaoEncontradaException;
+use App\Exceptions\PresencaJaConfirmadaException;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -114,18 +120,18 @@ class PresencaService
     {
         // 1. Validar turno
         if (empty($turno)) {
-            throw new \App\Exceptions\TurnoObrigatorioException();
+            throw new TurnoObrigatorioException();
         }
 
         // 2. Buscar usuário
         $user = User::with('diasSemana')->find($userId);
         if (!$user) {
-            throw new \App\Exceptions\UsuarioNaoEncontradoException();
+            throw new UsuarioNaoEncontradoException();
         }
 
         // 3. Verificar se é bolsista
         if (!$user->bolsista) {
-            throw new \App\Exceptions\NaoEBolsistaException();
+            throw new NaoEBolsistaException();
         }
 
         // 4. Validar direito à refeição no dia
@@ -136,7 +142,7 @@ class PresencaService
                 ->map(fn($d) => $this->getDiaSemanaTexto($d->dia_semana))
                 ->implode(', ');
 
-            throw new \App\Exceptions\SemDireitoRefeicaoException(
+            throw new SemDireitoRefeicaoException(
                 $user->nome,
                 Carbon::parse($data)->locale('pt_BR')->dayName,
                 $diasCadastrados ?: 'Nenhum dia cadastrado'
@@ -146,7 +152,7 @@ class PresencaService
         // 5. Buscar refeição
         $refeicao = $this->buscarRefeicao($data, $turno);
         if (!$refeicao) {
-            throw new \App\Exceptions\RefeicaoNaoEncontradaException();
+            throw new RefeicaoNaoEncontradaException();
         }
 
         // 6. Verificar se já confirmada
@@ -155,7 +161,7 @@ class PresencaService
             ->first();
 
         if ($presenca && $presenca->status_da_presenca === StatusPresenca::PRESENTE) {
-            throw new \App\Exceptions\PresencaJaConfirmadaException(
+            throw new PresencaJaConfirmadaException(
                 $presenca->id,
                 $presenca->validado_em?->format('d/m/Y H:i')
             );
@@ -197,19 +203,19 @@ class PresencaService
     {
         // 1. Validar turno
         if (empty($turno)) {
-            throw new \App\Exceptions\TurnoObrigatorioException();
+            throw new TurnoObrigatorioException();
         }
 
         // 2. Buscar usuário
         $user = User::find($userId);
         if (!$user) {
-            throw new \App\Exceptions\UsuarioNaoEncontradoException();
+            throw new UsuarioNaoEncontradoException();
         }
 
         // 3. Buscar refeição
         $refeicao = $this->buscarRefeicao($data, $turno);
         if (!$refeicao) {
-            throw new \App\Exceptions\RefeicaoNaoEncontradaException();
+            throw new RefeicaoNaoEncontradaException();
         }
 
         // 4. Marcar falta

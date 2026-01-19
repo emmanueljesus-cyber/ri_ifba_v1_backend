@@ -21,6 +21,7 @@ class BolsistaResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
+            'id' => $this->id,
             'user_id' => $this->id,
             'matricula' => $this->matricula,
             'nome' => $this->nome,
@@ -45,12 +46,29 @@ class BolsistaResource extends JsonResource
                     'confirmado_em' => DateHelper::formatarDataHoraBR($this->presenca_atual->validado_em),
                 ] : null;
             }),
-            'status_presenca' => $this->when(isset($this->presenca_atual), 
+            'presenca_atual' => $this->when(isset($this->presenca_atual), function() {
+                return $this->presenca_atual ? [
+                    'id' => $this->presenca_atual->id,
+                    'status_da_presenca' => $this->presenca_atual->status_da_presenca->value,
+                    'confirmado_em' => DateHelper::formatarDataHoraBR($this->presenca_atual->validado_em),
+                ] : null;
+            }),
+            'status_presenca' => $this->when(isset($this->presenca_atual),
                 fn() => $this->presenca_atual ? $this->presenca_atual->status_da_presenca->value : 'pendente'
             ),
             'presente' => $this->when(isset($this->presenca_atual), 
                 fn() => $this->presenca_atual && $this->presenca_atual->status_da_presenca->value === 'presente'
             ),
+            // Dados de justificativa antecipada (quando aplicável)
+            'tem_falta_antecipada' => $this->when(isset($this->tem_falta_antecipada), $this->tem_falta_antecipada),
+            'justificativa_antecipada' => $this->when(isset($this->justificativa_antecipada), function() {
+                return $this->justificativa_antecipada ? [
+                    'id' => $this->justificativa_antecipada->id,
+                    'motivo' => $this->justificativa_antecipada->motivo,
+                    'status' => $this->justificativa_antecipada->status,
+                    'criado_em' => DateHelper::formatarDataHoraBR($this->justificativa_antecipada->created_at),
+                ] : null;
+            }),
             // Para busca de confirmação
             'presenca_status' => $this->when(isset($this->presenca_status_busca), $this->presenca_status_busca),
             'presenca_id' => $this->when(isset($this->presenca_id_busca), $this->presenca_id_busca),

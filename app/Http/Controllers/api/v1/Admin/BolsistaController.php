@@ -15,6 +15,7 @@ use App\Services\BolsistaImportService;
 use App\Services\PresencaService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use App\Exceptions\BusinessException;
 use Carbon\Carbon;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -305,7 +306,7 @@ class BolsistaController extends Controller
                 meta: ['message' => '✅ Presença confirmada com sucesso.']
             );
 
-        } catch (\App\Exceptions\BusinessException $e) {
+        } catch (BusinessException $e) {
             return ApiResponse::standardError('erro', $e->getMessage(), $e->getCode());
         }
     }
@@ -344,7 +345,7 @@ class BolsistaController extends Controller
                 meta: ['message' => $mensagem]
             );
 
-        } catch (\App\Exceptions\BusinessException $e) {
+        } catch (BusinessException $e) {
             return ApiResponse::standardError('erro', $e->getMessage(), $e->getCode());
         }
     }
@@ -591,14 +592,23 @@ class BolsistaController extends Controller
         }
         $refeicao = $refeicaoQuery->first();
 
-        // Anexar presenças
+        // Anexar presenças e justificativas
         if ($refeicao) {
             $presencas = Presenca::where('refeicao_id', $refeicao->id)
                 ->get()
                 ->keyBy('user_id');
 
+            // Buscar justificativas antecipadas aprovadas para essa refeição
+            $justificativas = \App\Models\Justificativa::where('refeicao_id', $refeicao->id)
+                ->where('tipo', 'antecipada')
+                ->where('status', 'aprovada')
+                ->get()
+                ->keyBy('user_id');
+
             foreach ($bolsistas as $bolsista) {
                 $bolsista->presenca_atual = $presencas[$bolsista->id] ?? null;
+                $bolsista->justificativa_antecipada = $justificativas[$bolsista->id] ?? null;
+                $bolsista->tem_falta_antecipada = isset($justificativas[$bolsista->id]);
             }
         }
 

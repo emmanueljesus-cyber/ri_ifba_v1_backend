@@ -16,6 +16,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'ensure.is.admin' => \App\Http\Middleware\EnsureIsAdmin::class,
             'ensure.is.bolsista' => \App\Http\Middleware\EnsureIsBolsista::class,
             'ensure.is.nao.bolsista' => \App\Http\Middleware\EnsureIsNaoBolsista::class,
+            'check.status' => \App\Http\Middleware\CheckUserStatus::class,
+        ]);
+
+        $middleware->appendToGroup('api', [
+            'check.status',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
