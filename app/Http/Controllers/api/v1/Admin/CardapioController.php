@@ -19,7 +19,7 @@ use Maatwebsite\Excel\Facades\Excel;
  * 
  * Responsabilidades:
  * - CRUD de cardápios
- * - Importação de cardápios via Excel/CSV
+ * - Importação de cardápios via Excel e Manuel
  * - Operações em lote (deletar múltiplos, por período)
  */
 class CardapioController extends Controller
@@ -195,6 +195,18 @@ class CardapioController extends Controller
                 'data_inicio' => $dataInicio,
                 'data_fim' => $dataFim,
             ]
+        );
+    }
+
+    /**
+     * Exportar template Excel para importação de cardápios
+     * GET /api/v1/admin/cardapios/template
+     */
+    public function exportTemplate()
+    {
+        return Excel::download(
+            new \App\Exports\CardapioTemplateExport(),
+            'template_cardapios_' . now()->format('Y-m-d') . '.xlsx'
         );
     }
 }

@@ -9,21 +9,13 @@ use Illuminate\Support\Facades\Hash;
 
 /**
  * Service para gerenciamento de usuários
- * 
- * Responsável por toda a lógica de negócio relacionada a:
+ *  * Responsável por toda a lógica de negócio relacionada a:
  * - CRUD de usuários
  * - Gerenciamento de status (ativo/desligado)
  * - Validações e regras de negócio
  */
 class UserService
 {
-    /**
-     * Lista usuários com filtros e paginação
-     * 
-     * @param array $filtros Filtros (perfil, bolsista, desligado, busca, etc)
-     * @param int $perPage
-     * @return LengthAwarePaginator
-     */
     public function listarUsuarios(array $filtros = [], int $perPage = 15): LengthAwarePaginator
     {
         $query = User::query();
@@ -62,18 +54,6 @@ class UserService
         $query->orderBy($sortBy, $sortOrder);
 
         return $query->paginate($perPage);
-    }
-
-    /**
-     * Busca usuário por ID
-     * 
-     * @param int $id
-     * @return User
-     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException
-     */
-    public function buscarUsuario(int $id): User
-    {
-        return User::findOrFail($id);
     }
 
     /**
@@ -227,9 +207,9 @@ class UserService
         $query = User::where('bolsista', true)
             ->where('desligado', false);
 
-        // Filtro por turno
-        if (isset($filtros['turno'])) {
-            $query->where('turno', $filtros['turno']);
+        // Filtro por turno de refeição
+        if (isset($filtros['turno_refeicao'])) {
+            $query->where('turno_refeicao', $filtros['turno_refeicao']);
         }
 
         $query->orderBy('nome', 'asc');

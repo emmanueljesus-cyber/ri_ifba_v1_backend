@@ -29,7 +29,8 @@ class StoreUserRequest extends FormRequest
             'bolsista' => ['boolean'],
             'limite_faltas_mes' => ['integer', 'min:0', 'max:10'],
             'curso' => ['nullable', 'string', 'max:100'],
-            'turno' => ['nullable', Rule::in(['matutino', 'vespertino', 'noturno'])],
+            'turno_refeicao' => ['nullable', Rule::in(['almoco', 'jantar'])],
+            'turno_aula' => ['nullable', Rule::in(['matutino', 'vespertino', 'noturno'])],
         ];
     }
 
@@ -49,7 +50,8 @@ class StoreUserRequest extends FormRequest
             'password.min' => 'A senha deve ter no mínimo 6 caracteres',
             'perfil.required' => 'O perfil é obrigatório',
             'perfil.in' => 'O perfil deve ser admin ou estudante',
-            'turno.in' => 'O turno deve ser matutino, vespertino ou noturno',
+            'turno_refeicao.in' => 'O turno de refeição deve ser almoco ou jantar',
+            'turno_aula.in' => 'O turno de aula deve ser matutino, vespertino ou noturno',
         ];
     }
 }

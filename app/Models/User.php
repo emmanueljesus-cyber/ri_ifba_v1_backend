@@ -27,8 +27,10 @@ class User extends Authenticatable
         'desligado_em',
         'desligado_motivo',
         'curso',
-        'turno',
+        'turno_refeicao',
+        'turno_aula',
         'preferencia_alimentar',
+        'restricoes_alimentares',
         'foto_perfil',
     ];
 
@@ -45,6 +47,7 @@ class User extends Authenticatable
         'desligado_em' => 'datetime',
         'limite_faltas_mes' => 'integer',
         'perfil'            => PerfilUsuario::class,
+        'restricoes_alimentares' => 'array',
     ];
 
     /**
@@ -70,6 +73,11 @@ class User extends Authenticatable
     public function justificativas()
     {
         return $this->hasMany(Justificativa::class);
+    }
+
+    public function aprovado()
+    {
+        return $this->hasOne(Bolsista::class, 'user_id');
     }
 
     public function filasExtras()

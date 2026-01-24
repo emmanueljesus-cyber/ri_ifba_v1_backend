@@ -16,22 +16,72 @@ class FilaExtraSeeder extends Seeder
             ->where('desligado', false)
             ->get();
 
-        $refeicoes = Refeicao::all();
+        // Buscar refeições agrupadas por data (para garantir 1 por dia por estudante)
+        $refeicoesPorData = Refeicao::with('cardapio')
+            ->get()
+            ->groupBy(fn($r) => $r->cardapio->data_do_cardapio);
 
-        foreach ($refeicoes as $refeicao) {
-            // 50% dos não-bolsistas se inscrevem na fila extra
+        $inscricoesCriadas = 0;
+
+        foreach ($refeicoesPorData as $data => $refeicoesNoDia) {
             foreach ($estudantesNaoBolsistas as $estudante) {
-                if (rand(1, 100) <= 50) {
-                    $status = ['inscrito', 'aprovado', 'rejeitado'][rand(0, 2)];
-
-                    FilaExtra::create([
-                        'user_id' => $estudante->id,
-                        'refeicao_id' => $refeicao->id,
-                        'status_fila_extras' => $status,
-                        'inscrito_em' => now()->subHours(rand(24, 72)),
-                    ]);
+                // 40% de chance de se inscrever na fila extra neste dia
+                if (rand(1, 100) > 40) {
+                    continue;
                 }
+
+                // Escolhe a refeição do turno do estudante (ou aleatória se não tiver turno)
+                $turnoEstudante = $estudante->turno ?? 'almoco';
+                $refeicao = $refeicoesNoDia->firstWhere('turno', $turnoEstudante)
+                          ?? $refeicoesNoDia->first();
+
+                if (!$refeicao) {
+                    continue;
+                }
+
+                // Verificar se já existe inscrição para este dia
+                $jaInscrito = FilaExtra::where('user_id', $estudante->id)
+                    ->where('refeicao_id', $refeicao->id)
+                    ->exists();
+
+                if ($jaInscrito) {
+                    continue;
+                }
+
+                // Status com peso: 60% aprovado, 25% inscrito (aguardando), 15% rejeitado
+                $rand = rand(1, 100);
+                if ($rand <= 60) {
+                    $status = 'aprovado';
+                } elseif ($rand <= 85) {
+                    $status = 'inscrito';
+                } else {
+                    $status = 'rejeitado';
+                }
+
+                FilaExtra::create([
+                    'user_id' => $estudante->id,
+                    'refeicao_id' => $refeicao->id,
+                    'status_fila_extras' => $status,
+                    'inscrito_em' => now()->subHours(rand(24, 72)),
+                ]);
+
+                $inscricoesCriadas++;
             }
+        }
+
+        $this->command->info("✅ {$inscricoesCriadas} inscrições na fila extra criadas");
+
+        // Estatísticas
+        $stats = FilaExtra::selectRaw('status_fila_extras, COUNT(*) as total')
+            ->groupBy('status_fila_extras')
+            ->get();
+
+        $this->command->info("📊 Distribuição de status:");
+        foreach ($stats as $stat) {
+            $statusLabel = $stat->status_fila_extras instanceof \BackedEnum 
+                ? $stat->status_fila_extras->value 
+                : $stat->status_fila_extras;
+            $this->command->info("   - {$statusLabel}: {$stat->total}");
         }
     }
 }

@@ -3,13 +3,14 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-use App\Models\Cardapio;
 use App\Models\Refeicao;
 use App\Models\Presenca;
-use App\Enums\TurnoRefeicao;
+use App\Models\Bolsista;
 use App\Enums\StatusPresenca;
+use App\Enums\TurnoRefeicao;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class PresencaSeeder extends Seeder
 {
@@ -18,114 +19,145 @@ class PresencaSeeder extends Seeder
      */
     public function run(): void
     {
-        // Busca o admin já criado
-        $admin = User::where('perfil', 'admin')->first();
-
-        if (!$admin) {
-            $this->command->warn('⚠️ Admin não encontrado. Execute UserSeeder primeiro.');
-            return;
-        }
-
-        // Busca bolsistas existentes
-        $bolsistas = User::where('bolsista', true)->where('desligado', false)->get();
-
-        if ($bolsistas->isEmpty()) {
-            $this->command->warn('⚠️ Nenhum bolsista encontrado. Execute UserSeeder primeiro.');
-            return;
-        }
-
-        // Busca refeições existentes (criadas pelo CardapioMensalSeeder ou CardapioSeeder + RefeicaoSeeder)
-        $refeicoes = Refeicao::with('cardapio')
-            ->orderBy('data_do_cardapio', 'asc')
-            ->take(7) // Pega as próximas 7 refeições
+        // Busca apenas BOLSISTAS ativos
+        $bolsistas = User::where('perfil', 'estudante')
+            ->where('bolsista', true)
+            ->where('desligado', false)
             ->get();
 
-        if ($refeicoes->isEmpty()) {
-            $this->command->warn('⚠️ Nenhuma refeição encontrada. Execute CardapioSeeder/CardapioMensalSeeder e RefeicaoSeeder primeiro.');
-            return;
-        }
+        $this->command->info("📋 Gerando presenças para {$bolsistas->count()} bolsistas...");
 
-        $this->command->info("📋 Criando presenças para {$refeicoes->count()} refeições...");
+        // Status possíveis com pesos realistas
+        // Bolsistas geralmente comparecem (70%), mas podem faltar
+        $statusPesos = [
+            'presente' => 70,
+            'falta_injustificada' => 15,
+            'falta_justificada' => 10,
+            'cancelado' => 5,
+        ];
 
         $presencasCriadas = 0;
-        $diasProcessados = [];
+        $presencasIgnoradas = 0;
 
-        // Agrupa refeições por data
-        foreach ($refeicoes as $refeicao) {
-            $data = $refeicao->data_do_cardapio->format('Y-m-d'); // Converter para string
+        foreach ($bolsistas as $user) {
+            // Buscar dados do bolsista na tabela bolsistas
+            $bolsistaData = Bolsista::where('matricula', $user->matricula)->first();
 
-            if (!isset($diasProcessados[$data])) {
-                $diasProcessados[$data] = [
-                    'almoco' => null,
-                    'jantar' => null,
-                ];
+            // Determinar o turno do bolsista (almoco ou jantar)
+            $turnoBolsista = $bolsistaData?->turno_refeicao ?? $user->turno_refeicao ?? 'almoco';
+
+            // Buscar os dias da semana que o bolsista tem direito
+            $diasSemana = DB::table('usuario_dias_semana')
+                ->where('user_id', $user->id)
+                ->pluck('dia_semana')
+                ->toArray();
+
+            if (empty($diasSemana)) {
+                // Se não tem dias cadastrados, assume seg-sex
+                $diasSemana = [1, 2, 3, 4, 5];
             }
 
-            if ($refeicao->turno->value === 'almoco') {
-                $diasProcessados[$data]['almoco'] = $refeicao;
-            } else {
-                $diasProcessados[$data]['jantar'] = $refeicao;
+            // Buscar APENAS refeições do turno do bolsista e nos dias que ele tem direito
+            $refeicoes = Refeicao::with('cardapio')
+                ->where('turno', $turnoBolsista)
+                ->whereHas('cardapio', function ($query) use ($diasSemana) {
+                    $query->whereRaw('EXTRACT(ISODOW FROM data_do_cardapio) IN (' . implode(',', $diasSemana) . ')');
+                })
+                ->get();
+
+            foreach ($refeicoes as $refeicao) {
+                // Verificar se já existe presença para este usuário nesta refeição
+                $existe = Presenca::where('user_id', $user->id)
+                    ->where('refeicao_id', $refeicao->id)
+                    ->exists();
+
+                if ($existe) {
+                    $presencasIgnoradas++;
+                    continue;
+                }
+
+                // Verificar se já existe presença para este usuário neste DIA (garantia extra)
+                $dataCardapio = $refeicao->cardapio->data_do_cardapio;
+                $jaTemPresencaNoDia = Presenca::where('user_id', $user->id)
+                    ->whereHas('refeicao.cardapio', function ($query) use ($dataCardapio) {
+                        $query->where('data_do_cardapio', $dataCardapio);
+                    })
+                    ->exists();
+
+                if ($jaTemPresencaNoDia) {
+                    $presencasIgnoradas++;
+                    continue;
+                }
+
+                // Sortear status com base nos pesos
+                $statusSorteado = $this->sortearStatus($statusPesos);
+
+                // Mapear para os valores do Enum suportados pelo banco
+                $statusFinal = match($statusSorteado) {
+                    'presente' => StatusPresenca::PRESENTE,
+                    'falta_justificada' => StatusPresenca::FALTA_JUSTIFICADA,
+                    'cancelado' => StatusPresenca::CANCELADO,
+                    default => StatusPresenca::FALTA_INJUSTIFICADA,
+                };
+
+                $horaBase = $refeicao->turno === TurnoRefeicao::ALMOCO ? 11 : 18;
+                $dataRefeicao = $refeicao->cardapio->data_do_cardapio;
+
+                $validadoEm = null;
+                if ($statusFinal === StatusPresenca::PRESENTE) {
+                    $validadoEm = Carbon::instance($dataRefeicao)->copy()
+                        ->setTime($horaBase, 0)
+                        ->addMinutes(rand(5, 45));
+                }
+
+                Presenca::create([
+                    'user_id' => $user->id,
+                    'refeicao_id' => $refeicao->id,
+                    'status_da_presenca' => $statusFinal,
+                    'validado_em' => $validadoEm,
+                    'registrado_em' => Carbon::instance($dataRefeicao)->copy()
+                        ->setTime($horaBase - 1, rand(0, 59)),
+                ]);
+
+                $presencasCriadas++;
             }
         }
 
-        // Criar presenças para os 4 últimos dias (simulando histórico)
-        $diasComPresenca = array_slice($diasProcessados, 0, 4, true);
-        $i = 0;
-
-        foreach ($diasComPresenca as $data => $refeicoesDoDia) {
-            $dataCarbon = now()->parse($data);
-
-            foreach ($bolsistas as $bolsista) {
-                // Almoço - 90% de chance de comparecer
-                if ($refeicoesDoDia['almoco'] && rand(0, 100) > 10) {
-                    Presenca::create([
-                        'user_id' => $bolsista->id,
-                        'refeicao_id' => $refeicoesDoDia['almoco']->id,
-                        'status_da_presenca' => $this->getStatusAleatorio($i),
-                        'registrado_em' => $dataCarbon->copy()->setTime(10, rand(0, 59)),
-                        'validado_em' => $i >= 1 ? $dataCarbon->copy()->setTime(11, rand(30, 59)) : null,
-                        'validado_por' => $i >= 1 ? $admin->id : null,
-                    ]);
-                    $presencasCriadas++;
-                }
-
-                // Jantar - 80% de chance de comparecer
-                if ($refeicoesDoDia['jantar'] && rand(0, 100) > 20) {
-                    Presenca::create([
-                        'user_id' => $bolsista->id,
-                        'refeicao_id' => $refeicoesDoDia['jantar']->id,
-                        'status_da_presenca' => $this->getStatusAleatorio($i),
-                        'registrado_em' => $dataCarbon->copy()->setTime(16, rand(0, 59)),
-                        'validado_em' => $i >= 1 ? $dataCarbon->copy()->setTime(17, rand(30, 59)) : null,
-                        'validado_por' => $i >= 1 ? $admin->id : null,
-                    ]);
-                    $presencasCriadas++;
-                }
-            }
-
-            $i++;
+        $this->command->info("✅ {$presencasCriadas} presenças criadas");
+        if ($presencasIgnoradas > 0) {
+            $this->command->info("⏭️  {$presencasIgnoradas} presenças ignoradas (já existiam ou duplicadas)");
         }
 
-        $this->command->info("✅ {$presencasCriadas} presenças criadas com sucesso!");
-        $this->command->info("📊 Distribuição:");
-        $this->command->info("   - {$bolsistas->count()} bolsistas");
-        $this->command->info("   - " . count($diasComPresenca) . " dias com presenças");
+        // Estatísticas
+        $stats = Presenca::selectRaw('status_da_presenca, COUNT(*) as total')
+            ->groupBy('status_da_presenca')
+            ->get();
+
+        $this->command->info("📊 Distribuição de status:");
+        foreach ($stats as $stat) {
+            $statusLabel = $stat->status_da_presenca instanceof \BackedEnum 
+                ? $stat->status_da_presenca->value 
+                : $stat->status_da_presenca;
+            $this->command->info("   - {$statusLabel}: {$stat->total}");
+        }
     }
 
-    private function getStatusAleatorio($dia): StatusPresenca
+    /**
+     * Sorteia um status baseado nos pesos definidos
+     */
+    private function sortearStatus(array $pesos): string
     {
-        // Para dias passados (dia > 0), a maioria já foi processada
-        if ($dia > 0) {
-            $rand = rand(0, 100);
-            if ($rand < 70) return StatusPresenca::PRESENTE;
-            if ($rand < 85) return StatusPresenca::FALTA_JUSTIFICADA;
-            if ($rand < 95) return StatusPresenca::FALTA_INJUSTIFICADA;
-            return StatusPresenca::CANCELADO;
+        $total = array_sum($pesos);
+        $random = rand(1, $total);
+        $acumulado = 0;
+
+        foreach ($pesos as $status => $peso) {
+            $acumulado += $peso;
+            if ($random <= $acumulado) {
+                return $status;
+            }
         }
 
-        // Para hoje (dia 0), a maioria está presente
-        $rand = rand(0, 100);
-        if ($rand < 90) return StatusPresenca::PRESENTE;
-        return StatusPresenca::CANCELADO;
+        return 'presente';
     }
 }

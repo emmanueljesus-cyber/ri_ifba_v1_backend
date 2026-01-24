@@ -51,7 +51,8 @@ class PerfilController extends Controller
             'nome' => $user->nome,
             'email' => $user->email,
             'curso' => $user->curso,
-            'turno' => $user->turno,
+            'turno_refeicao' => $user->turno_refeicao,
+            'turno_aula' => $user->turno_aula,
             'bolsista' => $user->bolsista,
             'preferencia_alimentar' => $user->preferencia_alimentar ?? 'comum',
             'foto_url' => $user->foto_url,
@@ -82,6 +83,53 @@ class PerfilController extends Controller
         return ApiResponse::standardSuccess(
             data: ['preferencia_alimentar' => $user->preferencia_alimentar],
             meta: ['mensagem' => 'Preferência atualizada. Entra em vigor no próximo dia útil.']
+        );
+    }
+
+    /**
+     * RF05 - Atualiza restrições e preferências alimentares (apenas bolsistas)
+     * PUT /api/v1/estudante/perfil/restricoes-alimentares
+     */
+    public function atualizarRestricoesAlimentares(Request $request): JsonResponse
+    {
+        $request->validate([
+            'preferencia_alimentar' => 'sometimes|in:comum,ovolactovegetariano',
+            'restricoes_alimentares' => 'sometimes|array',
+            'restricoes_alimentares.*' => 'string|max:255',
+        ]);
+
+        $user = $this->getUser($request);
+        if (!$user) {
+            return ApiResponse::error('Não autenticado', 401);
+        }
+
+        // Apenas bolsistas podem atualizar restrições alimentares
+        if (!$user->bolsista) {
+            return ApiResponse::standardError(
+                'restricoes',
+                'Apenas bolsistas podem atualizar restrições alimentares.',
+                403
+            );
+        }
+
+        $updatedData = [];
+        
+        if ($request->has('preferencia_alimentar')) {
+            $updatedData['preferencia_alimentar'] = $request->input('preferencia_alimentar');
+        }
+
+        if ($request->has('restricoes_alimentares')) {
+            $updatedData['restricoes_alimentares'] = $request->input('restricoes_alimentares');
+        }
+
+        $user->update($updatedData);
+
+        return ApiResponse::standardSuccess(
+            data: [
+                'preferencia_alimentar' => $user->preferencia_alimentar,
+                'restricoes_alimentares' => $user->restricoes_alimentares ?? [],
+            ],
+            meta: ['mensagem' => 'Preferências alimentares atualizadas com sucesso!']
         );
     }
 

@@ -43,7 +43,8 @@ class UpdateUserRequest extends FormRequest
             'limite_faltas_mes' => ['sometimes', 'integer', 'min:0', 'max:10'],
             'desligado' => ['sometimes', 'boolean'],
             'curso' => ['nullable', 'string', 'max:100'],
-            'turno' => ['nullable', Rule::in(['matutino', 'vespertino', 'noturno'])],
+            'turno_refeicao' => ['nullable', Rule::in(['almoco', 'jantar'])],
+            'turno_aula' => ['nullable', Rule::in(['matutino', 'vespertino', 'noturno'])],
         ];
     }
 
@@ -59,7 +60,8 @@ class UpdateUserRequest extends FormRequest
             'matricula.unique' => 'Esta matrícula já está cadastrada',
             'password.min' => 'A senha deve ter no mínimo 6 caracteres',
             'perfil.in' => 'O perfil deve ser admin ou estudante',
-            'turno.in' => 'O turno deve ser matutino, vespertino ou noturno',
+            'turno_refeicao.in' => 'O turno de refeição deve ser almoco ou jantar',
+            'turno_aula.in' => 'O turno de aula deve ser matutino, vespertino ou noturno',
         ];
     }
 }

@@ -18,7 +18,9 @@ class EnsureIsAdmin
     {
         // Verifica se o usuário autenticado tem perfil de admin
         if (!$request->user() || !$this->isAdmin($request->user())) {
-            return response()->json(['message' => 'Acesso negado. Usuário não possui permissão de administrador.'], 403);
+            return response()->json(
+				['message' => 'Acesso negado. Usuário não possui permissão de administrador.'],
+				403);
         }
 
         return $next($request);
@@ -30,6 +32,6 @@ class EnsureIsAdmin
     private function isAdmin($user): bool
     {
         // Suporta tanto enum quanto string
-        return $user->perfil === PerfilUsuario::ADMIN || $user->perfil === 'admin';
+        return $user->perfil === PerfilUsuario::ADMIN ;
     }
 }

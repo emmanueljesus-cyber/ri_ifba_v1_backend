@@ -39,6 +39,11 @@ class CardapioService
                 'criado_por'            => $userId,
             ]);
 
+            // Se for fornecida capacidade no create, aplica às refeições criadas
+            if (isset($data['capacidade'])) {
+                $cardapio->refeicoes()->update(['capacidade' => $data['capacidade']]);
+            }
+
             return $cardapio->load(['criador', 'refeicoes']);
         });
     }
@@ -75,6 +80,7 @@ class CardapioService
                 // Criar novo cardápio
                 $cardapio = Cardapio::create([
                     'data_do_cardapio'      => $dataCardapio,
+                    'turnos'                => [$turno],
                     'prato_principal_ptn01' => $data['prato_principal_ptn01'],
                     'prato_principal_ptn02' => $data['prato_principal_ptn02'],
                     'guarnicao'             => $data['guarnicao'] ?? null,
@@ -131,6 +137,16 @@ class CardapioService
                 'suco'                  => $data['suco'] ?? $cardapio->suco,
                 'sobremesa'             => $data['sobremesa'] ?? $cardapio->sobremesa,
             ]);
+
+            // Se for fornecido um turno específico e capacidade, atualiza essa refeição
+            if (isset($data['turno']) && isset($data['capacidade'])) {
+                $cardapio->refeicoes()->where('turno', $data['turno'])->update([
+                    'capacidade' => $data['capacidade']
+                ]);
+            } elseif (isset($data['capacidade'])) {
+                // Se só tiver capacidade, aplica a todas
+                $cardapio->refeicoes()->update(['capacidade' => $data['capacidade']]);
+            }
 
             return $cardapio->load(['criador', 'refeicoes']);
         });

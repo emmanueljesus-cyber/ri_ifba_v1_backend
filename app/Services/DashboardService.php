@@ -27,20 +27,77 @@ class DashboardService
         $totalBolsistas = User::where('bolsista', true)->count();
         $bolsistasAtivos = User::where('bolsista', true)->where('desligado', false)->count();
 
+        // Justificativas pendentes
+        $justificativasPendentes = Justificativa::where('status', 'pendente')->count();
+
+        // Presenças hoje
+        $presencasHoje = Presenca::whereDate('registrado_em', now()->toDateString())
+            ->where('status_da_presenca', StatusPresenca::PRESENTE)
+            ->count();
+
+        // Faltas hoje
+        $faltasHoje = Presenca::whereDate('registrado_em', now()->toDateString())
+            ->whereIn('status_da_presenca', [
+                StatusPresenca::FALTA_INJUSTIFICADA,
+                StatusPresenca::FALTA_JUSTIFICADA
+            ])->count();
+
         $refeicoesDoMes = Refeicao::whereBetween('data_do_cardapio', [$dataInicio, $dataFim])->count();
-        $refeicoesHoje = Refeicao::where('data_do_cardapio', now()->toDateString())->count();
+        
+        // Refeição atual
+        $refeicaoAtual = $this->getRefeicaoAtual();
 
         return [
-            'total_bolsistas' => $totalBolsistas,
-            'bolsistas_ativos' => $bolsistasAtivos,
-            'bolsistas_inativos' => $totalBolsistas - $bolsistasAtivos,
+            'metricas' => [
+                'total_bolsistas' => $totalBolsistas,
+                'bolsistas_ativos' => $bolsistasAtivos,
+                'bolsistas_inativos' => $totalBolsistas - $bolsistasAtivos,
+                'presencas_hoje' => $presencasHoje,
+                'faltas_hoje' => $faltasHoje,
+                'justificativas_pendentes' => $justificativasPendentes,
+            ],
+            'refeicao_atual' => $refeicaoAtual,
             'refeicoes_mes' => $refeicoesDoMes,
-            'refeicoes_hoje' => $refeicoesHoje,
             'periodo' => [
                 'mes' => $mes,
                 'ano' => $ano,
                 'mes_texto' => Carbon::create($ano, $mes, 1)->locale('pt_BR')->monthName,
             ],
+        ];
+    }
+
+    /**
+     * Obtém dados da refeição atual baseada no horário
+     */
+    private function getRefeicaoAtual(): ?array
+    {
+        $agora = now();
+        $hora = $agora->hour;
+        
+        // Define turno baseado na hora: Almoço até 15h, Jantar depois
+        $turno = ($hora < 15) ? 'almoco' : 'jantar';
+        
+        $refeicao = Refeicao::where('data_do_cardapio', $agora->toDateString())
+            ->where('turno', $turno)
+            ->first();
+            
+        if (!$refeicao) {
+            // Tenta buscar qualquer uma do dia se a específica do horário não existir
+            $refeicao = Refeicao::where('data_do_cardapio', $agora->toDateString())->first();
+        }
+            
+        if (!$refeicao) return null;
+        
+        $confirmados = Presenca::where('refeicao_id', $refeicao->id)
+            ->where('status_da_presenca', StatusPresenca::PRESENTE)
+            ->count();
+            
+        return [
+            'id' => $refeicao->id,
+            'turno' => $refeicao->turno->value ?? $refeicao->turno,
+            'confirmados' => $confirmados,
+            'capacidade' => $refeicao->capacidade,
+            'vagas_restantes' => max(0, $refeicao->capacidade - $confirmados),
         ];
     }
 

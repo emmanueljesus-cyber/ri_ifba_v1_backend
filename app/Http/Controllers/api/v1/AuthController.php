@@ -7,6 +7,7 @@ use App\Http\Responses\ApiResponse;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
@@ -34,15 +35,32 @@ class AuthController extends Controller
             'password.required' => 'A senha é obrigatória',
         ]);
 
-        $user = User::where('matricula', $request->matricula)->first();
+        $credentials = [
+            'matricula' => trim($request->matricula),
+            'password' => $request->password,
+        ];
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        // Log temporário para depuração (Remover após resolver o problema)
+        \Illuminate\Support\Facades\Log::info('Tentativa de login:', [
+            'matricula_recebida' => $request->matricula,
+            'matricula_trim' => $credentials['matricula']
+        ]);
+
+        if (!Auth::attempt($credentials)) {
+            $userExists = User::where('matricula', $credentials['matricula'])->exists();
+            \Illuminate\Support\Facades\Log::warning('Falha no login:', [
+                'matricula' => $credentials['matricula'],
+                'usuario_existe' => $userExists,
+            ]);
+
             return ApiResponse::error(
                 'Matrícula ou senha incorretos',
                 ['matricula' => ['As credenciais fornecidas estão incorretas.']],
                 401
             );
         }
+
+        $user = Auth::user();
 
         // Verifica se o usuário está desligado
         if ($user->desligado) {
@@ -68,7 +86,8 @@ class AuthController extends Controller
                 'perfil' => $user->perfil,
                 'bolsista' => $user->bolsista,
                 'curso' => $user->curso,
-                'turno' => $user->turno,
+                'turno_refeicao' => $user->turno_refeicao,
+                'turno_aula' => $user->turno_aula,
                 'foto' => $user->foto_url,
             ],
             'token' => $token,
@@ -109,9 +128,43 @@ class AuthController extends Controller
             'perfil' => $user->perfil,
             'bolsista' => $user->bolsista,
             'curso' => $user->curso,
-            'turno' => $user->turno,
+            'turno_refeicao' => $user->turno_refeicao,
+            'turno_aula' => $user->turno_aula,
             'foto' => $user->foto_url,
         ], 'Dados do usuário recuperados com sucesso');
+    }
+
+    /**
+     * Verifica se uma matrícula está na lista de bolsistas aprovados
+     * GET /api/v1/verificar-matricula/{matricula}
+     *
+     * @param string $matricula
+     * @return JsonResponse
+     */
+    public function verificarMatricula(string $matricula): JsonResponse
+    {
+        // Verificar se já existe usuário com essa matrícula
+        $usuarioExistente = User::where('matricula', $matricula)->exists();
+
+        if ($usuarioExistente) {
+            return ApiResponse::error('Esta matricula ja esta cadastrada no sistema', 409);
+        }
+
+        // Verificar se está na lista de bolsistas aprovados
+        $bolsista = \App\Models\Bolsista::where('matricula', $matricula)->first();
+
+        if ($bolsista) {
+            return ApiResponse::success([
+                'bolsista' => true,
+                'nome' => $bolsista->nome,
+                'curso' => $bolsista->curso,
+                'turno_refeicao' => $bolsista->turno_refeicao,
+            ], 'Matricula encontrada na lista de bolsistas');
+        }
+
+        return ApiResponse::success([
+            'bolsista' => false,
+        ], 'Matricula nao encontrada na lista de bolsistas');
     }
 
     /**
@@ -129,18 +182,37 @@ class AuthController extends Controller
             'matricula' => ['required', 'string', 'max:20', 'unique:users,matricula'],
             'password' => ['required', 'string', 'min:6', 'confirmed'],
             'curso' => ['nullable', 'string', 'max:100'],
-            'turno' => ['nullable', 'in:matutino,vespertino,noturno'],
+            // Turno: bolsista usa almoco/jantar, nao-bolsista usa matutino/vespertino/noturno
+            'turno' => ['nullable', 'in:almoco,jantar,matutino,vespertino,noturno'],
         ], [
-            'nome.required' => 'O nome é obrigatório',
-            'email.required' => 'O e-mail é obrigatório',
-            'email.email' => 'O e-mail deve ser válido',
-            'email.unique' => 'Este e-mail já está cadastrado',
-            'matricula.required' => 'A matrícula é obrigatória',
-            'matricula.unique' => 'Esta matrícula já está cadastrada',
-            'password.required' => 'A senha é obrigatória',
-            'password.min' => 'A senha deve ter no mínimo 6 caracteres',
-            'password.confirmed' => 'As senhas não conferem',
+            'nome.required' => 'O nome e obrigatorio',
+            'email.required' => 'O e-mail e obrigatorio',
+            'email.email' => 'O e-mail deve ser valido',
+            'email.unique' => 'Este e-mail ja esta cadastrado',
+            'matricula.required' => 'A matricula e obrigatoria',
+            'matricula.unique' => 'Esta matricula ja esta cadastrada',
+            'password.required' => 'A senha e obrigatoria',
+            'password.min' => 'A senha deve ter no minimo 6 caracteres',
+            'password.confirmed' => 'As senhas nao conferem',
+            'turno.in' => 'Turno invalido',
         ]);
+
+        // Verificar se o estudante esta na lista de bolsistas aprovados
+        $bolsistaAprovado = \App\Models\Bolsista::where('matricula', $request->matricula)->first();
+        $ehBolsista = $bolsistaAprovado !== null;
+
+        // Bolsista: usa turno da lista (almoco/jantar)
+        // Nao-bolsista: usa turno de aula informado (matutino/vespertino/noturno)
+        $turnoRefeicao = null;
+        $turnoAula = null;
+
+        if ($ehBolsista) {
+            $turnoRefeicao = $bolsistaAprovado->turno_refeicao;
+        } else {
+            $turnoAula = $request->turno;
+            // Sugestao de turno de refeicao para nao-bolsistas (fila extra)
+            $turnoRefeicao = ($turnoAula === 'noturno') ? 'jantar' : 'almoco';
+        }
 
         $user = User::create([
             'nome' => $request->nome,
@@ -148,10 +220,19 @@ class AuthController extends Controller
             'matricula' => $request->matricula,
             'password' => Hash::make($request->password),
             'perfil' => 'estudante',
-            'bolsista' => false,
-            'curso' => $request->curso,
-            'turno' => $request->turno,
+            'bolsista' => $ehBolsista,
+            'curso' => $request->curso ?? $bolsistaAprovado?->curso,
+            'turno_refeicao' => $turnoRefeicao,
+            'turno_aula' => $turnoAula,
         ]);
+
+        // Se for bolsista, vincular com o registro na tabela bolsistas
+        if ($bolsistaAprovado) {
+            $bolsistaAprovado->update([
+                'user_id' => $user->id,
+                'vinculado_em' => now(),
+            ]);
+        }
 
         // Cria token para login automático
         $token = $user->createToken('auth-token')->plainTextToken;
@@ -165,7 +246,8 @@ class AuthController extends Controller
                 'perfil' => $user->perfil,
                 'bolsista' => $user->bolsista,
                 'curso' => $user->curso,
-                'turno' => $user->turno,
+                'turno_refeicao' => $user->turno_refeicao,
+                'turno_aula' => $user->turno_aula,
             ],
             'token' => $token,
         ], 'Cadastro realizado com sucesso');

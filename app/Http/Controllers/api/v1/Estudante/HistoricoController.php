@@ -48,8 +48,9 @@ class HistoricoController extends Controller
         $dataInicio = $request->input('data_inicio');
         $dataFim = $request->input('data_fim');
 
+        // Simplificado: carrega apenas refeicao (sem cardapio) para evitar timeout
         $query = $user->presencas()
-            ->with(['refeicao.cardapio'])
+            ->with(['refeicao'])
             ->orderByDesc('registrado_em');
 
         // Aplicar filtro de período
@@ -69,10 +70,11 @@ class HistoricoController extends Controller
         return ApiResponse::standardSuccess(
             data: $presencas->map(fn($p) => [
                 'id' => $p->id,
-                'data' => $p->refeicao?->cardapio?->data_do_cardapio?->format('Y-m-d'),
-                'turno' => $p->refeicao?->turno,
-                'status' => $p->status_da_presenca?->value ?? $p->status_da_presenca,
-                'registrado_em' => $p->registrado_em?->format('Y-m-d H:i:s'),
+                'data' => $p->refeicao?->data_do_cardapio?->format('Y-m-d') ?? null,
+                'turno' => $p->refeicao?->turno?->value ?? $p->refeicao?->turno ?? null,
+                'prato_principal' => 'Refeição RI', // Placeholder - pode ser enriquecido depois
+                'presente' => $p->status_da_presenca?->value === 'presente' || $p->status_da_presenca === 'presente',
+                'confirmado_em' => $p->validado_em?->format('Y-m-d H:i:s'),
             ]),
             meta: [
                 'resumo' => $resumo,
@@ -121,7 +123,17 @@ class HistoricoController extends Controller
 
         $taxaPresenca = $total > 0 ? round(($presentes / $total) * 100, 1) : 0;
 
+        // Estrutura para compatibilidade com frontend
         return [
+            'total_refeicoes' => $presentes,
+            'total_extras' => 0, // Pode ser calculado se houver lógica de extras
+            'mes_atual' => [
+                'total' => $total,
+                'extras' => 0,
+                'refeicoes' => $presentes,
+            ],
+            'ultima_refeicao' => null,
+            // Dados adicionais para backwards compatibility
             'total' => $total,
             'presentes' => $presentes,
             'faltas_justificadas' => $faltasJustificadas,

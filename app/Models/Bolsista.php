@@ -15,7 +15,7 @@ class Bolsista extends Model
         'matricula',
         'nome',
         'curso',
-        'turno',
+        'turno_refeicao',
         'dias_semana',
         'ativo',
         'user_id',
@@ -92,7 +92,7 @@ class Bolsista extends Model
         // Atualizar usuário como bolsista
         $user->update([
             'bolsista' => true,
-            'turno' => $this->turno ?? $user->turno,
+            'turno_refeicao' => $this->turno_refeicao ?? $user->turno_refeicao,
             'curso' => $this->curso ?? $user->curso,
         ]);
 

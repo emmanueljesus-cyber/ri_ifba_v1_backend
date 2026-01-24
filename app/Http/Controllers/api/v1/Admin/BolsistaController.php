@@ -86,6 +86,10 @@ class BolsistaController extends Controller
             $query->where('desligado', !$request->boolean('ativo'));
         }
 
+        if ($request->has('turno')) {
+            $query->where('turno_refeicao', $request->input('turno'));
+        }
+
         $bolsistas = $query->orderBy('nome')->get();
 
         return ApiResponse::standardSuccess(
@@ -123,6 +127,7 @@ class BolsistaController extends Controller
                   ->orWhere('matricula', 'like', "%{$search}%");
             })
             ->whereHas('diasSemana', fn($q) => $q->where('dia_semana', $diaSemana))
+            ->whereHas('aprovado', fn($q) => $q->where('turno_refeicao', $turno))
             ->limit(10)
             ->get();
 
@@ -575,9 +580,16 @@ class BolsistaController extends Controller
     ): array {
         $query = $usarScopeEstudantes ? User::estudantes() : User::where('bolsista', true);
         
-        $query->with('diasSemana')
+        $query->with(['diasSemana', 'aprovado'])
             ->whereHas('diasSemana', fn($q) => $q->where('dia_semana', $diaSemana))
             ->orderBy('nome');
+
+        // Filtrar pelo turno da bolsa se o turno for passado (almoco/jantar)
+        if ($turno) {
+            $query->whereHas('aprovado', function($q) use ($turno) {
+                $q->where('turno_refeicao', $turno);
+            });
+        }
 
         if ($apenasAtivos) {
             $query->where('desligado', false);

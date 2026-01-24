@@ -1,0 +1,161 @@
+{
+  "Button": {
+    "description": "Botão estilizado do PrimeVue com múltiplas variantes",
+    "import": "import Button from 'primevue/button';",
+    "template": "<Button label=\"Clique Aqui\" />",
+    "props": {
+      "label": "string - Texto do botão",
+      "icon": "string - Classe do ícone (ex: pi pi-check)",
+      "severity": "string - primary | secondary | success | info | warning | danger | help",
+      "size": "string - small | large",
+      "outlined": "boolean - Estilo outline",
+      "text": "boolean - Estilo texto",
+      "raised": "boolean - Adiciona sombra",
+      "rounded": "boolean - Bordas arredondadas",
+      "loading": "boolean - Estado de carregamento"
+    },
+    "examples": [
+      "<Button label=\"Primary\" severity=\"primary\" />",
+      "<Button label=\"Success\" severity=\"success\" icon=\"pi pi-check\" />",
+      "<Button label=\"Danger\" severity=\"danger\" outlined />",
+      "<Button icon=\"pi pi-search\" rounded />",
+      "<Button label=\"Loading\" loading />"
+    ]
+  },
+  "DataTable": {
+    "description": "Tabela de dados avançada com paginação, ordenação e filtros",
+    "import": "import DataTable from 'primevue/datatable';\nimport Column from 'primevue/column';",
+    "template": "<DataTable :value=\"products\">\n  <Column field=\"code\" header=\"Code\"></Column>\n  <Column field=\"name\" header=\"Name\"></Column>\n  <Column field=\"price\" header=\"Price\"></Column>\n</DataTable>",
+    "props": {
+      "value": "array - Dados da tabela",
+      "paginator": "boolean - Habilita paginação",
+      "rows": "number - Linhas por página",
+      "sortMode": "string - single | multiple",
+      "filterDisplay": "string - menu | row",
+      "selectionMode": "string - single | multiple",
+      "responsiveLayout": "string - scroll | stack"
+    },
+    "examples": [
+      "<DataTable :value=\"products\" paginator :rows=\"10\">\n  <Column field=\"id\" header=\"ID\" sortable></Column>\n  <Column field=\"name\" header=\"Nome\" sortable></Column>\n</DataTable>",
+      "<DataTable :value=\"users\" selectionMode=\"single\" v-model:selection=\"selectedUser\">\n  <Column field=\"name\" header=\"Nome\"></Column>\n  <Column field=\"email\" header=\"Email\"></Column>\n</DataTable>"
+    ]
+  },
+  "InputText": {
+    "description": "Campo de entrada de texto",
+    "import": "import InputText from 'primevue/inputtext';",
+    "template": "<InputText v-model=\"value\" placeholder=\"Digite aqui\" />",
+    "props": {
+      "modelValue": "any - Valor do input",
+      "placeholder": "string - Texto placeholder",
+      "disabled": "boolean - Desabilita o input",
+      "invalid": "boolean - Estado de erro",
+      "size": "string - small | large"
+    },
+    "examples": [
+      "<InputText v-model=\"name\" placeholder=\"Nome\" />",
+      "<InputText v-model=\"email\" type=\"email\" placeholder=\"Email\" />",
+      "<InputText v-model=\"password\" type=\"password\" toggleMask />"
+    ]
+  },
+  "Dialog": {
+    "description": "Modal/Dialog para exibir conteúdo sobreposto",
+    "import": "import Dialog from 'primevue/dialog';",
+    "template": "<Dialog v-model:visible=\"displayModal\" header=\"Título\" :style=\"{width: '50vw'}\">\n  <p>Conteúdo do dialog</p>\n</Dialog>",
+    "props": {
+      "visible": "boolean - Controla visibilidade",
+      "header": "string - Título do dialog",
+      "modal": "boolean - Se é modal",
+      "closable": "boolean - Mostra botão fechar",
+      "draggable": "boolean - Permite arrastar",
+      "maximizable": "boolean - Permite maximizar"
+    },
+    "examples": [
+      "<Dialog v-model:visible=\"visible\" header=\"Confirmar\" modal>\n  <p>Deseja continuar?</p>\n  <template #footer>\n    <Button label=\"Não\" @click=\"visible = false\" />\n    <Button label=\"Sim\" @click=\"confirm\" />\n  </template>\n</Dialog>"
+    ]
+  },
+  "Dropdown": {
+    "description": "Seletor dropdown com busca e templates",
+    "import": "import Dropdown from 'primevue/dropdown';",
+    "template": "<Dropdown v-model=\"selectedCity\" :options=\"cities\" optionLabel=\"name\" placeholder=\"Selecione\" />",
+    "props": {
+      "modelValue": "any - Valor selecionado",
+      "options": "array - Lista de opções",
+      "optionLabel": "string - Campo para label",
+      "optionValue": "string - Campo para value",
+      "filter": "boolean - Habilita busca",
+      "placeholder": "string - Texto placeholder"
+    },
+    "examples": [
+      "<Dropdown v-model=\"country\" :options=\"countries\" optionLabel=\"name\" filter />",
+      "<Dropdown v-model=\"status\" :options=\"['Ativo', 'Inativo']\" placeholder=\"Status\" />"
+    ]
+  },
+  "Card": {
+    "description": "Container card para organizar conteúdo",
+    "import": "import Card from 'primevue/card';",
+    "template": "<Card>\n  <template #title>Título</template>\n  <template #content>Conteúdo do card</template>\n</Card>",
+    "props": {
+      "header": "string - Cabeçalho",
+      "subheader": "string - Subcabeçalho"
+    },
+    "examples": [
+      "<Card>\n  <template #title>Dashboard</template>\n  <template #subtitle>Estatísticas gerais</template>\n  <template #content>\n    <p>Conteúdo aqui</p>\n  </template>\n  <template #footer>\n    <Button label=\"Ver Mais\" />\n  </template>\n</Card>"
+    ]
+  },
+  "Toast": {
+    "description": "Notificações toast para feedback",
+    "import": "import Toast from 'primevue/toast';\nimport { useToast } from 'primevue/usetoast';",
+    "template": "<Toast />",
+    "usage": "const toast = useToast();\ntoast.add({severity: 'success', summary: 'Sucesso', detail: 'Operação realizada', life: 3000});",
+    "severities": ["success", "info", "warn", "error"],
+    "examples": [
+      "toast.add({severity: 'success', summary: 'Sucesso', detail: 'Registro salvo'});",
+      "toast.add({severity: 'error', summary: 'Erro', detail: 'Falha ao salvar'});",
+      "toast.add({severity: 'info', summary: 'Info', detail: 'Processando...'});"
+    ]
+  },
+  "Calendar": {
+    "description": "Seletor de data e hora",
+    "import": "import Calendar from 'primevue/calendar';",
+    "template": "<Calendar v-model=\"date\" dateFormat=\"dd/mm/yy\" />",
+    "props": {
+      "modelValue": "Date - Data selecionada",
+      "dateFormat": "string - Formato da data",
+      "showTime": "boolean - Mostra seletor de hora",
+      "showButtonBar": "boolean - Mostra botões hoje/limpar",
+      "selectionMode": "string - single | multiple | range"
+    },
+    "examples": [
+      "<Calendar v-model=\"date\" placeholder=\"Selecione uma data\" />",
+      "<Calendar v-model=\"datetime\" showTime hourFormat=\"24\" />",
+      "<Calendar v-model=\"dates\" selectionMode=\"range\" />"
+    ]
+  },
+  "Menu": {
+    "description": "Menu de navegação",
+    "import": "import Menu from 'primevue/menu';",
+    "template": "<Menu :model=\"items\" />",
+    "props": {
+      "model": "array - Items do menu",
+      "popup": "boolean - Exibe como popup"
+    },
+    "examples": [
+      "<Menu :model=\"items\" />\n\n// script\nconst items = [\n  {label: 'Home', icon: 'pi pi-home', to: '/'},\n  {label: 'Users', icon: 'pi pi-users', to: '/users'},\n  {separator: true},\n  {label: 'Sair', icon: 'pi pi-sign-out'}\n];"
+    ]
+  },
+  "Checkbox": {
+    "description": "Caixa de seleção",
+    "import": "import Checkbox from 'primevue/checkbox';",
+    "template": "<Checkbox v-model=\"checked\" binary />",
+    "props": {
+      "modelValue": "any - Valor do checkbox",
+      "binary": "boolean - Retorna true/false",
+      "trueValue": "any - Valor quando marcado",
+      "falseValue": "any - Valor quando desmarcado"
+    },
+    "examples": [
+      "<Checkbox v-model=\"accept\" binary /> Aceito os termos",
+      "<Checkbox v-model=\"categories\" value=\"Tech\" /> Tecnologia"
+    ]
+  }
+}

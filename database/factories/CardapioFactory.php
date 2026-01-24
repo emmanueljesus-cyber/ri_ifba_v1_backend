@@ -20,6 +20,7 @@ class CardapioFactory extends Factory
     {
         return [
             'data_do_cardapio'      => fake()->dateTimeBetween('-1 month', '+1 month'),
+            'turnos'                => ['almoco', 'jantar'],
             'prato_principal_ptn01' => fake()->word(),
             'prato_principal_ptn02' => fake()->word(),
             'guarnicao'             => fake()->word(),

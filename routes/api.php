@@ -46,11 +46,12 @@ Route::prefix('v1')->group(function () {
     });
 
     // =========================================================================
-    // AUTENTICAÇÃO
+    // AUTENTICACAO
     // =========================================================================
     Route::prefix('auth')->group(function () {
         Route::post('login', [AuthController::class, 'login']);
         Route::post('register', [AuthController::class, 'register']);
+        Route::get('verificar-matricula/{matricula}', [AuthController::class, 'verificarMatricula']);
 
         Route::middleware('auth:sanctum')->group(function () {
             Route::post('logout', [AuthController::class, 'logout']);
@@ -102,6 +103,7 @@ Route::prefix('v1')->group(function () {
 
         // RF05 - Preferência alimentar e dias da semana (APENAS BOLSISTA)
         Route::put('perfil/preferencia', [PerfilController::class, 'atualizarPreferencia']);
+        Route::put('perfil/restricoes-alimentares', [PerfilController::class, 'atualizarRestricoesAlimentares']);
         Route::put('perfil/dias-semana', [PerfilController::class, 'atualizarDiasSemana']);
 
         // RF02 - Justificativas do estudante (BOLSISTA)
@@ -141,6 +143,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/', [AdminCardapioController::class, 'index']);
             Route::post('/', [AdminCardapioController::class, 'store']);
             Route::post('/import', [AdminCardapioController::class, 'import']);
+            Route::get('/template', [AdminCardapioController::class, 'exportTemplate']);
             Route::get('/{cardapio}', [AdminCardapioController::class, 'show']);
             Route::put('/{cardapio}', [AdminCardapioController::class, 'update']);
             Route::delete('/{cardapio}', [AdminCardapioController::class, 'destroy']);

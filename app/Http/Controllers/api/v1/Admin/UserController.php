@@ -142,7 +142,7 @@ class UserController extends Controller
      */
     public function listarBolsistas(Request $request): JsonResponse
     {
-        $filtros = $request->only(['turno']);
+        $filtros = $request->only(['turno_refeicao']);
         $perPage = $request->integer('per_page', 15);
         
         $bolsistas = $this->service->listarBolsistas($filtros, $perPage);

@@ -20,7 +20,7 @@ use Carbon\Carbon;
  * 
  * Responsabilidades:
  * - Lista de bolsistas e presenças do dia
- * - Confirmação de presença (individual, lote, QR Code)
+ * - Confirmação de presença
  * - Marcação de faltas e cancelamentos
  */
 class PresencaController extends Controller
@@ -35,9 +35,6 @@ class PresencaController extends Controller
      */
     public function index(Request $request)
     {
-        if (config('app.debug')) {
-            Log::info('=== PRESENCAS INDEX INICIADO ===');
-        }
 
         $data = $request->input('data', now()->format('Y-m-d'));
         $turno = $request->input('turno');
@@ -54,6 +51,9 @@ class PresencaController extends Controller
         // Buscar bolsistas do dia
         $bolsistas = User::where('bolsista', true)
             ->whereHas('diasSemana', fn($q) => $q->where('dia_semana', $diaDaSemana))
+            ->when($turno, function($q) use ($turno) {
+                $q->whereHas('aprovado', fn($aq) => $aq->where('turno_refeicao', $turno));
+            })
             ->orderBy('nome')
             ->get();
 
@@ -79,7 +79,8 @@ class PresencaController extends Controller
                 'matricula' => $bolsista->matricula,
                 'nome' => $bolsista->nome,
                 'curso' => $bolsista->curso,
-                'turno_aluno' => $bolsista->turno,
+                'turno_aula' => $bolsista->turno_aula,
+                'turno_refeicao' => $bolsista->turno_refeicao,
                 'refeicao' => [
                     'turno' => $refeicao->turno->value,
                     'data' => DateHelper::formatarDataBR($refeicao->data_do_cardapio),

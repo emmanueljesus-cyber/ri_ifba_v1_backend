@@ -159,7 +159,7 @@ class BolsistaImportService
             'nome' => $getValue(['nome', 'name', 'aluno', 'estudante', 'nome_completo']),
             'email' => $getValue(['email', 'e_mail', 'correio']),
             'curso' => $getValue(['curso', 'turma', 'classe']),
-            'turno' => $getValue(['turno', 'periodo', 'shift']) ?? $turnoPadrao,
+            'turno_refeicao' => $getValue(['turno', 'periodo', 'shift']) ?? $turnoPadrao,
             'dias_semana' => $diasSemana,
         ];
     }

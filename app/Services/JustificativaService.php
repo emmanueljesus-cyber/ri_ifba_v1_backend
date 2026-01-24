@@ -46,6 +46,11 @@ class JustificativaService
             $query->where('user_id', $filtros['user_id']);
         }
 
+        // Filtro por tipo
+        if (isset($filtros['tipo'])) {
+            $query->where('tipo', $filtros['tipo']);
+        }
+
         // Filtro por período
         if (isset($filtros['data_inicio']) && isset($filtros['data_fim'])) {
             $query->whereBetween('created_at', [

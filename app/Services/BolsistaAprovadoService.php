@@ -29,16 +29,13 @@ class BolsistaAprovadoService
         $query = Bolsista::query();
 
         // Filtro por turno
-        if (isset($filtros['turno'])) {
-            $query->where('turno', $filtros['turno']);
+        if (isset($filtros['turno_refeicao']) && $filtros['turno_refeicao'] !== null) {
+            $query->where('turno_refeicao', $filtros['turno_refeicao']);
         }
 
         // Filtro por status ativo
-        if (isset($filtros['ativo'])) {
-            $query->where('ativo', $filtros['ativo']);
-        } else {
-            // Por padrão, mostrar apenas ativos
-            $query->where('ativo', true);
+        if (isset($filtros['ativo']) && $filtros['ativo'] !== null) {
+            $query->where('ativo', (bool)$filtros['ativo']);
         }
 
         // Busca por matrícula
@@ -103,7 +100,7 @@ class BolsistaAprovadoService
             // Criar novo
             $bolsista = Bolsista::create([
                 'matricula' => $matricula,
-                'turno' => $turno,
+                'turno_refeicao' => $turno,
                 'ativo' => true,
             ]);
 
