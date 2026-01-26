@@ -32,7 +32,11 @@ class UserService
 
         // Filtro por status desligado
         if (isset($filtros['desligado'])) {
-            $query->where('desligado', $filtros['desligado']);
+            // Converter string para boolean se necessário
+            $desligado = filter_var($filtros['desligado'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            if ($desligado !== null) {
+                $query->where('desligado', $desligado);
+            }
         } else {
             // Por padrão, não mostrar desligados
             $query->where('desligado', false);
@@ -40,11 +44,11 @@ class UserService
 
         // Busca por nome, matrícula ou email
         if (isset($filtros['busca'])) {
-            $busca = $filtros['busca'];
+            $busca = strtolower($filtros['busca']);
             $query->where(function ($q) use ($busca) {
-                $q->where('nome', 'ILIKE', "%{$busca}%")
-                  ->orWhere('matricula', 'ILIKE', "%{$busca}%")
-                  ->orWhere('email', 'ILIKE', "%{$busca}%");
+                $q->whereRaw('LOWER(nome) LIKE ?', ["%{$busca}%"])
+                  ->orWhereRaw('LOWER(matricula) LIKE ?', ["%{$busca}%"])
+                  ->orWhereRaw('LOWER(email) LIKE ?', ["%{$busca}%"]);
             });
         }
 
@@ -54,6 +58,18 @@ class UserService
         $query->orderBy($sortBy, $sortOrder);
 
         return $query->paginate($perPage);
+    }
+
+    /**
+     * Busca usuário por ID
+     *
+     * @param int $id
+     * @return User
+     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException
+     */
+    public function buscarUsuario(int $id): User
+    {
+        return User::findOrFail($id);
     }
 
     /**

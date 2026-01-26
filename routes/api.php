@@ -16,6 +16,7 @@ use App\Http\Controllers\api\V1\Admin\DashboardController as AdminDashboardContr
 use App\Http\Controllers\api\V1\Admin\RelatorioController as AdminRelatorioGeralController;
 use App\Http\Controllers\api\v1\Admin\UserController as AdminUserController;
 use App\Http\Controllers\api\v1\Admin\ExtrasController as AdminExtrasController;
+use App\Http\Controllers\api\v1\Admin\SolicitacaoMudancaDiaController as AdminSolicitacaoMudancaDiaController;
 use App\Http\Controllers\api\V1\Estudante\CardapioController as EstudanteCardapioController;
 use App\Http\Controllers\api\V1\Publico\CardapioController as PublicoCardapioController;
 use App\Http\Controllers\api\v1\AuthController;
@@ -262,6 +263,15 @@ Route::prefix('v1')->group(function () {
             Route::post('/{id}/rejeitar', [AdminExtrasController::class, 'rejeitar']);   // Rejeitar inscrição
             Route::post('/{id}/confirmar-presenca', [AdminExtrasController::class, 'confirmarPresenca']); // Confirmar presença
             Route::delete('/{id}', [AdminExtrasController::class, 'destroy']);           // Remover inscrição
+        });
+
+        // -----------------------------------------------------------------
+        // Solicitações de Mudança de Dias
+        // -----------------------------------------------------------------
+        Route::prefix('solicitacoes-mudanca-dias')->group(function () {
+            Route::get('/', [AdminSolicitacaoMudancaDiaController::class, 'index']);
+            Route::patch('/{id}/aprovar', [AdminSolicitacaoMudancaDiaController::class, 'aprovar']);
+            Route::patch('/{id}/rejeitar', [AdminSolicitacaoMudancaDiaController::class, 'rejeitar']);
         });
 
         // -----------------------------------------------------------------

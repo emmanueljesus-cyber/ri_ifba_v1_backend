@@ -15,4 +15,8 @@ enum TipoNotificacao: string
     case FILA_APROVADA = 'fila_aprovada';
     case FILA_REJEITADA = 'fila_rejeitada';
     case GERAL = 'geral';
+    case SUCESSO = 'sucesso';
+    case AVISO = 'aviso';
+    case SOLICITACAO_APROVADA = 'solicitacao_aprovada';
+    case SOLICITACAO_REJEITADA = 'solicitacao_rejeitada';
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\api\v1\Estudante;
 use App\Http\Controllers\Controller;
 use App\Http\Responses\ApiResponse;
 use App\Services\ImagemPerfilService;
+use App\Models\SolicitacaoMudancaDia;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
@@ -223,17 +224,22 @@ class PerfilController extends Controller
     /**
      * Atualiza os dias da semana que o estudante vai usar o refeitório
      * PUT /api/v1/estudante/perfil/dias-semana
+     *
+     * Cria uma solicitação pendente para aprovação do admin
      */
     public function atualizarDiasSemana(Request $request): JsonResponse
     {
         $request->validate([
             'dias' => 'required|array|min:1|max:5',
             'dias.*' => 'integer|between:1,5', // 1=Segunda até 5=Sexta
+            'motivo' => 'required|string|min:5|max:500',
         ], [
             'dias.required' => 'Selecione ao menos um dia da semana.',
             'dias.min' => 'Selecione ao menos um dia da semana.',
             'dias.max' => 'Máximo de 5 dias permitidos.',
             'dias.*.between' => 'Dias devem ser de Segunda (1) a Sexta (5).',
+            'motivo.required' => 'Informe o motivo da solicitação.',
+            'motivo.min' => 'O motivo deve ter pelo menos 5 caracteres.',
         ]);
 
         $user = $this->getUser($request);
@@ -246,15 +252,30 @@ class PerfilController extends Controller
             return ApiResponse::standardError('dias', 'Apenas bolsistas podem selecionar dias de uso.', 403);
         }
 
-        // Remove dias antigos
-        $user->diasSemana()->delete();
+        // Verifica se já tem solicitação pendente
+        $solicitacaoPendente = SolicitacaoMudancaDia::where('user_id', $user->id)
+            ->where('status', 'pendente')
+            ->exists();
 
-        // Insere novos dias
-        $diasParaInserir = collect($request->input('dias'))->unique()->map(function ($dia) use ($user) {
-            return ['user_id' => $user->id, 'dia_semana' => $dia];
-        })->toArray();
+        if ($solicitacaoPendente) {
+            return ApiResponse::standardError(
+                'solicitacao',
+                'Você já possui uma solicitação pendente. Aguarde a avaliação do administrador.',
+                400
+            );
+        }
 
-        $user->diasSemana()->insert($diasParaInserir);
+        // Pegar dias atuais
+        $diasAtuais = $user->diasSemana()->pluck('dia_semana')->toArray();
+
+        // Criar solicitação
+        $solicitacao = SolicitacaoMudancaDia::create([
+            'user_id' => $user->id,
+            'dias_atuais' => $diasAtuais,
+            'dias_solicitados' => collect($request->input('dias'))->unique()->sort()->values()->toArray(),
+            'motivo' => $request->input('motivo'),
+            'status' => 'pendente',
+        ]);
 
         // Nomes dos dias para resposta
         $nomesDias = [
@@ -265,7 +286,7 @@ class PerfilController extends Controller
             5 => 'Sexta-feira',
         ];
 
-        $diasSelecionados = collect($request->input('dias'))
+        $diasSolicitados = collect($request->input('dias'))
             ->unique()
             ->sort()
             ->map(fn($d) => $nomesDias[$d])
@@ -273,10 +294,11 @@ class PerfilController extends Controller
 
         return ApiResponse::standardSuccess(
             data: [
-                'dias_numeros' => $user->getDiasCadastrados(),
-                'dias_nomes' => $diasSelecionados,
+                'solicitacao_id' => $solicitacao->id,
+                'dias_solicitados' => $diasSolicitados,
+                'status' => 'pendente',
             ],
-            meta: ['mensagem' => 'Dias de uso atualizados com sucesso!']
+            meta: ['mensagem' => 'Solicitação enviada com sucesso! Aguarde a aprovação do administrador.']
         );
     }
 

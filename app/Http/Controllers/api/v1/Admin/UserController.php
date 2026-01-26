@@ -33,11 +33,17 @@ class UserController extends Controller
             'perfil', 'bolsista', 'desligado', 'busca', 'sort_by', 'sort_order'
         ]);
         
-        $perPage = $request->integer('per_page', 15);
+        $perPage = $request->integer('per_page', 50);
         $usuarios = $this->service->listarUsuarios($filtros, $perPage);
 
         return ApiResponse::success(
-            data: $usuarios->items(),
+            data: [
+                'items' => $usuarios->items(),
+                'total' => $usuarios->total(),
+                'per_page' => $usuarios->perPage(),
+                'current_page' => $usuarios->currentPage(),
+                'last_page' => $usuarios->lastPage(),
+            ],
             message: 'Usuários recuperados com sucesso'
         );
     }

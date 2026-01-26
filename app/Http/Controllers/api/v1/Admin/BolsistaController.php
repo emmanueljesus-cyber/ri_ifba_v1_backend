@@ -582,6 +582,7 @@ class BolsistaController extends Controller
         
         $query->with(['diasSemana', 'aprovado'])
             ->whereHas('diasSemana', fn($q) => $q->where('dia_semana', $diaSemana))
+            ->where('desligado', false) // Sempre excluir desligados
             ->orderBy('nome');
 
         // Filtrar pelo turno da bolsa se o turno for passado (almoco/jantar)

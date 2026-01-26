@@ -34,8 +34,11 @@ class BolsistaAprovadoService
         }
 
         // Filtro por status ativo
-        if (isset($filtros['ativo']) && $filtros['ativo'] !== null) {
-            $query->where('ativo', (bool)$filtros['ativo']);
+        if (isset($filtros['ativo']) && $filtros['ativo'] !== null && $filtros['ativo'] !== '') {
+            $ativo = filter_var($filtros['ativo'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            if ($ativo !== null) {
+                $query->where('ativo', $ativo);
+            }
         }
 
         // Busca por matrícula
@@ -256,8 +259,8 @@ class BolsistaAprovadoService
     public function estatisticas(): array
     {
         $total = Bolsista::where('ativo', true)->count();
-        $almoco = Bolsista::where('ativo', true)->where('turno', 'almoco')->count();
-        $jantar = Bolsista::where('ativo', true)->where('turno', 'jantar')->count();
+        $almoco = Bolsista::where('ativo', true)->where('turno_refeicao', 'almoco')->count();
+        $jantar = Bolsista::where('ativo', true)->where('turno_refeicao', 'jantar')->count();
         $inativos = Bolsista::where('ativo', false)->count();
 
         return [
