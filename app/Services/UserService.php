@@ -3,9 +3,13 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Enums\PerfilUsuario;
+use App\Mail\NovoAdminCriadoMail;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 /**
  * Service para gerenciamento de usuários
@@ -57,6 +61,33 @@ class UserService
     }
 
     /**
+     * Verifica se matrícula ou email já estão em uso
+     */
+    public function verificarDisponibilidade(?string $matricula = null, ?string $email = null, ?int $idIgnorar = null): array
+    {
+        $matriculaEmUso = false;
+        $emailEmUso = false;
+
+        if ($matricula) {
+            $query = User::where('matricula', $matricula);
+            if ($idIgnorar) $query->where('id', '!=', $idIgnorar);
+            $matriculaEmUso = $query->exists();
+        }
+
+        if ($email) {
+            $query = User::where('email', $email);
+            if ($idIgnorar) $query->where('id', '!=', $idIgnorar);
+            $emailEmUso = $query->exists();
+        }
+
+        return [
+            'matricula_em_uso' => $matriculaEmUso,
+            'email_em_uso' => $emailEmUso,
+            'disponivel' => !$matriculaEmUso && !$emailEmUso
+        ];
+    }
+
+    /**
      * Busca usuário por matrícula
      * 
      * @param string $matricula
@@ -93,8 +124,17 @@ class UserService
                 }
             }
 
-            // Hash da senha
-            if (isset($data['password'])) {
+            // Hash da senha ou gerar temporária para admins
+            $senhaTemporaria = null;
+            if ($data['perfil'] === PerfilUsuario::ADMIN->value) {
+                if (empty($data['password'])) {
+                    $senhaTemporaria = Str::random(8);
+                    $data['password'] = Hash::make($senhaTemporaria);
+                } else {
+                    $senhaTemporaria = $data['password'];
+                    $data['password'] = Hash::make($data['password']);
+                }
+            } elseif (isset($data['password'])) {
                 $data['password'] = Hash::make($data['password']);
             }
 
@@ -104,6 +144,11 @@ class UserService
 
             // Criar usuário
             $user = User::create($data);
+
+            // Se for admin, envia e-mail com as credenciais
+            if ($user->perfil === PerfilUsuario::ADMIN && $senhaTemporaria) {
+                Mail::to($user->email)->send(new NovoAdminCriadoMail($user, $senhaTemporaria));
+            }
 
             return $user;
         });

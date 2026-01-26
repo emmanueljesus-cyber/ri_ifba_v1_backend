@@ -31,12 +31,18 @@ class User extends Authenticatable
         'turno_aula',
         'preferencia_alimentar',
         'restricoes_alimentares',
+        'alergias',
+        'is_ovolactovegetariano',
         'foto_perfil',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
+    ];
+
+    protected $appends = [
+        'foto_url',
     ];
 
     protected $casts = [
@@ -48,6 +54,7 @@ class User extends Authenticatable
         'limite_faltas_mes' => 'integer',
         'perfil'            => PerfilUsuario::class,
         'restricoes_alimentares' => 'array',
+        'is_ovolactovegetariano' => 'boolean',
     ];
 
     /**
@@ -73,6 +80,11 @@ class User extends Authenticatable
     public function justificativas()
     {
         return $this->hasMany(Justificativa::class);
+    }
+
+    public function solicitacoesMudancaDias()
+    {
+        return $this->hasMany(SolicitacaoMudancaDias::class);
     }
 
     public function aprovado()

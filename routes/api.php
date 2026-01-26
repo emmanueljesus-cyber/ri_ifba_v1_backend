@@ -6,6 +6,7 @@ use App\Http\Controllers\api\v1\Estudante\NotificacaoController;
 use App\Http\Controllers\api\v1\Estudante\PerfilController;
 use App\Http\Controllers\api\v1\Estudante\HistoricoController;
 use App\Http\Controllers\api\v1\Estudante\FilaExtraController;
+use App\Http\Controllers\api\v1\Admin\SolicitacaoMudancaDiasController as AdminSolicitacaoMudancaDiasController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\api\V1\Admin\CardapioController as AdminCardapioController;
 use App\Http\Controllers\api\V1\Admin\PresencaController as AdminPresencaController;
@@ -195,6 +196,15 @@ Route::prefix('v1')->group(function () {
             Route::put('/{id}', [BolsistaAprovadoController::class, 'update']);
             Route::delete('/{id}', [BolsistaAprovadoController::class, 'destroy']);
             Route::post('/{id}/reativar', [BolsistaAprovadoController::class, 'reativar']);
+        });
+
+        // -----------------------------------------------------------------
+        // Solicitações de Mudança de Dias (Bolsistas)
+        // -----------------------------------------------------------------
+        Route::prefix('solicitacoes-mudanca-dias')->group(function () {
+            Route::get('/', [AdminSolicitacaoMudancaDiasController::class, 'index']);
+            Route::patch('/{id}/aprovar', [AdminSolicitacaoMudancaDiasController::class, 'aprovar']);
+            Route::patch('/{id}/rejeitar', [AdminSolicitacaoMudancaDiasController::class, 'rejeitar']);
         });
 
         // -----------------------------------------------------------------

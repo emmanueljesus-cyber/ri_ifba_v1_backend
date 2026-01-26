@@ -9,6 +9,7 @@ use App\Models\Refeicao;
 use App\Enums\TipoJustificativa;
 use App\Enums\StatusJustificativa;
 use App\Enums\StatusPresenca;
+use App\Services\NotificacaoService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
@@ -16,6 +17,10 @@ use Carbon\Carbon;
 
 class JustificativaController extends Controller
 {
+    public function __construct(
+        private NotificacaoService $notificacaoService
+    ) {}
+
     /**
      * Listar justificativas do estudante logado
      * GET /api/v1/estudante/justificativas
@@ -166,6 +171,13 @@ class JustificativaController extends Controller
                     'validado_em' => now(),
                 ]);
             }
+        } else {
+            // Se for posterior, notificar administradores sobre a nova pendência
+            $nomeEstudante = $request->user()?->nome ?? 'Estudante';
+            $this->notificacaoService->notificarNovaJustificativaPendente(
+                $justificativa->id,
+                $nomeEstudante
+            );
         }
 
         $statusTexto = $tipo === 'antecipada' 

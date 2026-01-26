@@ -86,7 +86,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🍽️ Restaurante Institucional</h1>
+            <h1>Restaurante Institucional</h1>
             <p>IFBA - Instituto Federal da Bahia</p>
         </div>
 
@@ -96,30 +96,30 @@
 
         <div style="text-align: center;">
             @if($decisao === 'aprovada')
-                <span class="status-badge status-aprovada">✅ APROVADA</span>
+                <span class="status-badge status-aprovada">APROVADA</span>
             @else
-                <span class="status-badge status-rejeitada">❌ REJEITADA</span>
+                <span class="status-badge status-rejeitada">REJEITADA</span>
             @endif
         </div>
 
         <div class="details">
-            <p><strong>📅 Data da refeição:</strong> 
+            <p><strong>Data da refeição:</strong> 
                 {{ $justificativa->presenca?->refeicao?->cardapio?->data_do_cardapio?->format('d/m/Y') ?? 'N/A' }}
             </p>
-            <p><strong>🍴 Turno:</strong> 
+            <p><strong>Turno:</strong> 
                 {{ ucfirst($justificativa->presenca?->refeicao?->turno ?? 'N/A') }}
             </p>
-            <p><strong>📝 Seu motivo:</strong> 
+            <p><strong>Seu motivo:</strong> 
                 {{ $justificativa->motivo }}
             </p>
-            <p><strong>📆 Data da análise:</strong> 
+            <p><strong>Data da análise:</strong> 
                 {{ $justificativa->aprovado_em?->format('d/m/Y H:i') ?? now()->format('d/m/Y H:i') }}
             </p>
         </div>
 
         @if($observacaoAdmin)
         <div class="observacao">
-            <h3>💬 Observação do Administrador:</h3>
+            <h3>Observação do Administrador:</h3>
             <p>{{ $observacaoAdmin }}</p>
         </div>
         @endif

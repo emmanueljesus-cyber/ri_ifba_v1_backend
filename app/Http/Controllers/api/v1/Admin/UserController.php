@@ -58,6 +58,21 @@ class UserController extends Controller
     }
 
     /**
+     * Verificar disponibilidade de matrícula ou email
+     * GET /api/v1/admin/usuarios/verificar-disponibilidade
+     */
+    public function verificarDisponibilidade(Request $request): JsonResponse
+    {
+        $res = $this->service->verificarDisponibilidade(
+            $request->query('matricula'),
+            $request->query('email'),
+            $request->query('id') ? (int) $request->query('id') : null
+        );
+
+        return ApiResponse::success($res);
+    }
+
+    /**
      * RF14 - Buscar usuário por ID
      * GET /api/v1/admin/usuarios/{id}
      */

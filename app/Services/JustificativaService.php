@@ -326,12 +326,12 @@ class JustificativaService
             ]);
         }
 
-        // 2. Enviar e-mail (se não for driver 'log')
+        // 2. Enviar e-mail
         try {
-            if (config('mail.default') !== 'log' && $usuario->email) {
+            if ($usuario->email) {
                 Mail::to($usuario->email)->queue(new JustificativaDecisaoMail($justificativa));
 
-                Log::info('RF10: E-mail enviado', [
+                Log::info('RF10: E-mail enfileirado', [
                     'justificativa_id' => $justificativa->id,
                     'estudante' => $usuario->email,
                 ]);

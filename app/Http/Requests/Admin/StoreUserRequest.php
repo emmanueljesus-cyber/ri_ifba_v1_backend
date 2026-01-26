@@ -24,7 +24,7 @@ class StoreUserRequest extends FormRequest
             'nome' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'matricula' => ['required', 'string', 'max:20', 'unique:users,matricula'],
-            'password' => ['required', 'string', 'min:6'],
+            'password' => ['nullable', 'string', 'min:6'],
             'perfil' => ['required', Rule::in(['admin', 'estudante'])],
             'bolsista' => ['boolean'],
             'limite_faltas_mes' => ['integer', 'min:0', 'max:10'],

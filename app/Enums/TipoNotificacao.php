@@ -7,6 +7,7 @@ namespace App\Enums;
  */
 enum TipoNotificacao: string
 {
+    case JUSTIFICATIVA_PENDENTE = 'justificativa_pendente';
     case JUSTIFICATIVA_APROVADA = 'justificativa_aprovada';
     case JUSTIFICATIVA_REJEITADA = 'justificativa_rejeitada';
     case CADASTRO_CONFIRMADO = 'cadastro_confirmado';
@@ -14,5 +15,6 @@ enum TipoNotificacao: string
     case FILA_POSICAO_ALTERADA = 'fila_posicao_alterada';
     case FILA_APROVADA = 'fila_aprovada';
     case FILA_REJEITADA = 'fila_rejeitada';
+    case MUDANCA_DIAS_PENDENTE = 'mudanca_dias_pendente';
     case GERAL = 'geral';
 }

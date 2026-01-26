@@ -168,7 +168,8 @@ else
   log_success "Migrations concluídas"
 
   log_info "Executando seed..."
-  docker compose run --rm app sh -lc "php artisan db:seed --force"
+  docker compose run --rm app sh -lc "php artisan db:seed --force" || log_warning "Seed falhou (provável duplicidade). Rode: ./setup.sh --fresh"
+
   log_success "Seed concluído"
 fi
 

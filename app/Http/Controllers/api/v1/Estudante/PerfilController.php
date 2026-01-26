@@ -5,6 +5,7 @@ namespace App\Http\Controllers\api\v1\Estudante;
 use App\Http\Controllers\Controller;
 use App\Http\Responses\ApiResponse;
 use App\Services\ImagemPerfilService;
+use App\Services\NotificacaoService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
@@ -16,7 +17,8 @@ use Illuminate\Validation\Rules\Password;
 class PerfilController extends Controller
 {
     public function __construct(
-        private ImagemPerfilService $imagemService
+        private ImagemPerfilService $imagemService,
+        private NotificacaoService $notificacaoService
     ) {}
 
     /**
@@ -26,6 +28,31 @@ class PerfilController extends Controller
     {
         // Sempre retorna o usuário autenticado via Sanctum
         return $request->user();
+    }
+
+    /**
+     * Helper: Formata a resposta do perfil do usuário
+     */
+    private function formatUserResponse($user)
+    {
+        return [
+            'id' => $user->id,
+            'matricula' => $user->matricula,
+            'nome' => $user->nome,
+            'email' => $user->email,
+            'curso' => $user->curso,
+            'turno_refeicao' => $user->turno_refeicao,
+            'turno_aula' => $user->turno_aula,
+            'bolsista' => $user->bolsista,
+            'preferencia_alimentar' => $user->preferencia_alimentar ?? 'comum',
+            'restricoes_alimentares' => $user->restricoes_alimentares ?? [],
+            'alergias' => $user->alergias,
+            'is_ovolactovegetariano' => (bool) $user->is_ovolactovegetariano,
+            'foto_url' => $user->foto_url,
+            'foto' => $user->foto_url,
+            'perfil' => $user->perfil,
+            'dias_cadastrados' => $user->getDiasCadastrados(),
+        ];
     }
 
     /**
@@ -45,20 +72,7 @@ class PerfilController extends Controller
             );
         }
 
-        return ApiResponse::standardSuccess([
-            'id' => $user->id,
-            'matricula' => $user->matricula,
-            'nome' => $user->nome,
-            'email' => $user->email,
-            'curso' => $user->curso,
-            'turno_refeicao' => $user->turno_refeicao,
-            'turno_aula' => $user->turno_aula,
-            'bolsista' => $user->bolsista,
-            'preferencia_alimentar' => $user->preferencia_alimentar ?? 'comum',
-            'foto_url' => $user->foto_url,
-            'perfil' => $user->perfil,
-            'dias_cadastrados' => $user->getDiasCadastrados(),
-        ]);
+        return ApiResponse::standardSuccess($this->formatUserResponse($user));
     }
 
     /**
@@ -81,7 +95,7 @@ class PerfilController extends Controller
         ]);
 
         return ApiResponse::standardSuccess(
-            data: ['preferencia_alimentar' => $user->preferencia_alimentar],
+            data: $this->formatUserResponse($user),
             meta: ['mensagem' => 'Preferência atualizada. Entra em vigor no próximo dia útil.']
         );
     }
@@ -125,10 +139,7 @@ class PerfilController extends Controller
         $user->update($updatedData);
 
         return ApiResponse::standardSuccess(
-            data: [
-                'preferencia_alimentar' => $user->preferencia_alimentar,
-                'restricoes_alimentares' => $user->restricoes_alimentares ?? [],
-            ],
+            data: $this->formatUserResponse($user),
             meta: ['mensagem' => 'Preferências alimentares atualizadas com sucesso!']
         );
     }
@@ -141,6 +152,8 @@ class PerfilController extends Controller
     {
         $request->validate([
             'email' => 'sometimes|email',
+            'alergias' => 'nullable|string',
+            'is_ovolactovegetariano' => 'nullable|boolean',
         ]);
 
         $user = $this->getUser($request);
@@ -148,10 +161,10 @@ class PerfilController extends Controller
             return ApiResponse::error('Não autenticado', 401);
         }
 
-        $user->update($request->only(['email']));
+        $user->update($request->only(['email', 'alergias', 'is_ovolactovegetariano']));
 
         return ApiResponse::standardSuccess(
-            data: $user->only(['id', 'matricula', 'nome', 'email']),
+            data: $this->formatUserResponse($user),
             meta: ['atualizado' => true]
         );
     }
@@ -165,7 +178,7 @@ class PerfilController extends Controller
     public function atualizarFoto(Request $request): JsonResponse
     {
         $request->validate([
-            'foto' => 'required|image|mimes:jpeg,png,jpg|max:2048',
+            'foto' => 'required|image|mimes:jpeg,png,jpg|max:5120',
             'consentimento' => 'required|accepted', // LGPD: checkbox de consentimento
         ], [
             'consentimento.required' => 'Você deve aceitar os termos de uso da foto.',
@@ -186,7 +199,7 @@ class PerfilController extends Controller
         $user->update(['foto_perfil' => $path]);
 
         return ApiResponse::standardSuccess(
-            data: ['foto_url' => $user->foto_url],
+            data: $this->formatUserResponse($user),
             meta: [
                 'mensagem' => 'Foto atualizada com sucesso!',
                 'lgpd' => 'Sua foto será usada exclusivamente para identificação no Refeitório Institucional.',
@@ -215,7 +228,7 @@ class PerfilController extends Controller
         $user->update(['foto_perfil' => null]);
 
         return ApiResponse::standardSuccess(
-            data: ['foto_url' => null],
+            data: $this->formatUserResponse($user),
             meta: ['mensagem' => 'Foto removida com sucesso!']
         );
     }
@@ -246,37 +259,19 @@ class PerfilController extends Controller
             return ApiResponse::standardError('dias', 'Apenas bolsistas podem selecionar dias de uso.', 403);
         }
 
-        // Remove dias antigos
-        $user->diasSemana()->delete();
+        // Se for bolsista, cria uma solicitação em vez de atualizar direto
+        $solicitacao = \App\Models\SolicitacaoMudancaDias::create([
+            'user_id' => $user->id,
+            'dias_semana' => $request->input('dias'),
+            'status' => 'pendente'
+        ]);
 
-        // Insere novos dias
-        $diasParaInserir = collect($request->input('dias'))->unique()->map(function ($dia) use ($user) {
-            return ['user_id' => $user->id, 'dia_semana' => $dia];
-        })->toArray();
-
-        $user->diasSemana()->insert($diasParaInserir);
-
-        // Nomes dos dias para resposta
-        $nomesDias = [
-            1 => 'Segunda-feira',
-            2 => 'Terça-feira',
-            3 => 'Quarta-feira',
-            4 => 'Quinta-feira',
-            5 => 'Sexta-feira',
-        ];
-
-        $diasSelecionados = collect($request->input('dias'))
-            ->unique()
-            ->sort()
-            ->map(fn($d) => $nomesDias[$d])
-            ->values();
+        // Notifica administradores
+        $this->notificacaoService->notificarNovaSolicitacaoMudancaDias($solicitacao->id, $user->nome);
 
         return ApiResponse::standardSuccess(
-            data: [
-                'dias_numeros' => $user->getDiasCadastrados(),
-                'dias_nomes' => $diasSelecionados,
-            ],
-            meta: ['mensagem' => 'Dias de uso atualizados com sucesso!']
+            data: [],
+            meta: ['mensagem' => 'Sua solicitação de mudança de dias foi enviada para análise do administrador.']
         );
     }
 

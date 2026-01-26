@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\Notificacao;
+use App\Models\User;
 use App\Enums\TipoNotificacao;
+use App\Enums\PerfilUsuario;
 use Illuminate\Support\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 
@@ -89,6 +91,24 @@ class NotificacaoService
     // ===========================================
     // MÉTODOS DE CONVENIÊNCIA PARA NOTIFICAÇÕES
     // ===========================================
+
+    /**
+     * Notifica administradores sobre uma nova justificativa pendente
+     */
+    public function notificarNovaJustificativaPendente(int $justificativaId, string $nomeEstudante): void
+    {
+        $admins = User::where('perfil', PerfilUsuario::ADMIN)->where('desligado', false)->get();
+
+        foreach ($admins as $admin) {
+            $this->criar(
+                userId: $admin->id,
+                tipo: TipoNotificacao::JUSTIFICATIVA_PENDENTE,
+                titulo: 'Nova Justificativa Pendente',
+                mensagem: "O estudante {$nomeEstudante} enviou uma nova justificativa para análise.",
+                dados: ['justificativa_id' => $justificativaId]
+            );
+        }
+    }
 
     /**
      * Notifica sobre aprovação de justificativa
@@ -184,5 +204,25 @@ class NotificacaoService
                 'turno' => $turno,
             ]
         );
+    }
+
+    /**
+     * Notifica sobre nova solicitação de mudança de dias
+     */
+    public function notificarNovaSolicitacaoMudancaDias(int $solicitacaoId, string $nomeEstudante): void
+    {
+        $admins = User::where('perfil', PerfilUsuario::ADMIN)->get();
+        foreach ($admins as $admin) {
+            $this->criar(
+                userId: $admin->id,
+                tipo: TipoNotificacao::MUDANCA_DIAS_PENDENTE,
+                titulo: 'Solicitação de Mudança de Dias',
+                mensagem: "O estudante {$nomeEstudante} solicitou a alteração dos seus dias de frequência.",
+                dados: [
+                    'solicitacao_id' => $solicitacaoId,
+                    'tipo' => 'mudanca_dias'
+                ]
+            );
+        }
     }
 }

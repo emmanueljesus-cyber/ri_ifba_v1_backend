@@ -44,11 +44,11 @@ class DatabaseSeeder extends Seeder
         $this->command->info('');
         $this->command->info('🔐 CREDENCIAIS DE ACESSO (senha: password):');
         $this->command->info('   Admin:         10000000001');
-        $this->command->info('   Bolsistas:     20232360001 até 20232360020');
-        $this->command->info('   Não-bolsistas: 20242460001 até 20242460005');
+        $this->command->info('   Bolsistas:     20231160001 até 20231160020');
+        $this->command->info('   Não-bolsistas: 20232160001 até 20232160005');
         $this->command->info('');
         $this->command->info('📌 PARA TESTAR REGISTRO DE NOVO BOLSISTA:');
-        $this->command->info('   Use matrículas 20231160021 até 20231160025 (pendentes na lista)');
+        $this->command->info('   Use matrículas 20232360021 até 20232360025 (pendentes na lista)');
         $this->command->info('');
     }
 }
