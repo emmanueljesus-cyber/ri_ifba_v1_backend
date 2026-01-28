@@ -145,13 +145,14 @@ class User extends Authenticatable
     }
 
     /**
-     * Retorna a URL completa da foto de perfil
+     * Retorna a URL da foto de perfil
+     * Usa caminho relativo para funcionar com proxy do frontend
      */
     public function getFotoUrlAttribute(): ?string
     {
         if ($this->foto_perfil) {
-             // Retorna URL completa do backend
-            return url('storage/' . $this->foto_perfil);
+            // Retorna caminho relativo - o frontend faz proxy para /storage
+            return '/storage/' . $this->foto_perfil;
         }
         return null;
     }
