@@ -138,4 +138,70 @@ class Refeicao extends Model
         $vagas = $this->getVagasDisponiveis();
         return $vagas === null || $vagas > 0;
     }
+
+    /**
+     * Conta quantos bolsistas são esperados para esta refeição
+     * Baseado em: bolsistas ativos + cadastrados para este dia da semana + turno
+     */
+    public function getBolsistasEsperados(): int
+    {
+        $data = $this->cardapio?->data_do_cardapio ?? $this->data_do_cardapio;
+        if (!$data) return 0;
+
+        $diaSemana = \Carbon\Carbon::parse($data)->dayOfWeek;
+        $turno = $this->turno instanceof \BackedEnum ? $this->turno->value : $this->turno;
+
+        return \App\Models\User::where('bolsista', true)
+            ->where('desligado', false)
+            ->whereHas('diasSemana', fn($q) => $q->where('dia_semana', $diaSemana))
+            ->whereHas('aprovado', fn($q) => $q->where('turno_refeicao', $turno))
+            ->count();
+    }
+
+    /**
+     * Calcula vagas extras disponíveis considerando:
+     * - Vagas extras fixas do config
+     * - Bolsistas esperados que NÃO tiveram presença confirmada (status = presente)
+     *
+     * @return int Número de vagas extras disponíveis
+     */
+    public function getVagasExtrasDisponiveis(): int
+    {
+        $turno = $this->turno instanceof \BackedEnum ? $this->turno->value : $this->turno;
+
+        // Vagas extras fixas do config
+        $vagasExtrasFixas = $turno === 'almoco'
+            ? config('restaurante.fila_extras.vagas_almoco', 20)
+            : config('restaurante.fila_extras.vagas_jantar', 15);
+
+        // Bolsistas esperados
+        $bolsistasEsperados = $this->getBolsistasEsperados();
+
+        // Bolsistas com presença confirmada (status = presente)
+        $bolsistasPresentes = $this->getPresentes();
+
+        // Bolsistas que faltaram = esperados - presentes
+        $bolsistasFaltantes = max(0, $bolsistasEsperados - $bolsistasPresentes);
+
+        // Vagas extras disponíveis = vagas fixas + bolsistas faltantes
+        return $vagasExtrasFixas + $bolsistasFaltantes;
+    }
+
+    /**
+     * Conta quantos extras já estão inscritos/aprovados
+     */
+    public function getExtrasInscritos(): int
+    {
+        return \App\Models\FilaExtra::where('refeicao_id', $this->id)
+            ->whereIn('status_fila_extras', ['inscrito', 'aprovado'])
+            ->count();
+    }
+
+    /**
+     * Verifica se ainda há vagas extras disponíveis
+     */
+    public function temVagasExtras(): bool
+    {
+        return $this->getExtrasInscritos() < $this->getVagasExtrasDisponiveis();
+    }
 }

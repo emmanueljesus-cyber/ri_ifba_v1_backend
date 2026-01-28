@@ -43,13 +43,25 @@ class ExtrasController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = FilaExtra::with(['user:id,nome,matricula,email', 'refeicao.cardapio'])
+        $query = FilaExtra::with(['user:id,nome,matricula,email,foto_perfil', 'refeicao.cardapio'])
             ->orderBy('inscrito_em', 'asc');
 
         // Filtro por data
         if ($request->has('data')) {
             $query->whereHas('refeicao.cardapio', function ($q) use ($request) {
                 $q->whereDate('data_do_cardapio', $request->input('data'));
+            });
+        }
+
+        // Filtro por data_inicio e data_fim
+        if ($request->has('data_inicio')) {
+            $query->whereHas('refeicao.cardapio', function ($q) use ($request) {
+                $q->whereDate('data_do_cardapio', '>=', $request->input('data_inicio'));
+            });
+        }
+        if ($request->has('data_fim')) {
+            $query->whereHas('refeicao.cardapio', function ($q) use ($request) {
+                $q->whereDate('data_do_cardapio', '<=', $request->input('data_fim'));
             });
         }
 
@@ -65,7 +77,7 @@ class ExtrasController extends Controller
             $query->where('status_fila_extras', $request->input('status'));
         }
 
-        $perPage = $request->integer('per_page', 20);
+        $perPage = $request->integer('per_page', 50);
         $inscricoes = $query->paginate($perPage);
 
         // Formatar dados
@@ -77,6 +89,7 @@ class ExtrasController extends Controller
                     'nome' => $inscricao->user->nome,
                     'matricula' => $inscricao->user->matricula,
                     'email' => $inscricao->user->email,
+                    'foto' => $inscricao->user->foto_url,
                 ],
                 'refeicao' => [
                     'id' => $inscricao->refeicao->id,
@@ -109,7 +122,7 @@ class ExtrasController extends Controller
         $turno = $request->input('turno');
         $hoje = now()->toDateString();
 
-        $query = FilaExtra::with(['user:id,nome,matricula,email', 'refeicao.cardapio'])
+        $query = FilaExtra::with(['user:id,nome,matricula,email,foto_perfil', 'refeicao.cardapio'])
             ->whereHas('refeicao.cardapio', function ($q) use ($hoje) {
                 $q->whereDate('data_do_cardapio', $hoje);
             })
@@ -152,10 +165,11 @@ class ExtrasController extends Controller
                     'id' => $inscricao->user->id,
                     'nome' => $inscricao->user->nome,
                     'matricula' => $inscricao->user->matricula,
+                    'foto' => $inscricao->user->foto_url,
                 ],
                 'turno' => $inscricao->refeicao->turno->value ?? $inscricao->refeicao->turno,
                 'status' => $status?->value ?? $inscricao->status_fila_extras,
-                'inscrito_em' => $inscricao->inscrito_em?->format('H:i:s'),
+                'inscrito_em' => $inscricao->inscrito_em?->format('Y-m-d H:i:s'),
                 'posicao' => $posicao,
             ];
         });
@@ -165,8 +179,37 @@ class ExtrasController extends Controller
             meta: [
                 'data' => $hoje,
                 'estatisticas' => $estatisticas,
+                'vagas' => $this->calcularVagasExtras($hoje, $turno),
             ]
         );
+    }
+
+    /**
+     * Calcula informações de vagas extras para uma data/turno
+     */
+    private function calcularVagasExtras(string $data, ?string $turno = null): array
+    {
+        $turnos = $turno ? [$turno] : ['almoco', 'jantar'];
+        $resultado = [];
+
+        foreach ($turnos as $t) {
+            $refeicao = Refeicao::with('cardapio')
+                ->whereHas('cardapio', fn($q) => $q->whereDate('data_do_cardapio', $data))
+                ->where('turno', $t)
+                ->first();
+
+            if ($refeicao) {
+                $resultado[$t] = [
+                    'bolsistas_esperados' => $refeicao->getBolsistasEsperados(),
+                    'bolsistas_presentes' => $refeicao->getPresentes(),
+                    'vagas_extras_total' => $refeicao->getVagasExtrasDisponiveis(),
+                    'extras_inscritos' => $refeicao->getExtrasInscritos(),
+                    'vagas_restantes' => max(0, $refeicao->getVagasExtrasDisponiveis() - $refeicao->getExtrasInscritos()),
+                ];
+            }
+        }
+
+        return $resultado;
     }
 
     /**

@@ -187,7 +187,7 @@ class FilaExtraController extends Controller
 
         // Calcular posição e vagas
         $posicao = $inscricao->getPosicaoFila();
-        $totalVagas = config('ri.vagas_extras', 10); // Configurável
+        $totalVagas = $refeicao->getVagasExtrasDisponiveis();
         $totalInscritos = FilaExtra::where('refeicao_id', $refeicao->id)
             ->where('status_fila_extras', StatusFila::INSCRITO)
             ->count();
@@ -201,6 +201,8 @@ class FilaExtraController extends Controller
             'dentro_das_vagas' => $posicao <= $totalVagas,
             'status' => $inscricao->status_fila_extras->value,
             'turno' => $turno,
+            'bolsistas_esperados' => $refeicao->getBolsistasEsperados(),
+            'bolsistas_presentes' => $refeicao->getPresentes(),
         ]);
     }
 
@@ -266,33 +268,21 @@ class FilaExtraController extends Controller
             $turno = $refeicao->turno->value;
 
             // Obter horários da configuração
-            $horarios = config('refeicoes.horarios');
+            $horariosConfig = config('restaurante.refeicoes');
+            $horarioFimStr = $horariosConfig[$turno]['fim'] ?? ($turno === 'almoco' ? '13:30' : '19:00');
+            $horarioInicioStr = $horariosConfig[$turno]['inicio'] ?? ($turno === 'almoco' ? '11:00' : '17:30');
 
-            $horarioInicio = Carbon::parse($refeicao->data_do_cardapio->toDateString() . ' ' . $horarios[$turno]['inicio']);
-            $horarioFim = Carbon::parse($refeicao->data_do_cardapio->toDateString() . ' ' . $horarios[$turno]['fim']);
+            $horarioFim = Carbon::parse($hoje . ' ' . $horarioFimStr);
 
             // Verificar se está no horário de exibição (até o fim do turno)
             $estaNoHorario = $horaAtual->lessThanOrEqualTo($horarioFim);
 
-            // Calcular vagas disponíveis
-            $capacidadeTotal = $refeicao->capacidade ?? 100;
-            $totalBolsistas = \App\Models\User::where('bolsista', true)
-                ->where('desligado', false)
-                ->count();
-
-            // Contar presenças confirmadas + justificativas antecipadas
-            $presencasConfirmadas = $refeicao->presencas()
-                ->where('status_da_presenca', 'presente')
-                ->count();
-
-            $justificativasAntecipadas = \App\Models\Justificativa::where('refeicao_id', $refeicao->id)
-                ->whereIn('status', ['aprovada', 'pendente'])
-                ->count();
-
-            // Vagas = capacidade - (bolsistas que vão comer)
-            // Bolsistas que vão comer = total de bolsistas - justificativas
-            $bolsistasQueVaoComer = $totalBolsistas - $justificativasAntecipadas;
-            $vagasDisponiveis = max(0, $capacidadeTotal - $bolsistasQueVaoComer);
+            // Usar os novos métodos do modelo Refeicao
+            $bolsistasEsperados = $refeicao->getBolsistasEsperados();
+            $bolsistasPresentes = $refeicao->getPresentes();
+            $vagasExtrasDisponiveis = $refeicao->getVagasExtrasDisponiveis();
+            $extrasInscritos = $refeicao->getExtrasInscritos();
+            $vagasRestantes = max(0, $vagasExtrasDisponiveis - $extrasInscritos);
 
             // Verificar se o usuário já está inscrito
             $minhaInscricao = FilaExtra::where('user_id', $user->id)
@@ -303,17 +293,20 @@ class FilaExtraController extends Controller
                 'refeicao_id' => $refeicao->id,
                 'turno' => $turno,
                 'turno_label' => $turno === 'almoco' ? 'Almoço' : 'Jantar',
-                'horario_inicio' => $horarios[$turno]['inicio'],
-                'horario_fim' => $horarios[$turno]['fim'],
+                'horario_inicio' => $horarioInicioStr,
+                'horario_fim' => $horarioFimStr,
                 'esta_no_horario' => $estaNoHorario,
                 'pode_inscrever' => $estaNoHorario && !$minhaInscricao,
-                'vagas_disponiveis' => $vagasDisponiveis,
-                'capacidade_total' => $capacidadeTotal,
-                'presencas_confirmadas' => $presencasConfirmadas,
+                'vagas_disponiveis' => $vagasRestantes,
+                'vagas_extras_total' => $vagasExtrasDisponiveis,
+                'extras_inscritos' => $extrasInscritos,
+                'bolsistas_esperados' => $bolsistasEsperados,
+                'bolsistas_presentes' => $bolsistasPresentes,
                 'inscrito' => $minhaInscricao !== null,
                 'inscricao_id' => $minhaInscricao?->id,
                 'posicao_fila' => $minhaInscricao ? $minhaInscricao->getPosicaoFila() : null,
                 'status_inscricao' => $minhaInscricao?->status_fila_extras?->value,
+                'dentro_das_vagas' => $minhaInscricao ? $minhaInscricao->getPosicaoFila() <= $vagasExtrasDisponiveis : null,
                 'cardapio' => [
                     'id' => $refeicao->cardapio->id,
                     'prato_principal_ptn01' => $refeicao->cardapio->prato_principal_ptn01,
@@ -335,4 +328,5 @@ class FilaExtraController extends Controller
             'hora_atual' => $horaAtual->format('H:i:s'),
         ]);
     }
+
 }

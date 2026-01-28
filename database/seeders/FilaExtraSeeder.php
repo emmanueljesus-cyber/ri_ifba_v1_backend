@@ -58,11 +58,17 @@ class FilaExtraSeeder extends Seeder
                     $status = 'rejeitado';
                 }
 
+                // Data de inscrição baseada na data da refeição (manhã do mesmo dia ou dia anterior)
+                $dataRefeicao = $refeicao->cardapio->data_do_cardapio;
+                $horaInscricao = rand(7, 10); // Entre 7h e 10h
+                $minutoInscricao = rand(0, 59);
+                $inscritoEm = $dataRefeicao->copy()->setTime($horaInscricao, $minutoInscricao);
+
                 FilaExtra::create([
                     'user_id' => $estudante->id,
                     'refeicao_id' => $refeicao->id,
                     'status_fila_extras' => $status,
-                    'inscrito_em' => now()->subHours(rand(24, 72)),
+                    'inscrito_em' => $inscritoEm,
                 ]);
 
                 $inscricoesCriadas++;

@@ -22,6 +22,28 @@ services:
     restart: unless-stopped
     command: sh -lc "if [ ! -f vendor/autoload.php ]; then composer install --no-interaction --prefer-dist; fi && php artisan serve --host=0.0.0.0 --port=8000"
 
+  scheduler:
+    build: .
+    container_name: ri-ifba-scheduler
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+      - vendor_data:/var/www/html/vendor
+    depends_on:
+      postgres:
+        condition: service_healthy
+      app:
+        condition: service_started
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=ri_ifba_v1
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=201099
+    restart: unless-stopped
+    command: sh -lc "while [ ! -f vendor/autoload.php ]; do echo 'Aguardando vendor...'; sleep 5; done && php artisan schedule:work --verbose --no-interaction"
+
+
 
   # Banco de dados PostgreSQL
   postgres:

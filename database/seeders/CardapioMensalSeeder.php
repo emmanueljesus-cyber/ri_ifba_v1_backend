@@ -8,20 +8,6 @@ use Carbon\Carbon;
 
 class CardapioMensalSeeder extends Seeder
 {
-    /**
-     * MODO TESTE FIM DE SEMANA
-     * Mude para TRUE para testar no fim de semana de 24-25/01/2026
-     * Mude para FALSE quando terminar os testes
-     */
-    private bool $testesFimDeSemana = true;
-
-    /**
-     * Datas liberadas para teste (mesmo sendo fim de semana)
-     */
-    private array $datasLiberadasParaTeste = [
-        '2026-01-24', // Sabado
-        '2026-01-25', // Domingo
-    ];
 
     /**
      * Cardapio de Janeiro 2026 - Baseado na planilha oficial
@@ -544,30 +530,6 @@ class CardapioMensalSeeder extends Seeder
             }
         }
 
-        // Processar cardapios de teste do fim de semana (se ativado)
-        if ($this->testesFimDeSemana) {
-            $this->command->info('');
-            $this->command->info('FIM DE SEMANA DE TESTE:');
-
-            // Sabado 24/01/2026
-            if (isset($this->cardapioJaneiro2026['2026-01-24-teste'])) {
-                $resultado = $this->criarCardapio('2026-01-24', $this->cardapioJaneiro2026['2026-01-24-teste']);
-                if ($resultado) {
-                    $cardapiosCriados++;
-                    $refeicoesCriadas += 2;
-                }
-            }
-
-            // Domingo 25/01/2026
-            if (isset($this->cardapioJaneiro2026['2026-01-25-teste'])) {
-                $resultado = $this->criarCardapio('2026-01-25', $this->cardapioJaneiro2026['2026-01-25-teste']);
-                if ($resultado) {
-                    $cardapiosCriados++;
-                    $refeicoesCriadas += 2;
-                }
-            }
-        }
-
         $this->command->info('');
         $this->command->info('FEVEREIRO 2026:');
         foreach ($this->cardapioFevereiro2026 as $dataStr => $dados) {
@@ -591,17 +553,10 @@ class CardapioMensalSeeder extends Seeder
     {
         $data = Carbon::parse($dataStr);
 
-        // Pular finais de semana (exceto se estiver em modo teste E for data liberada)
+        // Pular finais de semana
         if ($data->isSaturday() || $data->isSunday()) {
-            $dataFormatada = $data->format('Y-m-d');
-
-            // Verifica se e uma data liberada para teste
-            if ($this->testesFimDeSemana && in_array($dataFormatada, $this->datasLiberadasParaTeste)) {
-                $this->command->info("   TESTE: Criando cardapio para {$data->format('d/m/Y')} ({$data->dayName})");
-            } else {
-                $this->command->info("   Pulando final de semana: {$data->format('d/m/Y')} ({$data->dayName})");
-                return null;
-            }
+            $this->command->info("   Pulando final de semana: {$data->format('d/m/Y')} ({$data->dayName})");
+            return null;
         }
 
         // Verificar se ja existe

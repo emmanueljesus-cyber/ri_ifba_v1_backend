@@ -150,7 +150,8 @@ class User extends Authenticatable
     public function getFotoUrlAttribute(): ?string
     {
         if ($this->foto_perfil) {
-            return asset('storage/' . $this->foto_perfil);
+             // Retorna URL completa do backend
+            return url('storage/' . $this->foto_perfil);
         }
         return null;
     }

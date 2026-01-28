@@ -191,6 +191,13 @@ docker compose up -d app
 log_success "Aplicação iniciada"
 
 # ============================================================
+# 11.1) Subir o Scheduler (tarefas automáticas)
+# ============================================================
+log_info "Subindo scheduler (tarefas automáticas)..."
+docker compose up -d scheduler
+log_success "Scheduler iniciado"
+
+# ============================================================
 # 12) Status
 # ============================================================
 echo ""
@@ -218,8 +225,10 @@ echo -e "${GREEN}║      Setup concluido!                                    �
 echo -e "${GREEN}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${BLUE}📍 API:${NC} http://localhost:8000/api/v1/cardapio/hoje"
+echo -e "${BLUE}⏰ Scheduler:${NC} Tarefas automáticas ativas (marcar ausentes)"
 echo -e "${BLUE}📝 Úteis:${NC}"
-echo "   • Logs app:   docker compose logs -f app"
-echo "   • Shell app:  docker compose exec app sh"
-echo "   • Reset BD:   ./reset-db.sh"
+echo "   • Logs app:       docker compose logs -f app"
+echo "   • Logs scheduler: docker compose logs -f scheduler"
+echo "   • Shell app:      docker compose exec app sh"
+echo "   • Reset BD:       ./reset-db.sh"
 echo ""
