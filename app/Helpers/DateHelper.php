@@ -57,22 +57,28 @@ class DateHelper
     /**
      * Formata data para padrão brasileiro (dd/mm/yyyy)
      * 
-     * @param string|Carbon $data Data a ser formatada
-     * @return string Data formatada no padrão brasileiro
+     * @param string|Carbon|null $data Data a ser formatada
+     * @return string|null Data formatada no padrão brasileiro ou null
      */
-    public static function formatarDataBR(string|Carbon $data): string
+    public static function formatarDataBR(string|Carbon|null $data): ?string
     {
+        if ($data === null) {
+            return null;
+        }
         return Carbon::parse($data)->format('d/m/Y');
     }
     
     /**
      * Formata data e hora para padrão brasileiro (dd/mm/yyyy hh:mm)
      * 
-     * @param string|Carbon $dataHora Data e hora a serem formatados
-     * @return string Data e hora formatadas no padrão brasileiro
+     * @param string|Carbon|null $dataHora Data e hora a serem formatados
+     * @return string|null Data e hora formatadas no padrão brasileiro ou null
      */
-    public static function formatarDataHoraBR(string|Carbon $dataHora): string
+    public static function formatarDataHoraBR(string|Carbon|null $dataHora): ?string
     {
+        if ($dataHora === null) {
+            return null;
+        }
         return Carbon::parse($dataHora)->format('d/m/Y H:i');
     }
     

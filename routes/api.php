@@ -17,6 +17,7 @@ use App\Http\Controllers\api\V1\Admin\RelatorioController as AdminRelatorioGeral
 use App\Http\Controllers\api\v1\Admin\UserController as AdminUserController;
 use App\Http\Controllers\api\v1\Admin\ExtrasController as AdminExtrasController;
 use App\Http\Controllers\api\v1\Admin\SolicitacaoMudancaDiaController as AdminSolicitacaoMudancaDiaController;
+use App\Http\Controllers\api\v1\Admin\NotificacaoController as AdminNotificacaoController;
 use App\Http\Controllers\api\V1\Estudante\CardapioController as EstudanteCardapioController;
 use App\Http\Controllers\api\V1\Publico\CardapioController as PublicoCardapioController;
 use App\Http\Controllers\api\v1\AuthController;
@@ -36,6 +37,23 @@ use App\Http\Controllers\api\v1\AuthController;
 */
 
 Route::prefix('v1')->group(function () {
+
+    // =========================================================================
+    // ROTA DEBUG NOTIFICAÇÕES (REMOVER EM PRODUÇÃO)
+    // =========================================================================
+    Route::get('debug/notificacoes', function () {
+        $admins = \App\Models\User::where('perfil', 'admin')->get(['id', 'nome', 'email', 'perfil']);
+        $totalNotificacoes = \App\Models\Notificacao::count();
+        $notificacoesRecentes = \App\Models\Notificacao::orderBy('created_at', 'desc')
+            ->take(10)
+            ->get(['id', 'user_id', 'tipo', 'titulo', 'created_at', 'lida_em']);
+
+        return response()->json([
+            'admins' => $admins,
+            'total_notificacoes' => $totalNotificacoes,
+            'notificacoes_recentes' => $notificacoesRecentes,
+        ]);
+    });
 
     // =========================================================================
     // ROTAS PÚBLICAS (sem autenticação)
@@ -77,6 +95,7 @@ Route::prefix('v1')->group(function () {
 
         // RF05 - Perfil básico (TODOS OS ESTUDANTES)
         Route::get('perfil', [PerfilController::class, 'show']);
+        Route::get('carteirinha', [PerfilController::class, 'carteirinha']);
         Route::put('perfil', [PerfilController::class, 'update']);
         Route::put('perfil/senha', [PerfilController::class, 'alterarSenha']);
         Route::post('perfil/foto', [PerfilController::class, 'atualizarFoto']);
@@ -222,6 +241,18 @@ Route::prefix('v1')->group(function () {
             Route::post('/{id}/aprovar', [AdminJustificativaController::class, 'aprovar']);
             Route::post('/{id}/rejeitar', [AdminJustificativaController::class, 'rejeitar']);
             Route::get('/{id}/anexo', [AdminJustificativaController::class, 'downloadAnexo']);
+        });
+
+        // -----------------------------------------------------------------
+        // Notificações (Admin)
+        // -----------------------------------------------------------------
+        Route::prefix('notificacoes')->group(function () {
+            Route::get('/', [AdminNotificacaoController::class, 'index']);
+            Route::get('/nao-lidas', [AdminNotificacaoController::class, 'naoLidas']);
+            Route::get('/contador', [AdminNotificacaoController::class, 'contador']);
+            Route::patch('/{id}/ler', [AdminNotificacaoController::class, 'marcarComoLida']);
+            Route::patch('/marcar-todas-lidas', [AdminNotificacaoController::class, 'marcarTodasComoLidas']);
+            Route::delete('/{id}', [AdminNotificacaoController::class, 'destroy']);
         });
 
         // -----------------------------------------------------------------

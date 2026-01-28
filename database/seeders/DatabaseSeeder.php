@@ -27,14 +27,15 @@ class DatabaseSeeder extends Seeder
             // 4. Vincula bolsistas aos dias da semana específicos
             UsuarioDiaSemanaSeeder::class,
 
-            // 5. Cria presenças para simulação
-            PresencaSeeder::class,
+            // 5. Cria notificações de teste
+            NotificacoesSeeder::class,
 
-            // 6. Cria justificativas para faltas
-            JustificativaSeeder::class,
-
-            // 7. Cria inscrições na fila extra (não-bolsistas)
+            // 6. Cria inscrições na fila extra (não-bolsistas)
             FilaExtraSeeder::class,
+
+            // REMOVIDOS (presenças e justificativas devem ser criadas via ações do sistema):
+            // - PresencaSeeder::class
+            // - JustificativaSeeder::class
         ]);
 
         $this->command->info('');

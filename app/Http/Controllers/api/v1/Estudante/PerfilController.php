@@ -63,6 +63,31 @@ class PerfilController extends Controller
     }
 
     /**
+     * Carteirinha digital do estudante (QR fixo)
+     * GET /api/v1/estudante/carteirinha
+     */
+    public function carteirinha(Request $request): JsonResponse
+    {
+        $user = $this->getUser($request);
+
+        if (!$user) {
+            return ApiResponse::error('N\u00e3o autenticado', null, 401);
+        }
+
+        // QR fixo baseado na matr\u00edcula para valida\u00e7\u00e3o r\u00e1pida no balc\u00e3o
+        $qrToken = 'IFBA-' . $user->matricula;
+
+        return ApiResponse::standardSuccess([
+            'id' => $user->id,
+            'nome' => $user->nome,
+            'matricula' => $user->matricula,
+            'curso' => $user->curso,
+            'turno_refeicao' => $user->turno_refeicao,
+            'qr_token' => $qrToken,
+        ]);
+    }
+
+    /**
      * RF05 - Atualiza preferência alimentar
      * PUT /api/v1/estudante/perfil/preferencia
      */
