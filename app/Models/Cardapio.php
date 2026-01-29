@@ -33,45 +33,30 @@ class Cardapio extends Model
     ];
 
     /**
-     * Boot do model - cria refeições automaticamente
+     * Boot do model - cria/sincroniza refeições automaticamente
      */
     protected static function boot()
     {
         parent::boot();
 
-        // Ao criar cardápio, cria as refeições automaticamente
-        static::created(function ($cardapio) {
+        // Ao salvar cardápio (create OU update), sincroniza as refeições
+        static::saved(function ($cardapio) {
             $turnos = $cardapio->turnos ?? ['almoco', 'jantar']; // Padrão: ambos
 
+            // Remove refeições de turnos que não estão mais na lista
+            $cardapio->refeicoes()
+                ->whereNotIn('turno', $turnos)
+                ->delete();
+
+            // Cria ou atualiza refeições para cada turno
             foreach ($turnos as $turno) {
-                $cardapio->refeicoes()->create([
-                    'turno' => $turno,
-                    'data_do_cardapio' => $cardapio->data_do_cardapio,
-                    'capacidade' => config('refeicoes.capacidade_padrao', 100),
-                ]);
-            }
-        });
-
-        // Ao atualizar turnos, sincroniza refeições
-        static::updated(function ($cardapio) {
-            if ($cardapio->wasChanged('turnos')) {
-                $turnosAtuais = $cardapio->turnos ?? ['almoco', 'jantar'];
-
-                // Remove refeições que não estão mais nos turnos
-                $cardapio->refeicoes()
-                    ->whereNotIn('turno', $turnosAtuais)
-                    ->delete();
-
-                // Adiciona refeições para novos turnos
-                foreach ($turnosAtuais as $turno) {
-                    $cardapio->refeicoes()->firstOrCreate(
-                        ['turno' => $turno],
-                        [
-                            'data_do_cardapio' => $cardapio->data_do_cardapio,
-                            'capacidade' => config('refeicoes.capacidade_padrao', 100),
-                        ]
-                    );
-                }
+                $cardapio->refeicoes()->updateOrCreate(
+                    ['turno' => $turno],
+                    [
+                        'data_do_cardapio' => $cardapio->data_do_cardapio,
+                        'capacidade' => config('refeicoes.capacidade_padrao', 100),
+                    ]
+                );
             }
         });
     }

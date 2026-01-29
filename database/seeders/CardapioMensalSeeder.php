@@ -8,7 +8,7 @@ use Carbon\Carbon;
 
 class CardapioMensalSeeder extends Seeder
 {
-    /**
+t    /**
      * Pratos para gerar cardápios variados
      */
     private array $pratosPrincipais = [
