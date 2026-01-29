@@ -134,13 +134,22 @@ class FilaExtraController extends Controller
     {
         $user = $this->getUser($request);
 
+        // Buscar inscrição do usuário (sem filtrar por status)
         $inscricao = FilaExtra::where('id', $id)
             ->where('user_id', $user->id)
-            ->where('status_fila_extras', StatusFila::INSCRITO)
             ->first();
 
         if (!$inscricao) {
-            return ApiResponse::standardNotFound('inscricao', 'Inscrição não encontrada ou já processada.');
+            return ApiResponse::standardNotFound('inscricao', 'Inscrição não encontrada.');
+        }
+
+        // Verificar se já foi aprovada (confirmada pelo admin)
+        if ($inscricao->status_fila_extras === StatusFila::APROVADO) {
+            return ApiResponse::standardError(
+                'inscricao',
+                'Não é possível cancelar uma inscrição já confirmada.',
+                422
+            );
         }
 
         $inscricao->delete();
@@ -264,7 +273,7 @@ class FilaExtraController extends Controller
             ->whereHas('cardapio', fn($q) => $q->where('data_do_cardapio', $hoje))
             ->get();
 
-        $refeicoesDisponiveis = $refeicoes->map(function($refeicao) use ($user, $horaAtual) {
+        $refeicoesDisponiveis = $refeicoes->map(function($refeicao) use ($user, $horaAtual, $hoje) {
             $turno = $refeicao->turno->value;
 
             // Obter horários da configuração

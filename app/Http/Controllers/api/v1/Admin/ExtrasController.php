@@ -98,6 +98,9 @@ class ExtrasController extends Controller
                 ],
                 'status' => $inscricao->status_fila_extras->value ?? $inscricao->status_fila_extras,
                 'inscrito_em' => $inscricao->inscrito_em?->format('Y-m-d H:i:s'),
+                'atendido_em' => ($inscricao->status_fila_extras === StatusFila::APROVADO && $inscricao->updated_at)
+                    ? $inscricao->updated_at->format('Y-m-d H:i:s')
+                    : null,
                 'posicao' => $inscricao->getPosicaoFila(),
             ];
         });
@@ -126,6 +129,7 @@ class ExtrasController extends Controller
             ->whereHas('refeicao.cardapio', function ($q) use ($hoje) {
                 $q->whereDate('data_do_cardapio', $hoje);
             })
+            ->orderByRaw("CASE WHEN filas_extras.status_fila_extras = 'inscrito' THEN 0 ELSE 1 END")
             ->orderBy('inscrito_em', 'asc');
 
         if ($turno) {
@@ -170,6 +174,9 @@ class ExtrasController extends Controller
                 'turno' => $inscricao->refeicao->turno->value ?? $inscricao->refeicao->turno,
                 'status' => $status?->value ?? $inscricao->status_fila_extras,
                 'inscrito_em' => $inscricao->inscrito_em?->format('Y-m-d H:i:s'),
+                'atendido_em' => ($inscricao->status_fila_extras === StatusFila::APROVADO && $inscricao->updated_at)
+                    ? $inscricao->updated_at->format('Y-m-d H:i:s')
+                    : null,
                 'posicao' => $posicao,
             ];
         });

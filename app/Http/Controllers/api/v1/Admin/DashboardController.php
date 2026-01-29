@@ -8,6 +8,7 @@ use App\Http\Responses\ApiResponse;
 use App\Helpers\DateHelper;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
 
 /**
@@ -63,9 +64,13 @@ class DashboardController extends Controller
         $mes = $request->input('mes', now()->month);
         $ano = $request->input('ano', now()->year);
 
-        return ApiResponse::standardSuccess(
-            $this->service->resumoGeral($mes, $ano)
-        );
+        $cacheKey = "dashboard:resumo:{$mes}:{$ano}";
+        
+        $data = Cache::remember($cacheKey, 300, function () use ($mes, $ano) {
+            return $this->service->resumoGeral($mes, $ano);
+        });
+
+        return ApiResponse::standardSuccess($data);
     }
 
     /**
@@ -77,9 +82,13 @@ class DashboardController extends Controller
         $dataInicio = $request->input('data_inicio');
         $dataFim = $request->input('data_fim');
 
-        return ApiResponse::standardSuccess(
-            $this->service->taxaPresenca($dataInicio, $dataFim)
-        );
+        $cacheKey = "dashboard:presenca:{$dataInicio}:{$dataFim}";
+        
+        $data = Cache::remember($cacheKey, 600, function () use ($dataInicio, $dataFim) {
+            return $this->service->taxaPresenca($dataInicio, $dataFim);
+        });
+
+        return ApiResponse::standardSuccess($data);
     }
 
     /**
@@ -91,9 +100,13 @@ class DashboardController extends Controller
         $dataInicio = $request->input('data_inicio');
         $dataFim = $request->input('data_fim');
 
-        return ApiResponse::standardSuccess(
-            $this->service->faltasPorTipo($dataInicio, $dataFim)
-        );
+        $cacheKey = "dashboard:faltas:{$dataInicio}:{$dataFim}";
+        
+        $data = Cache::remember($cacheKey, 600, function () use ($dataInicio, $dataFim) {
+            return $this->service->faltasPorTipo($dataInicio, $dataFim);
+        });
+
+        return ApiResponse::standardSuccess($data);
     }
 
     /**
@@ -105,9 +118,13 @@ class DashboardController extends Controller
         $dataInicio = $request->input('data_inicio');
         $dataFim = $request->input('data_fim');
 
-        return ApiResponse::standardSuccess(
-            $this->service->extrasAtendidos($dataInicio, $dataFim)
-        );
+        $cacheKey = "dashboard:extras:{$dataInicio}:{$dataFim}";
+        
+        $data = Cache::remember($cacheKey, 600, function () use ($dataInicio, $dataFim) {
+            return $this->service->extrasAtendidos($dataInicio, $dataFim);
+        });
+
+        return ApiResponse::standardSuccess($data);
     }
 
     /**

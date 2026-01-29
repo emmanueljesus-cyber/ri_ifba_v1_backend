@@ -155,7 +155,7 @@ class NotificacaoService
         return $this->criar(
             userId: $userId,
             tipo: TipoNotificacao::FILA_CONFIRMADA,
-            titulo: 'Inscrição na Fila Confirmada',
+            titulo: 'Inscrição na Fila Realizada',
             mensagem: "Você está na posição {$posicao} da fila de extras para o {$turnoFormatado}.",
             dados: ['posicao' => $posicao, 'turno' => $turno]
         );
