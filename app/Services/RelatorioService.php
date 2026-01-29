@@ -175,7 +175,7 @@ class RelatorioService
     /**
      * Gera dados para exportação
      */
-    public function dadosParaExportacao(string $dataInicio, string $dataFim, ?string $turno = null): Collection
+    public function dadosParaExportacao(string $dataInicio, string $dataFim, ?string $turno = null, bool $bolsistasOnly = false): Collection
     {
         $inicio = Carbon::parse($dataInicio);
         $fim = Carbon::parse($dataFim);
@@ -187,6 +187,9 @@ class RelatorioService
                     $q->where('turno', $turno);
                 }
             });
+        if ($bolsistasOnly) {
+            $query->whereHas('user', fn($q) => $q->where('bolsista', true));
+        }
 
         return $query->get()->map(function ($p) {
             return [

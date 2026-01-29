@@ -7,6 +7,7 @@ use App\Services\RelatorioService;
 use App\Services\RelatorioSemanalService;
 use App\Http\Responses\ApiResponse;
 use App\Helpers\DateHelper;
+use App\Models\Presenca;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Maatwebsite\Excel\Facades\Excel;
@@ -51,6 +52,71 @@ class RelatorioController extends Controller
             meta: [
                 'totais' => $dados['totais'],
                 'periodo' => $dados['periodo'],
+            ]
+        );
+    }
+
+    /**
+     * RF12 - RelatÃ³rio de presenÃ§as detalhado (lista)
+     * GET /api/v1/admin/relatorios/presencas-detalhado
+     */
+    public function presencasDetalhadas(Request $request): JsonResponse
+    {
+        $request->validate([
+            'data_inicio' => 'required|date',
+            'data_fim' => 'required|date|after_or_equal:data_inicio',
+            'turno' => 'nullable|in:almoco,jantar',
+            'bolsistas_only' => 'nullable|boolean',
+        ]);
+
+        $dataInicio = $request->input('data_inicio');
+        $dataFim = $request->input('data_fim');
+        $turno = $request->input('turno');
+        $bolsistasOnly = $request->boolean('bolsistas_only', false);
+
+        $query = Presenca::with(['user', 'refeicao'])
+            ->whereHas('refeicao', function ($q) use ($dataInicio, $dataFim, $turno) {
+                $q->whereBetween('data_do_cardapio', [$dataInicio, $dataFim]);
+                if ($turno) {
+                    $q->where('turno', $turno);
+                }
+            });
+
+        if ($bolsistasOnly) {
+            $query->whereHas('user', fn($q) => $q->where('bolsista', true));
+        }
+
+        $presencas = $query->orderBy('registrado_em', 'desc')->get();
+
+        $dados = $presencas->map(function ($presenca) {
+            return [
+                'id' => $presenca->id,
+                'user' => [
+                    'id' => $presenca->user->id,
+                    'nome' => $presenca->user->nome,
+                    'matricula' => $presenca->user->matricula,
+                    'foto' => $presenca->user->foto_url,
+                ],
+                'refeicao' => [
+                    'id' => $presenca->refeicao->id,
+                    'data' => $presenca->refeicao->data_do_cardapio->format('Y-m-d'),
+                    'turno' => $presenca->refeicao->turno->value,
+                ],
+                'status_da_presenca' => $presenca->status_da_presenca instanceof \BackedEnum
+                    ? $presenca->status_da_presenca->value
+                    : $presenca->status_da_presenca,
+                'validado_em' => $presenca->validado_em?->format('Y-m-d H:i:s'),
+            ];
+        });
+
+        return ApiResponse::standardSuccess(
+            data: $dados,
+            meta: [
+                'total' => $dados->count(),
+                'periodo' => [
+                    'inicio' => $dataInicio,
+                    'fim' => $dataFim,
+                ],
             ]
         );
     }
@@ -135,14 +201,16 @@ class RelatorioController extends Controller
             'data_fim' => 'required|date|after_or_equal:data_inicio',
             'turno' => 'nullable|in:almoco,jantar',
             'formato' => 'nullable|in:xlsx,csv',
+            'bolsistas_only' => 'nullable|boolean',
         ]);
 
         $dataInicio = $request->input('data_inicio');
         $dataFim = $request->input('data_fim');
         $turno = $request->input('turno');
         $formato = $request->input('formato', 'xlsx');
+        $bolsistasOnly = $request->boolean('bolsistas_only', false);
 
-        $dados = $this->service->dadosParaExportacao($dataInicio, $dataFim, $turno);
+        $dados = $this->service->dadosParaExportacao($dataInicio, $dataFim, $turno, $bolsistasOnly);
 
         if ($dados->isEmpty()) {
             return ApiResponse::standardNotFound('dados', 'Nenhum dado encontrado para o período.');

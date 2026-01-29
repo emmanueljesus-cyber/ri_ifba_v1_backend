@@ -26,6 +26,7 @@ class BolsistaResource extends JsonResource
             'matricula' => $this->matricula,
             'nome' => $this->nome,
             'email' => $this->when($request->routeIs('*.todosBolsistas'), $this->email),
+            'foto_url' => $this->foto_url,
             'curso' => $this->curso,
             'turno_refeicao' => $this->turno_refeicao,
             'turno_aula' => $this->turno_aula,

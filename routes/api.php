@@ -273,6 +273,7 @@ Route::prefix('v1')->group(function () {
         // -----------------------------------------------------------------
         Route::prefix('relatorios')->group(function () {
             Route::get('/presencas', [AdminRelatorioGeralController::class, 'presencas']);
+            Route::get('/presencas-detalhado', [AdminRelatorioGeralController::class, 'presencasDetalhadas']);
             Route::get('/mensal', [AdminRelatorioGeralController::class, 'mensal']);
             Route::get('/semanal', [AdminRelatorioGeralController::class, 'semanal']);               // Formato planilha
             Route::get('/bolsista/{userId}', [AdminRelatorioGeralController::class, 'porBolsista']);
