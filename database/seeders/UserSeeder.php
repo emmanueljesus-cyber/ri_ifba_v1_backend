@@ -26,92 +26,141 @@ class UserSeeder extends Seeder
             'email_verified_at' => now(),
         ]);
         
-        $this->command->info('Admin criado: ' . $admin->matricula);
+        $this->command->info('👤 Admin criado: ' . $admin->matricula);
 
         // ========================================
-        // ESTUDANTES BOLSISTAS
+        // 100 ESTUDANTES BOLSISTAS (50 almoço + 50 jantar)
         // ========================================
-        $bolsistasData = [
-            ['matricula' => '20232360001', 'nome' => 'Joao Silva Santos', 'email' => 'joao.silva@aluno.ifba.edu.br', 'curso' => 'Tecnico em Informatica', 'turno_refeicao' => 'almoco'],
-            ['matricula' => '20232360002', 'nome' => 'Maria Oliveira Costa', 'email' => 'maria.oliveira@aluno.ifba.edu.br', 'curso' => 'Tecnico em Quimica', 'turno_refeicao' => 'almoco'],
-            ['matricula' => '20232360003', 'nome' => 'Pedro Henrique Souza', 'email' => 'pedro.souza@aluno.ifba.edu.br', 'curso' => 'Tecnico em Eletronica', 'turno_refeicao' => 'almoco'],
-            ['matricula' => '20232360004', 'nome' => 'Ana Paula Rodrigues', 'email' => 'ana.rodrigues@aluno.ifba.edu.br', 'curso' => 'Tecnico em Mecanica', 'turno_refeicao' => 'almoco'],
-            ['matricula' => '20232360005', 'nome' => 'Lucas Ferreira Alves', 'email' => 'lucas.alves@aluno.ifba.edu.br', 'curso' => 'Tecnico em Edificacoes', 'turno_refeicao' => 'almoco'],
-            ['matricula' => '20232360006', 'nome' => 'Juliana Lima Pereira', 'email' => 'juliana.lima@aluno.ifba.edu.br', 'curso' => 'Tecnico em Informatica', 'turno_refeicao' => 'jantar'],
-            ['matricula' => '20232360007', 'nome' => 'Rafael Costa Martins', 'email' => 'rafael.costa@aluno.ifba.edu.br', 'curso' => 'Tecnico em Quimica', 'turno_refeicao' => 'almoco'],
-            ['matricula' => '20232360008', 'nome' => 'Fernanda Rodrigues Silva', 'email' => 'fernanda.rodrigues@aluno.ifba.edu.br', 'curso' => 'Tecnico em Eletronica', 'turno_refeicao' => 'almoco'],
-            ['matricula' => '20232360009', 'nome' => 'Gabriel Almeida Santos', 'email' => 'gabriel.almeida@aluno.ifba.edu.br', 'curso' => 'Tecnico em Mecanica', 'turno_refeicao' => 'almoco'],
-            ['matricula' => '20232360010', 'nome' => 'Beatriz Martins Costa', 'email' => 'beatriz.martins@aluno.ifba.edu.br', 'curso' => 'Tecnico em Edificacoes', 'turno_refeicao' => 'almoco'],
-            ['matricula' => '20232360011', 'nome' => 'Thiago Ferreira Lima', 'email' => 'thiago.ferreira@aluno.ifba.edu.br', 'curso' => 'Tecnico em Informatica', 'turno_refeicao' => 'almoco'],
-            ['matricula' => '20232360012', 'nome' => 'Amanda Dias Oliveira', 'email' => 'amanda.dias@aluno.ifba.edu.br', 'curso' => 'Tecnico em Quimica', 'turno_refeicao' => 'jantar'],
-            ['matricula' => '20232360013', 'nome' => 'Bruno Nascimento Costa', 'email' => 'bruno.nascimento@aluno.ifba.edu.br', 'curso' => 'Tecnico em Eletronica', 'turno_refeicao' => 'almoco'],
-            ['matricula' => '20232360014', 'nome' => 'Isabela Cardoso Silva', 'email' => 'isabela.cardoso@aluno.ifba.edu.br', 'curso' => 'Tecnico em Mecanica', 'turno_refeicao' => 'almoco'],
-            ['matricula' => '20232360015', 'nome' => 'Vitor Monteiro Santos', 'email' => 'vitor.monteiro@aluno.ifba.edu.br', 'curso' => 'Tecnico em Edificacoes', 'turno_refeicao' => 'almoco'],
-            ['matricula' => '20232360016', 'nome' => 'Leticia Rocha Pereira', 'email' => 'leticia.rocha@aluno.ifba.edu.br', 'curso' => 'Tecnico em Informatica', 'turno_refeicao' => 'almoco'],
-            ['matricula' => '20232360017', 'nome' => 'Carlos Eduardo Mendes', 'email' => 'carlos.mendes@aluno.ifba.edu.br', 'curso' => 'Tecnico em Quimica', 'turno_refeicao' => 'almoco'],
-            ['matricula' => '20232360018', 'nome' => 'Mariana Souza Lima', 'email' => 'mariana.souza@aluno.ifba.edu.br', 'curso' => 'Tecnico em Eletronica', 'turno_refeicao' => 'jantar'],
-            ['matricula' => '20232360019', 'nome' => 'Felipe Barbosa Costa', 'email' => 'felipe.barbosa@aluno.ifba.edu.br', 'curso' => 'Tecnico em Mecanica', 'turno_refeicao' => 'almoco'],
-            ['matricula' => '20232360020', 'nome' => 'Larissa Ribeiro Alves', 'email' => 'larissa.ribeiro@aluno.ifba.edu.br', 'curso' => 'Tecnico em Edificacoes', 'turno_refeicao' => 'almoco'],
+        $cursos = [
+            'Técnico em Informática',
+            'Técnico em Eletrotécnica',
+            'Técnico em Mecânica',
+            'Técnico em Edificações',
+            'Técnico em Química',
+            'Técnico em Meio Ambiente',
+            'Técnico em Alimentos',
+            'Técnico em Segurança do Trabalho',
         ];
 
-        foreach ($bolsistasData as $dados) {
+        $bolsistasCriados = 0;
+
+        // Buscar bolsistas da tabela de aprovados (exceto os pendentes: 101-110)
+        // Matrículas 20232360001 até 20232360100 serão cadastrados
+        // Matrículas 20232360101 até 20232360110 ficam pendentes
+        $matriculasPendentes = [];
+        for ($i = 101; $i <= 110; $i++) {
+            $matriculasPendentes[] = '20232360' . str_pad($i, 3, '0', STR_PAD_LEFT);
+        }
+
+        $bolsistasAprovados = Bolsista::whereNotNull('matricula')
+            ->whereNotIn('matricula', $matriculasPendentes)
+            ->orderBy('matricula')
+            ->get();
+
+        // Restrições alimentares possíveis
+        $restricoesPossiveis = [
+            'Alergia a amendoim',
+            'Intolerância à lactose',
+            'Alergia a frutos do mar',
+            'Alergia a glúten',
+            'Alergia a ovos',
+            'Alergia a soja',
+            'Intolerância a frutose',
+        ];
+
+        foreach ($bolsistasAprovados as $index => $bolsista) {
+            // Gerar email baseado no nome
+            $nomeLimpo = $this->gerarEmailDoNome($bolsista->nome);
+
+            // 20% dos bolsistas são ovolactovegetarianos
+            $preferencia = ($index % 5 === 0) ? 'ovolactovegetariano' : 'comum';
+
+            // 15% dos bolsistas têm restrições alimentares (1 a 2 restrições)
+            $restricoes = null;
+            if ($index % 7 === 0) {
+                $numRestricoes = rand(1, 2);
+                $restricoes = array_slice($restricoesPossiveis, rand(0, count($restricoesPossiveis) - $numRestricoes), $numRestricoes);
+            }
+
             $user = User::create([
-                'matricula' => $dados['matricula'],
-                'nome' => $dados['nome'],
-                'email' => $dados['email'],
+                'matricula' => $bolsista->matricula,
+                'nome' => $bolsista->nome,
+                'email' => $nomeLimpo . '@aluno.ifba.edu.br',
                 'password' => Hash::make('password'),
                 'perfil' => PerfilUsuario::ESTUDANTE,
                 'bolsista' => true,
                 'desligado' => false,
-                'curso' => $dados['curso'],
-                'turno_refeicao' => $dados['turno_refeicao'],
+                'curso' => $bolsista->curso,
+                'turno_refeicao' => $bolsista->turno_refeicao,
                 'limite_faltas_mes' => 3,
+                'preferencia_alimentar' => $preferencia,
+                'restricoes_alimentares' => $restricoes,
                 'email_verified_at' => now(),
             ]);
 
             // Vincular com registro na tabela bolsistas
-            $bolsista = Bolsista::where('matricula', $dados['matricula'])->first();
-            if ($bolsista) {
-                $bolsista->update([
-                    'user_id' => $user->id,
-                    'vinculado_em' => now(),
-                ]);
-            }
+            $bolsista->update([
+                'user_id' => $user->id,
+                'vinculado_em' => now(),
+            ]);
+
+            $bolsistasCriados++;
         }
 
-        $this->command->info(count($bolsistasData) . ' estudantes bolsistas criados');
+        $this->command->info("✅ {$bolsistasCriados} estudantes bolsistas criados");
 
         // ========================================
-        // ESTUDANTES NAO-BOLSISTAS
+        // 20 ESTUDANTES NÃO-BOLSISTAS
         // ========================================
         $naoBolsistasData = [
-            ['matricula' => '20242460001', 'nome' => 'Ana Carolina Lima', 'email' => 'ana.lima@aluno.ifba.edu.br', 'curso' => 'Tecnico em Informatica', 'turno_aula' => 'matutino'],
-            ['matricula' => '20242460002', 'nome' => 'Diego Santos Costa', 'email' => 'diego.santos@aluno.ifba.edu.br', 'curso' => 'Tecnico em Quimica', 'turno_aula' => 'vespertino'],
-            ['matricula' => '20242460003', 'nome' => 'Camila Pereira Oliveira', 'email' => 'camila.pereira@aluno.ifba.edu.br', 'curso' => 'Tecnico em Eletronica', 'turno_aula' => 'noturno'],
-            ['matricula' => '20242460004', 'nome' => 'Ricardo Almeida Silva', 'email' => 'ricardo.almeida@aluno.ifba.edu.br', 'curso' => 'Tecnico em Mecanica', 'turno_aula' => 'matutino'],
-            ['matricula' => '20242460005', 'nome' => 'Paula Ferreira Santos', 'email' => 'paula.ferreira@aluno.ifba.edu.br', 'curso' => 'Tecnico em Edificacoes', 'turno_aula' => 'vespertino'],
+            ['nome' => 'Ana Carolina Lima', 'turno_aula' => 'matutino'],
+            ['nome' => 'Diego Santos Costa', 'turno_aula' => 'vespertino'],
+            ['nome' => 'Camila Pereira Oliveira', 'turno_aula' => 'noturno'],
+            ['nome' => 'Ricardo Almeida Silva', 'turno_aula' => 'matutino'],
+            ['nome' => 'Paula Ferreira Santos', 'turno_aula' => 'vespertino'],
+            ['nome' => 'Henrique Costa Lima', 'turno_aula' => 'noturno'],
+            ['nome' => 'Bruna Oliveira Mendes', 'turno_aula' => 'matutino'],
+            ['nome' => 'Thiago Souza Pereira', 'turno_aula' => 'vespertino'],
+            ['nome' => 'Juliana Alves Costa', 'turno_aula' => 'noturno'],
+            ['nome' => 'Marcos Paulo Santos', 'turno_aula' => 'matutino'],
+            ['nome' => 'Fernanda Lima Rodrigues', 'turno_aula' => 'vespertino'],
+            ['nome' => 'Lucas Ferreira Almeida', 'turno_aula' => 'noturno'],
+            ['nome' => 'Isabela Costa Silva', 'turno_aula' => 'matutino'],
+            ['nome' => 'Rafael Mendes Oliveira', 'turno_aula' => 'vespertino'],
+            ['nome' => 'Amanda Santos Lima', 'turno_aula' => 'noturno'],
+            ['nome' => 'Gabriel Pereira Costa', 'turno_aula' => 'matutino'],
+            ['nome' => 'Letícia Alves Ferreira', 'turno_aula' => 'vespertino'],
+            ['nome' => 'Pedro Lima Santos', 'turno_aula' => 'noturno'],
+            ['nome' => 'Mariana Costa Oliveira', 'turno_aula' => 'matutino'],
+            ['nome' => 'Bruno Ferreira Lima', 'turno_aula' => 'vespertino'],
         ];
 
-        foreach ($naoBolsistasData as $dados) {
+        $naoBolsistasCriados = 0;
+        foreach ($naoBolsistasData as $index => $dados) {
+            $numero = str_pad($index + 1, 3, '0', STR_PAD_LEFT);
+            $matricula = '20242460' . $numero;
+            $nomeLimpo = $this->gerarEmailDoNome($dados['nome']);
+
             User::create([
-                'matricula' => $dados['matricula'],
+                'matricula' => $matricula,
                 'nome' => $dados['nome'],
-                'email' => $dados['email'],
+                'email' => $nomeLimpo . '@aluno.ifba.edu.br',
                 'password' => Hash::make('password'),
                 'perfil' => PerfilUsuario::ESTUDANTE,
                 'bolsista' => false,
                 'desligado' => false,
-                'curso' => $dados['curso'],
+                'curso' => $cursos[array_rand($cursos)],
                 'turno_aula' => $dados['turno_aula'],
                 'limite_faltas_mes' => 0,
                 'email_verified_at' => now(),
             ]);
+            $naoBolsistasCriados++;
         }
 
-        $this->command->info(count($naoBolsistasData) . ' estudantes nao-bolsistas criados');
+        $this->command->info("✅ {$naoBolsistasCriados} estudantes não-bolsistas criados");
 
         // ========================================
-        // ESTUDANTE DESLIGADO (para teste)
+        // 5 ESTUDANTES DESLIGADOS (para teste)
         // ========================================
         $desligados = [
             [
@@ -120,7 +169,7 @@ class UserSeeder extends Seeder
                 'email' => 'roberto.desligado@aluno.ifba.edu.br',
                 'desligado_em' => now()->subDays(30),
                 'desligado_motivo' => 'Excesso de faltas injustificadas',
-                'curso' => 'Tecnico em Informatica',
+                'curso' => 'Técnico em Informática',
                 'turno_refeicao' => 'almoco',
             ],
             [
@@ -128,8 +177,8 @@ class UserSeeder extends Seeder
                 'nome' => 'Xavier Zanetti Zorzi',
                 'email' => 'xavier.zanetti@aluno.ifba.edu.br',
                 'desligado_em' => now()->subDays(15),
-                'desligado_motivo' => 'Desistencia do curso',
-                'curso' => 'Tecnico em Eletronica',
+                'desligado_motivo' => 'Desistência do curso',
+                'curso' => 'Técnico em Eletrônica',
                 'turno_refeicao' => 'almoco',
             ],
             [
@@ -138,7 +187,7 @@ class UserSeeder extends Seeder
                 'email' => 'yasmin.yamaguchi@aluno.ifba.edu.br',
                 'desligado_em' => now()->subDays(20),
                 'desligado_motivo' => 'Problemas pessoais',
-                'curso' => 'Tecnico em Quimica',
+                'curso' => 'Técnico em Química',
                 'turno_refeicao' => 'jantar',
             ],
             [
@@ -146,8 +195,8 @@ class UserSeeder extends Seeder
                 'nome' => 'Yuri Yunes',
                 'email' => 'yuri.yunes@aluno.ifba.edu.br',
                 'desligado_em' => now()->subDays(45),
-                'desligado_motivo' => 'Transferencia para outra instituicao',
-                'curso' => 'Tecnico em Mecanica',
+                'desligado_motivo' => 'Transferência para outra instituição',
+                'curso' => 'Técnico em Mecânica',
                 'turno_refeicao' => 'almoco',
             ],
             [
@@ -155,8 +204,8 @@ class UserSeeder extends Seeder
                 'nome' => 'Zelia Zanetti',
                 'email' => 'zelia.zanetti@aluno.ifba.edu.br',
                 'desligado_em' => now()->subDays(60),
-                'desligado_motivo' => 'Motivos academicos',
-                'curso' => 'Tecnico em Edificacoes',
+                'desligado_motivo' => 'Motivos acadêmicos',
+                'curso' => 'Técnico em Edificações',
                 'turno_refeicao' => 'almoco',
             ],
         ];
@@ -171,14 +220,33 @@ class UserSeeder extends Seeder
             ]));
         }
 
-        $this->command->info('5 estudante desligado criado (para teste)');
-        
+        $this->command->info('✅ 5 estudantes desligados criados (para teste)');
+
         $this->command->info('');
-        $this->command->info('RESUMO DOS USUARIOS:');
-        $this->command->info('   Admin: matricula 10000000001, senha: password');
-        $this->command->info('   20 Bolsistas ativos (matriculas 20232360001-020)');
-        $this->command->info('   5 Nao-bolsistas (matriculas 20232160001-005)');
-        $this->command->info('   5 Desligado (matricula 20221160099)');
-        $this->command->info('   5 Bolsistas pendentes na lista (matriculas 20232360021-025)');
+        $this->command->info('📊 RESUMO DOS USUÁRIOS:');
+        $this->command->info('   👤 Admin: matrícula 10000000001, senha: password');
+        $this->command->info("   🎓 {$bolsistasCriados} Bolsistas ativos (matrículas 20232360001-100)");
+        $this->command->info("   📚 {$naoBolsistasCriados} Não-bolsistas (matrículas 20242460001-020)");
+        $this->command->info('   ❌ 5 Desligados (matrículas 20221160099-103)');
+        $this->command->info('   ⏳ 10 Bolsistas pendentes na lista (matrículas 20232360101-110)');
+    }
+
+    /**
+     * Gera um email limpo baseado no nome
+     */
+    private function gerarEmailDoNome(string $nome): string
+    {
+        // Remove acentos usando substituição
+        $acentos = ['á','à','ã','â','ä','é','è','ê','ë','í','ì','î','ï','ó','ò','õ','ô','ö','ú','ù','û','ü','ç','Á','À','Ã','Â','Ä','É','È','Ê','Ë','Í','Ì','Î','Ï','Ó','Ò','Õ','Ô','Ö','Ú','Ù','Û','Ü','Ç'];
+        $semAcento = ['a','a','a','a','a','e','e','e','e','i','i','i','i','o','o','o','o','o','u','u','u','u','c','A','A','A','A','A','E','E','E','E','I','I','I','I','O','O','O','O','O','U','U','U','U','C'];
+        $nome = str_replace($acentos, $semAcento, $nome);
+
+        // Pega primeiro e último nome
+        $partes = explode(' ', strtolower($nome));
+        $primeiro = $partes[0] ?? 'usuario';
+        $ultimo = $partes[count($partes) - 1] ?? '';
+
+        // Cria email único
+        return $primeiro . '.' . $ultimo . rand(1, 99);
     }
 }

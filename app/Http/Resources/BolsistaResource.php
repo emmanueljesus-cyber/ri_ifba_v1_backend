@@ -32,7 +32,13 @@ class BolsistaResource extends JsonResource
             'turno_aula' => $this->turno_aula,
             'is_bolsista' => true,
             'ativo' => $this->when(isset($this->desligado), !$this->desligado),
-            'dias_semana' => $this->when($this->relationLoaded('diasSemana'), 
+
+            // Preferências e restrições alimentares
+            'preferencia_alimentar' => $this->preferencia_alimentar,
+            'is_ovolactovegetariano' => $this->preferencia_alimentar === 'ovolactovegetariano',
+            'restricoes_alimentares' => $this->restricoes_alimentares ?? [],
+
+            'dias_semana' => $this->when($this->relationLoaded('diasSemana'),
                 fn() => $this->diasSemana->pluck('dia_semana')->toArray()
             ),
             'dias_semana_texto' => $this->when($this->relationLoaded('diasSemana'), 

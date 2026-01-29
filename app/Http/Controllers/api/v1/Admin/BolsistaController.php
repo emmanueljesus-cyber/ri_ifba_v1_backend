@@ -493,20 +493,36 @@ class BolsistaController extends Controller
             'motivo' => 'required|string|min:10',
         ]);
 
-        $bolsista = \App\Models\Bolsista::find($id);
+        // Buscar pelo User (que é o que a view envia)
+        $user = User::where('id', $id)->where('bolsista', true)->first();
 
-        if (!$bolsista) {
+        if (!$user) {
             return ApiResponse::standardNotFound('bolsista', 'Bolsista não encontrado.');
         }
 
-        if ($bolsista->desligado) {
+        if ($user->desligado) {
             return ApiResponse::standardError('bolsista', 'Bolsista já está desligado.', 400);
         }
 
-        $bolsista->desligar($request->input('motivo'));
+        // Atualizar o usuário
+        $user->update([
+            'desligado' => true,
+            'desligado_em' => now(),
+            'desligado_motivo' => $request->input('motivo'),
+        ]);
+
+        // Atualizar também na tabela bolsistas (se existir vínculo)
+        $bolsista = \App\Models\Bolsista::where('user_id', $user->id)->first();
+        if ($bolsista) {
+            $bolsista->update([
+                'desligado' => true,
+                'desligado_em' => now(),
+                'desligado_motivo' => $request->input('motivo'),
+            ]);
+        }
 
         return ApiResponse::standardSuccess(
-            data: ['bolsista_id' => $bolsista->id, 'desligado_em' => $bolsista->desligado_em],
+            data: ['bolsista_id' => $user->id, 'desligado_em' => $user->desligado_em],
             meta: ['message' => 'Bolsista desligado com sucesso.']
         );
     }
@@ -517,20 +533,36 @@ class BolsistaController extends Controller
      */
     public function reativar(int $id): JsonResponse
     {
-        $bolsista = \App\Models\Bolsista::find($id);
+        // Buscar pelo User (que é o que a view envia)
+        $user = User::where('id', $id)->where('bolsista', true)->first();
 
-        if (!$bolsista) {
+        if (!$user) {
             return ApiResponse::standardNotFound('bolsista', 'Bolsista não encontrado.');
         }
 
-        if (!$bolsista->desligado) {
+        if (!$user->desligado) {
             return ApiResponse::standardError('bolsista', 'Bolsista já está ativo.', 400);
         }
 
-        $bolsista->reativar();
+        // Reativar o usuário
+        $user->update([
+            'desligado' => false,
+            'desligado_em' => null,
+            'desligado_motivo' => null,
+        ]);
+
+        // Atualizar também na tabela bolsistas (se existir vínculo)
+        $bolsista = \App\Models\Bolsista::where('user_id', $user->id)->first();
+        if ($bolsista) {
+            $bolsista->update([
+                'desligado' => false,
+                'desligado_em' => null,
+                'desligado_motivo' => null,
+            ]);
+        }
 
         return ApiResponse::standardSuccess(
-            data: ['bolsista_id' => $bolsista->id, 'reativado_em' => now()],
+            data: ['bolsista_id' => $user->id, 'reativado_em' => now()],
             meta: ['message' => 'Bolsista reativado com sucesso.']
         );
     }
