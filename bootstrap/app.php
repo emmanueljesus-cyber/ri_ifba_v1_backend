@@ -12,6 +12,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Confiar em todos os proxies (necessário para Railway)
+        $middleware->trustProxies(at: '*');
+
         $middleware->alias([
             'ensure.is.admin' => \App\Http\Middleware\EnsureIsAdmin::class,
             'ensure.is.bolsista' => \App\Http\Middleware\EnsureIsBolsista::class,
