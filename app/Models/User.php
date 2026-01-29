@@ -31,6 +31,7 @@ class User extends Authenticatable
         'turno_aula',
         'preferencia_alimentar',
         'restricoes_alimentares',
+        'alergias',
         'foto_perfil',
     ];
 

@@ -37,6 +37,7 @@ class BolsistaResource extends JsonResource
             'preferencia_alimentar' => $this->preferencia_alimentar,
             'is_ovolactovegetariano' => $this->preferencia_alimentar === 'ovolactovegetariano',
             'restricoes_alimentares' => $this->restricoes_alimentares ?? [],
+            'alergias' => $this->alergias ?? null,
 
             'dias_semana' => $this->when($this->relationLoaded('diasSemana'),
                 fn() => $this->diasSemana->pluck('dia_semana')->toArray()

@@ -21,6 +21,7 @@ use App\Http\Controllers\api\v1\Admin\NotificacaoController as AdminNotificacaoC
 use App\Http\Controllers\api\V1\Estudante\CardapioController as EstudanteCardapioController;
 use App\Http\Controllers\api\V1\Publico\CardapioController as PublicoCardapioController;
 use App\Http\Controllers\api\v1\AuthController;
+use App\Http\Controllers\api\v1\PasswordResetController;
 
 /*
 |--------------------------------------------------------------------------
@@ -71,6 +72,11 @@ Route::prefix('v1')->group(function () {
         Route::post('login', [AuthController::class, 'login']);
         Route::post('register', [AuthController::class, 'register']);
         Route::get('verificar-matricula/{matricula}', [AuthController::class, 'verificarMatricula']);
+
+        // Redefinição de senha (rotas públicas)
+        Route::post('forgot-password', [PasswordResetController::class, 'forgotPassword']);
+        Route::post('verify-reset-token', [PasswordResetController::class, 'verifyToken']);
+        Route::post('reset-password', [PasswordResetController::class, 'resetPassword']);
 
         Route::middleware('auth:sanctum')->group(function () {
             Route::post('logout', [AuthController::class, 'logout']);
