@@ -7,32 +7,33 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Run the migrations.
+     * Run the migrations - Performance indexes for dashboard and reports
      */
     public function up(): void
     {
-        // Índices para otimizar queries do dashboard
         Schema::table('presencas', function (Blueprint $table) {
-            // Otimiza queries de presença por data e status
-            $table->index(['data_presenca', 'status_da_presenca'], 'idx_data_status');
-            // Otimiza queries de presença por usuário e data
-            $table->index(['user_id', 'data_presenca'], 'idx_user_data');
+            // Índices para queries de dashboard e relatórios
+            // Nota: user_id e refeicao_id já têm índices simples na migration original
+            // Adicionamos apenas índices compostos para queries específicas
+            $table->index(['status_da_presenca'], 'idx_presenca_status');
+            $table->index(['user_id', 'status_da_presenca'], 'idx_presenca_user_status');
         });
 
         Schema::table('users', function (Blueprint $table) {
-            // Otimiza queries de bolsistas ativos
-            $table->index(['bolsista', 'ativo'], 'idx_bolsista_ativo');
+            // Índices para filtros comuns de bolsistas
+            $table->index(['bolsista', 'desligado'], 'idx_users_bolsista_desligado');
+            $table->index(['perfil'], 'idx_users_perfil');
         });
 
         Schema::table('justificativas', function (Blueprint $table) {
-            // Otimiza queries de justificativas pendentes
-            $table->index(['status_justificativa', 'created_at'], 'idx_status_created');
+            // Índices para queries de justificativas pendentes
+            // Coluna correta: 'status' (adicionada em 2026_01_09_120000_add_status_to_justificativas_table)
+            $table->index(['status'], 'idx_justificativa_status');
+            $table->index(['user_id', 'created_at'], 'idx_justificativa_user_created');
         });
 
-        Schema::table('inscricoes_extras', function (Blueprint $table) {
-            // Otimiza queries de inscrições extras por data e status
-            $table->index(['data_inscricao', 'status_inscricao'], 'idx_data_status');
-        });
+        // Não adicionamos índices em inscricoes_extras porque a tabela pode não existir
+        // ou ter estrutura diferente. Verificar schema primeiro se necessário.
     }
 
     /**
@@ -41,20 +42,18 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('presencas', function (Blueprint $table) {
-            $table->dropIndex('idx_data_status');
-            $table->dropIndex('idx_user_data');
+            $table->dropIndex('idx_presenca_status');
+            $table->dropIndex('idx_presenca_user_status');
         });
 
         Schema::table('users', function (Blueprint $table) {
-            $table->dropIndex('idx_bolsista_ativo');
+            $table->dropIndex('idx_users_bolsista_desligado');
+            $table->dropIndex('idx_users_perfil');
         });
 
         Schema::table('justificativas', function (Blueprint $table) {
-            $table->dropIndex('idx_status_created');
-        });
-
-        Schema::table('inscricoes_extras', function (Blueprint $table) {
-            $table->dropIndex('idx_data_status');
+            $table->dropIndex('idx_justificativa_status');
+            $table->dropIndex('idx_justificativa_user_created');
         });
     }
 };

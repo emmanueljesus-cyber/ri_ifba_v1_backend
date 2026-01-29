@@ -33,81 +33,70 @@ class PresencaController extends Controller
      * Lista bolsistas do dia e suas presenças
      * GET /api/v1/admin/presencas
      */
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
+        $request->validate([
+            'data' => 'nullable|date',
+            'turno' => 'nullable|in:almoco,jantar',
+            'status' => 'nullable|in:presente,falta_injustificada,falta_justificada',
+            'bolsista_id' => 'nullable|integer|exists:users,id',
+            'per_page' => 'nullable|integer|min:1|max:100',
+        ]);
 
-        $data = $request->input('data', now()->format('Y-m-d'));
+        $data = $request->input('data', now()->toDateString());
         $turno = $request->input('turno');
+        $status = $request->input('status');
+        $bolsistaId = $request->input('bolsista_id');
+        $perPage = $request->input('per_page', 20);
 
-        // Buscar refeição
-        $refeicao = Refeicao::where('data_do_cardapio', $data)
-            ->when($turno, fn($q) => $q->where('turno', $turno))
-            ->with('cardapio')
-            ->first();
+        $query = Presenca::with(['user', 'refeicao'])
+            ->whereHas('refeicao', function ($q) use ($data, $turno) {
+                $q->where('data_do_cardapio', $data);
+                if ($turno) {
+                    $q->where('turno', $turno);
+                }
+        });
 
-        // Dia da semana
-        $diaDaSemana = Carbon::parse($data)->dayOfWeek;
-
-        // Buscar bolsistas do dia
-        $bolsistas = User::where('bolsista', true)
-            ->whereHas('diasSemana', fn($q) => $q->where('dia_semana', $diaDaSemana))
-            ->when($turno, function($q) use ($turno) {
-                $q->whereHas('aprovado', fn($aq) => $aq->where('turno_refeicao', $turno));
-            })
-            ->orderBy('nome')
-            ->get();
-
-        if (!$refeicao) {
-            return ApiResponse::standardNotFound(
-                'refeicao',
-                'Não há refeição cadastrada para este dia e turno.'
-            );
+        if ($status) {
+            $query->where('status_da_presenca', $status);
         }
 
-        // Presenças registradas
-        $presencas = Presenca::where('refeicao_id', $refeicao->id)
-            ->with('validador')
-            ->get()
-            ->keyBy('user_id');
+        if ($bolsistaId) {
+            $query->where('user_id', $bolsistaId);
+        }
 
-        // Montar lista
-        $lista = $bolsistas->map(function ($bolsista) use ($presencas, $refeicao) {
-            $presenca = $presencas->get($bolsista->id);
+        $presencas = $query->orderBy('datapresenca', 'desc')->paginate($perPage);
 
+        $dados = $presencas->through(function ($presenca) {
             return [
-                'user_id' => $bolsista->id,
-                'matricula' => $bolsista->matricula,
-                'nome' => $bolsista->nome,
-                'curso' => $bolsista->curso,
-                'turno_aula' => $bolsista->turno_aula,
-                'turno_refeicao' => $bolsista->turno_refeicao,
-                'refeicao' => [
-                    'turno' => $refeicao->turno->value,
-                    'data' => DateHelper::formatarDataBR($refeicao->data_do_cardapio),
+                'id' => $presenca->id,
+                'user' => [
+                    'id' => $presenca->user?->id,
+                    'nome' => $presenca->user?->nome,
+                    'matricula' => $presenca->user?->matricula,
+                    'foto' => $presenca->user?->foto_url,
+                    'curso' => $presenca->user?->curso,
                 ],
-                'presenca' => $presenca ? [
-                    'id' => $presenca->id,
-                    'status' => $presenca->status_da_presenca->value,
-                    'confirmado_em' => $presenca->registrado_em,
-                    'confirmado_por' => $presenca->validador?->nome,
-                ] : null,
-                'presente' => $presenca && $presenca->status_da_presenca === StatusPresenca::PRESENTE,
+                'refeicao' => [
+                    'id' => $presenca->refeicao?->id,
+                    'data' => $presenca->refeicao?->data_do_cardapio?->format('Y-m-d'),
+                    'turno' => $presenca->refeicao?->turno?->value,
+                ],
+                'status_da_presenca' => $presenca->status_da_presenca instanceof \BackedEnum  
+                    ? $presenca->status_da_presenca->value 
+                    : $presenca->status_da_presenca,
+                'data_presenca' => $presenca->data_presenca?->format('Y-m-d'),
+                'registrado_em' => $presenca->registrado_em?->format('Y-m-d H:i:s'),
+                'validado_em' => $presenca->validado_em?->format('Y-m-d H:i:s'),
             ];
         });
 
-        return ApiResponse::standardSuccess(
-            data: $lista->values(),
-            meta: [
-                'total_bolsistas' => $bolsistas->count(),
-                'presentes' => $lista->where('presente', true)->count(),
-                'ausentes' => $lista->where('presente', false)->count(),
-                'refeicao' => [
-                    'id' => $refeicao->id,
-                    'turno' => $refeicao->turno->value,
-                    'data' => $refeicao->data_do_cardapio->format('Y-m-d'),
-                ],
-            ]
-        );
+        return ApiResponse::standardSuccess($dados, [
+            'total' => $presencas->total(),
+            'current_page' => $presencas->currentPage(),
+            'per_page' => $presencas->perPage(),
+            'last_page' => $presencas->lastPage(),
+        ]);
     }
 
     /**

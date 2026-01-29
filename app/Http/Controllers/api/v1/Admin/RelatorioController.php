@@ -10,6 +10,7 @@ use App\Helpers\DateHelper;
 use App\Models\Presenca;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\RelatorioPresencasExport;
 use App\Exports\RelatorioMensalSemanalExport;
@@ -130,7 +131,11 @@ class RelatorioController extends Controller
         $mes = $request->input('mes', now()->month);
         $ano = $request->input('ano', now()->year);
 
-        $dados = $this->service->resumoMensal($mes, $ano);
+        $cacheKey = "relatorio:mensal:{$mes}:{$ano}";
+        
+        $dados = Cache::remember($cacheKey, 3600, function () use ($mes, $ano) {
+            return $this->service->resumoMensal($mes, $ano);
+        });
 
         return ApiResponse::standardSuccess($dados);
     }
@@ -144,7 +149,11 @@ class RelatorioController extends Controller
         $mes = $request->input('mes', now()->month);
         $ano = $request->input('ano', now()->year);
 
-        $dados = $this->semanalService->gerarRelatorioMensal($mes, $ano);
+        $cacheKey = "relatorio:semanal:{$mes}:{$ano}";
+        
+        $dados = Cache::remember($cacheKey, 1800, function () use ($mes, $ano) {
+            return $this->semanalService->gerarRelatorioMensal($mes, $ano);
+        });
 
         return ApiResponse::standardSuccess(
             data: $dados,

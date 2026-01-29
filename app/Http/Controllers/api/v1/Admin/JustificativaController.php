@@ -41,54 +41,54 @@ class JustificativaController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $filtros = $request->only([
-            'status', 'user_id', 'tipo', 'data_inicio', 'data_fim', 'turno',
-            'sort_by', 'sort_order'
+        $request->validate([
+            'status' => 'nullable|in:pendente,aprovada,rejeitada',
+            'tipo' => 'nullable|in:atestado,documento,outros',
+            'data_inicio' => 'nullable|date',
+            'data_fim' => 'nullable|date|after_or_equal:data_inicio',
+            'per_page' => 'nullable|integer|min:1|max:100',
         ]);
-        
-        $perPage = $request->integer('per_page', 15);
-        $justificativas = $this->service->listarJustificativas($filtros, $perPage);
 
-        // Formatar dados para resposta
-        $data = $justificativas->map(function ($just) {
+        $query = $this->service->filtrarJustificativas(
+            status: $request->input('status'),
+            tipo: $request->input('tipo'),
+            dataInicio: $request->input('data_inicio'),
+            dataFim: $request->input('data_fim')
+        );
+
+        $perPage = $request->input('per_page', 15);
+        $justificativas = $query->paginate($perPage);
+
+        // Formata os dados
+        $data = $justificativas->through(function ($justificativa) {
             return [
-                'id' => $just->id,
-                'usuario' => [
-                    'id' => $just->usuario->id,
-                    'nome' => $just->usuario->nome,
-                    'matricula' => $just->usuario->matricula,
+                'id' => $justificativa->id,
+                'tipo_justificativa' => $justificativa->tipo_justificativa,
+                'descricao' => $justificativa->descricao,
+                'status_justificativa' => $justificativa->status_justificativa,
+                'motivo_rejeicao' => $justificativa->motivo_rejeicao,
+                'tem_anexo' => !empty($justificativa->anexo_path),
+                'anexo_nome' => $justificativa->anexo_nome,
+                'data_presenca' => $justificativa->presenca?->refeicao?->data_do_cardapio?->format('Y-m-d'),
+                'turno' => $justificativa->presenca?->refeicao?->turno?->value,
+                'user' => [
+                    'id' => $justificativa->user?->id,
+                    'nome' => $justificativa->user?->nome,
+                    'matricula' => $justificativa->user?->matricula,
+                    'foto' => $justificativa->user?->foto_url,
                 ],
-                'refeicao' => $just->refeicao ? [
-                    'id' => $just->refeicao->id,
-                    'data' => DateHelper::formatarDataBR($just->refeicao->data_do_cardapio),
-                    'turno' => $just->refeicao->turno,
-                ] : null,
-                'tipo' => $just->tipo->value ?? $just->tipo,
-                'motivo' => $just->motivo,
-                'tem_anexo' => !empty($just->anexo),
-                'status_justificativa' => $just->status->value,
-                'criado_em' => DateHelper::formatarDataHoraBR($just->created_at),
-                'aprovado_por' => $just->aprovadoPor?->nome,
-                'aprovado_em' => $just->avaliado_em ? DateHelper::formatarDataHoraBR($just->avaliado_em) : null,
-                'observacao_admin' => $just->motivo_rejeicao,
+                'validada_por' => $justificativa->validada_por_user?->nome,
+                'validada_em' => $justificativa->validada_em?->format('Y-m-d H:i:s'),
+                'created_at' => $justificativa->created_at->format('Y-m-d H:i:s'),
             ];
         });
 
-        // Estatísticas
-        $stats = $this->service->estatisticas($filtros);
-
-        return ApiResponse::standardResponse(
-            data: $data,
-            meta: [
-                'pagination' => [
-                    'total' => $justificativas->total(),
-                    'per_page' => $justificativas->perPage(),
-                    'current_page' => $justificativas->currentPage(),
-                    'last_page' => $justificativas->lastPage(),
-                ],
-                'stats' => $stats,
-            ]
-        );
+        return ApiResponse::standardSuccess($data, [
+            'total' => $justificativas->total(),
+            'current_page' => $justificativas->currentPage(),
+            'per_page' => $justificativas->perPage(),
+            'last_page' => $justificativas->lastPage(),
+        ]);
     }
 
     /**

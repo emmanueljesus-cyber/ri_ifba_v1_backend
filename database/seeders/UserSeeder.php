@@ -15,18 +15,20 @@ class UserSeeder extends Seeder
         // ========================================
         // ADMIN
         // ========================================
-        $admin = User::create([
-            'matricula' => '10000000001',
-            'nome' => 'Administrador do Sistema',
-            'email' => 'admin@ifba.edu.br',
-            'password' => Hash::make('password'),
-            'perfil' => PerfilUsuario::ADMIN,
-            'bolsista' => false,
-            'desligado' => false,
-            'email_verified_at' => now(),
-        ]);
+        $admin = User::updateOrCreate(
+            ['matricula' => '10000000001'],
+            [
+                'nome' => 'Administrador do Sistema',
+                'email' => 'admin@ifba.edu.br',
+                'password' => Hash::make('password'),
+                'perfil' => PerfilUsuario::ADMIN,
+                'bolsista' => false,
+                'desligado' => false,
+                'email_verified_at' => now(),
+            ]
+        );
         
-        $this->command->info('👤 Admin criado: ' . $admin->matricula);
+        $this->command->info('👤 Admin: ' . $admin->matricula . ($admin->wasRecentlyCreated ? ' (criado)' : ' (atualizado)'));
 
         // ========================================
         // 100 ESTUDANTES BOLSISTAS (50 almoço + 50 jantar)
@@ -82,21 +84,23 @@ class UserSeeder extends Seeder
                 $restricoes = array_slice($restricoesPossiveis, rand(0, count($restricoesPossiveis) - $numRestricoes), $numRestricoes);
             }
 
-            $user = User::create([
-                'matricula' => $bolsista->matricula,
-                'nome' => $bolsista->nome,
-                'email' => $nomeLimpo . '@aluno.ifba.edu.br',
-                'password' => Hash::make('password'),
-                'perfil' => PerfilUsuario::ESTUDANTE,
-                'bolsista' => true,
-                'desligado' => false,
-                'curso' => $bolsista->curso,
-                'turno_refeicao' => $bolsista->turno_refeicao,
-                'limite_faltas_mes' => 3,
-                'preferencia_alimentar' => $preferencia,
-                'restricoes_alimentares' => $restricoes,
-                'email_verified_at' => now(),
-            ]);
+            $user = User::updateOrCreate(
+                ['matricula' => $bolsista->matricula],
+                [
+                    'nome' => $bolsista->nome,
+                    'email' => $nomeLimpo . '@aluno.ifba.edu.br',
+                    'password' => Hash::make('password'),
+                    'perfil' => PerfilUsuario::ESTUDANTE,
+                    'bolsista' => true,
+                    'desligado' => false,
+                    'curso' => $bolsista->curso,
+                    'turno_refeicao' => $bolsista->turno_refeicao,
+                    'limite_faltas_mes' => 3,
+                    'preferencia_alimentar' => $preferencia,
+                    'restricoes_alimentares' => $restricoes,
+                    'email_verified_at' => now(),
+                ]
+            );
 
             // Vincular com registro na tabela bolsistas
             $bolsista->update([
@@ -141,19 +145,21 @@ class UserSeeder extends Seeder
             $matricula = '20242460' . $numero;
             $nomeLimpo = $this->gerarEmailDoNome($dados['nome']);
 
-            User::create([
-                'matricula' => $matricula,
-                'nome' => $dados['nome'],
-                'email' => $nomeLimpo . '@aluno.ifba.edu.br',
-                'password' => Hash::make('password'),
-                'perfil' => PerfilUsuario::ESTUDANTE,
-                'bolsista' => false,
-                'desligado' => false,
-                'curso' => $cursos[array_rand($cursos)],
-                'turno_aula' => $dados['turno_aula'],
-                'limite_faltas_mes' => 0,
-                'email_verified_at' => now(),
-            ]);
+            User::updateOrCreate(
+                ['matricula' => $matricula],
+                [
+                    'nome' => $dados['nome'],
+                    'email' => $nomeLimpo . '@aluno.ifba.edu.br',
+                    'password' => Hash::make('password'),
+                    'perfil' => PerfilUsuario::ESTUDANTE,
+                    'bolsista' => false,
+                    'desligado' => false,
+                    'curso' => $cursos[array_rand($cursos)],
+                    'turno_aula' => $dados['turno_aula'],
+                    'limite_faltas_mes' => 0,
+                    'email_verified_at' => now(),
+                ]
+            );
             $naoBolsistasCriados++;
         }
 
@@ -211,13 +217,16 @@ class UserSeeder extends Seeder
         ];
 
         foreach ($desligados as $dados) {
-            User::create(array_merge($dados, [
-                'password' => Hash::make('password'),
-                'perfil' => PerfilUsuario::ESTUDANTE,
-                'bolsista' => true,
-                'desligado' => true,
-                'email_verified_at' => now(),
-            ]));
+            User::updateOrCreate(
+                ['matricula' => $dados['matricula']],
+                array_merge($dados, [
+                    'password' => Hash::make('password'),
+                    'perfil' => PerfilUsuario::ESTUDANTE,
+                    'bolsista' => true,
+                    'desligado' => true,
+                    'email_verified_at' => now(),
+                ])
+            );
         }
 
         $this->command->info('✅ 5 estudantes desligados criados (para teste)');
