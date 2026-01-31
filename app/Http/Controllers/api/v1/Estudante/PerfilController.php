@@ -56,6 +56,8 @@ class PerfilController extends Controller
             'turno_aula' => $user->turno_aula,
             'bolsista' => $user->bolsista,
             'preferencia_alimentar' => $user->preferencia_alimentar ?? 'comum',
+            'restricoes_alimentares' => $user->restricoes_alimentares ?? [],
+            'alergias' => $user->alergias,
             'foto_url' => $user->foto_url,
             'perfil' => $user->perfil,
             'dias_cadastrados' => $user->getDiasCadastrados(),
@@ -122,6 +124,7 @@ class PerfilController extends Controller
             'preferencia_alimentar' => 'sometimes|in:comum,ovolactovegetariano',
             'restricoes_alimentares' => 'sometimes|array',
             'restricoes_alimentares.*' => 'string|max:255',
+            'alergias' => 'sometimes|nullable|string|max:1000',
         ]);
 
         $user = $this->getUser($request);
@@ -148,12 +151,17 @@ class PerfilController extends Controller
             $updatedData['restricoes_alimentares'] = $request->input('restricoes_alimentares');
         }
 
+        if ($request->has('alergias')) {
+            $updatedData['alergias'] = $request->input('alergias');
+        }
+
         $user->update($updatedData);
 
         return ApiResponse::standardSuccess(
             data: [
                 'preferencia_alimentar' => $user->preferencia_alimentar,
                 'restricoes_alimentares' => $user->restricoes_alimentares ?? [],
+                'alergias' => $user->alergias,
             ],
             meta: ['mensagem' => 'Preferências alimentares atualizadas com sucesso!']
         );

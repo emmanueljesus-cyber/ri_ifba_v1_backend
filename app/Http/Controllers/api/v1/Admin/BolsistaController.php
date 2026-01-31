@@ -70,7 +70,11 @@ class BolsistaController extends Controller
      */
     public function todosBolsistas(Request $request): JsonResponse
     {
-        $query = User::where('bolsista', true)->with('diasSemana');
+        $query = User::where('bolsista', true)
+            ->with('diasSemana')
+            ->withCount(['presencas as total_faltas' => function ($q) {
+                $q->where('status_da_presenca', 'falta');
+            }]);
 
         // Filtros
         if ($request->has('search')) {

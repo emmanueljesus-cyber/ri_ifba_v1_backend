@@ -91,14 +91,33 @@ class DashboardService
         $confirmados = Presenca::where('refeicao_id', $refeicao->id)
             ->where('status_da_presenca', StatusPresenca::PRESENTE)
             ->count();
-            
+
+        // Calcular total de bolsistas esperados para este turno/dia (RF09)
+        $totalEsperados = $this->calcularTotalEsperados($turno, $agora->toDateString());
+
         return [
             'id' => $refeicao->id,
             'turno' => $refeicao->turno->value ?? $refeicao->turno,
             'confirmados' => $confirmados,
+            'total_esperados' => $totalEsperados,
             'capacidade' => $refeicao->capacidade,
             'vagas_restantes' => max(0, $refeicao->capacidade - $confirmados),
         ];
+    }
+
+    /**
+     * Calcula total de bolsistas esperados para um turno/dia específico (RF09)
+     */
+    private function calcularTotalEsperados(string $turno, string $data): int
+    {
+        $diaSemana = Carbon::parse($data)->dayOfWeek; // 0=Domingo, 1=Segunda, etc.
+
+        // Contar bolsistas ativos que têm direito à refeição neste dia/turno
+        return User::where('bolsista', true)
+            ->where('desligado', false)
+            ->where('turno', $turno)
+            ->whereHas('diasSemana', fn($q) => $q->where('dia_semana', $diaSemana))
+            ->count();
     }
 
     /**

@@ -47,6 +47,9 @@ class BolsistaResource extends JsonResource
                     ->map(fn($d) => DateHelper::getDiaSemanaTexto($d->dia_semana))
                     ->implode(', ')
             ),
+
+            // Total de faltas
+            'total_faltas' => $this->when(isset($this->total_faltas), $this->total_faltas ?? 0),
             // Dados de presença (quando aplicável)
             'presenca' => $this->when(isset($this->presenca_atual), function() {
                 return $this->presenca_atual ? [

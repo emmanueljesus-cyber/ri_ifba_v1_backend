@@ -477,34 +477,82 @@ class ExtrasController extends Controller
      */
     public function exportar(Request $request)
     {
-        $query = FilaExtra::with(['user:id,nome,matricula,email,curso', 'refeicao.cardapio'])
-            ->orderBy('inscrito_em', 'asc');
+        $query = FilaExtra::with(['user', 'refeicao.cardapio']); // Removido select específico para garantir que todos campos venham
 
-        // Filtro por período
-        if ($request->has('data_inicio')) {
-            $dataInicio = Carbon::parse($request->input('data_inicio'))->startOfDay();
-            $query->whereHas('refeicao.cardapio', function ($q) use ($dataInicio) {
-                $q->where('data_do_cardapio', '>=', $dataInicio);
-            });
+        // Verificar se vai usar agrupamento por dia (precisa de joins)
+        $agruparPorDia = $request->input('agrupamento') === 'dia';
+
+        if ($agruparPorDia) {
+            // Quando agrupar por dia, fazer joins primeiro e aplicar filtros diretamente
+            $query->select('filas_extras.*') // usar nome correto da tabela
+                  ->join('refeicoes', 'filas_extras.refeicao_id', '=', 'refeicoes.id')
+                  ->join('cardapios', 'refeicoes.cardapio_id', '=', 'cardapios.id');
+
+            // 1. Filtro por Período (aplicado diretamente no join)
+            if ($request->has('data_inicio')) {
+                $dataInicio = Carbon::parse($request->input('data_inicio'))->startOfDay();
+                $query->where('cardapios.data_do_cardapio', '>=', $dataInicio);
+            }
+
+            if ($request->has('data_fim')) {
+                $dataFim = Carbon::parse($request->input('data_fim'))->endOfDay();
+                $query->where('cardapios.data_do_cardapio', '<=', $dataFim);
+            }
+
+            // 2. Filtro por Turno (aplicado diretamente no join)
+            if ($request->has('turno') && $request->input('turno')) {
+                $query->where('refeicoes.turno', $request->input('turno'));
+            }
+
+            // Ordenação por data e turno
+            $query->orderBy('cardapios.data_do_cardapio', 'asc')
+                  ->orderBy('refeicoes.turno', 'asc');
+        } else {
+            // Quando não agrupar por dia, usar whereHas normalmente
+            
+            // 1. Filtro por Período (usando whereHas)
+            if ($request->has('data_inicio')) {
+                $dataInicio = Carbon::parse($request->input('data_inicio'))->startOfDay();
+                $query->whereHas('refeicao.cardapio', function ($q) use ($dataInicio) {
+                    $q->where('data_do_cardapio', '>=', $dataInicio);
+                });
+            }
+
+            if ($request->has('data_fim')) {
+                $dataFim = Carbon::parse($request->input('data_fim'))->endOfDay();
+                $query->whereHas('refeicao.cardapio', function ($q) use ($dataFim) {
+                    $q->where('data_do_cardapio', '<=', $dataFim);
+                });
+            }
+
+            // 2. Filtro por Turno (usando whereHas)
+            if ($request->has('turno') && $request->input('turno')) {
+                $turno = $request->input('turno');
+                $query->whereHas('refeicao', fn($q) => $q->where('turno', $turno));
+            }
+
+            // Ordenação padrão por data de inscrição
+            $query->orderBy('inscrito_em', 'asc');
         }
 
-        if ($request->has('data_fim')) {
-            $dataFim = Carbon::parse($request->input('data_fim'))->endOfDay();
-            $query->whereHas('refeicao.cardapio', function ($q) use ($dataFim) {
-                $q->where('data_do_cardapio', '<=', $dataFim);
-            });
+        // 3. [NOVO] Filtro por Usuário (funciona em ambos os casos)
+        if ($request->has('user_id') && $request->input('user_id')) {
+            $query->where($agruparPorDia ? 'filas_extras.user_id' : 'user_id', $request->input('user_id'));
         }
 
-        // Filtro por turno
-        if ($request->has('turno')) {
-            $turno = $request->input('turno');
-            $query->whereHas('refeicao', fn($q) => $q->where('turno', $turno));
+        // 4. [NOVO] Filtro por Status (funciona em ambos os casos)
+        if ($request->has('status_final') && $request->input('status_final')) {
+            $query->where($agruparPorDia ? 'filas_extras.status_fila_extras' : 'status_fila_extras', $request->input('status_final'));
         }
 
         $inscricoes = $query->get();
+        
+        // Verificação se deve ser detalhado
+        $isDetalhado = $request->input('detalhado') == 1;
 
         // Criar array para exportação
-        $dados = $inscricoes->map(function ($inscricao) {
+        $dados = $inscricoes->map(function ($inscricao) use ($isDetalhado) {
+            // Logica de status (Manter)
             $status = $inscricao->status_fila_extras instanceof StatusFila
                 ? $inscricao->status_fila_extras->value
                 : $inscricao->status_fila_extras;
@@ -513,12 +561,12 @@ class ExtrasController extends Controller
                 ? $inscricao->refeicao->turno->value
                 : $inscricao->refeicao->turno;
 
-            return [
+            $linha = [
                 'Nome' => $inscricao->user->nome,
                 'Matrícula' => $inscricao->user->matricula,
                 'E-mail' => $inscricao->user->email,
                 'Curso' => $inscricao->user->curso ?? '-',
-                'Data' => $inscricao->refeicao->cardapio?->data_do_cardapio?->format('d/m/Y') ?? '-',
+                'Data Refeição' => $inscricao->refeicao->cardapio?->data_do_cardapio?->format('d/m/Y') ?? '-',
                 'Turno' => $turno === 'almoco' ? 'Almoço' : 'Jantar',
                 'Status' => match($status) {
                     'inscrito' => 'Aguardando',
@@ -526,14 +574,23 @@ class ExtrasController extends Controller
                     'rejeitado' => 'Rejeitado',
                     default => $status
                 },
-                'Inscrito em' => $inscricao->inscrito_em?->format('d/m/Y H:i') ?? '-',
+                'Solicitado em' => $inscricao->inscrito_em?->format('d/m/Y H:i') ?? '-',
             ];
+            
+            // [NOVO] Campos Detalhados
+            if ($isDetalhado) {
+                $linha['ID Inscrição'] = $inscricao->id;
+                $linha['ID Refeição'] = $inscricao->refeicao_id;
+                $linha['Motivo Rejeição'] = $inscricao->motivo_rejeicao ?? '';
+                // Adicione outros campos se existirem no model
+            }
+            
+            return $linha;
         })->toArray();
 
-        // Usar Maatwebsite Excel para exportar
         return \Maatwebsite\Excel\Facades\Excel::download(
             new \App\Exports\FilaExtrasExport($dados),
-            'relatorio_fila_extras_' . now()->format('Y-m-d') . '.xlsx'
+            'relatorio_extras_' . now()->format('Y-m-d_His') . '.xlsx'
         );
     }
 }
