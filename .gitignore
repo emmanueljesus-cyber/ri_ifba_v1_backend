@@ -79,3 +79,4 @@ storage/app/public/*
 # Arquivos de teste
 coverage/
 .phpunit.result.cache
+.env
