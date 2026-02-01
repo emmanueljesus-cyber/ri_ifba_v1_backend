@@ -1,9 +1,9 @@
-# Dockerfile - Laravel 12 + PHP 8.4 (Railway-safe)
+# Dockerfile - Laravel 12 + PHP 8.4 (Railway-safe) + toggles
 FROM php:8.4-cli
 
 WORKDIR /var/www/html
 
-# 1) Dependências do sistema + extensões PHP necessárias
+# 1) Dependências do sistema + extensões PHP
 RUN apt-get update && apt-get install -y \
     git \
     curl \
@@ -21,10 +21,10 @@ RUN apt-get update && apt-get install -y \
 # 2) Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# 3) Copia composer.* primeiro para aproveitar cache das camadas
+# 3) Copia composer.* primeiro para cache
 COPY composer.json composer.lock ./
 
-# 4) Instala dependências sem scripts (não roda artisan no build)
+# 4) Instala deps sem scripts (evita artisan no build)
 RUN COMPOSER_ALLOW_SUPERUSER=1 \
     composer install \
       --no-interaction \
@@ -33,36 +33,49 @@ RUN COMPOSER_ALLOW_SUPERUSER=1 \
       --no-dev \
       --no-scripts
 
-# 5) Agora copia o restante do código da aplicação
+# 5) Copia o restante do código
 COPY . .
 
-# 6) Regera autoload com o código presente (opcional, mas ok)
+# 6) Regera autoload com o código presente
 RUN COMPOSER_ALLOW_SUPERUSER=1 composer dump-autoload --optimize
 
-# 7) Cria diretórios e ajusta permissões
+# 7) Storage/cache perms
 RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views \
     && mkdir -p storage/logs \
     && mkdir -p bootstrap/cache \
     && chmod -R ug+rwX storage bootstrap/cache
 
-# 8) Script de inicialização (NÃO cria .env; usa ENV do Railway)
+# 8) Start script (usa ENV do Railway; não cria .env)
 RUN printf '%s\n' \
 '#!/bin/sh' \
 'set -e' \
 '' \
 'cd /var/www/html' \
 '' \
-'echo "==> Checking environment..."' \
-'echo "APP_ENV=${APP_ENV:-undefined} | APP_DEBUG=${APP_DEBUG:-undefined} | PORT=${PORT:-8000}"' \
+'echo "==> Env: APP_ENV=${APP_ENV:-undefined} | APP_DEBUG=${APP_DEBUG:-undefined} | PORT=${PORT:-8000}"' \
+'echo "==> Toggles: RUN_SETUP=${RUN_SETUP:-false} | CACHE_CONFIG=${CACHE_CONFIG:-false}"' \
 '' \
-'echo "==> Clearing caches (avoid stale config)..."' \
+'# Evita ficar preso em config antiga (muito comum em deploy)' \
+'echo "==> Clearing caches..."' \
 'php artisan optimize:clear || true' \
 '' \
-'echo "==> Discovering packages (since build used --no-scripts)..."' \
+'# Como o build usa --no-scripts, garantimos discover no runtime' \
+'echo "==> package:discover..."' \
 'php artisan package:discover --ansi || true' \
 '' \
-'echo "==> Running project setup (migrations/seeds/etc)..."' \
-'php artisan project:setup || echo "Setup failed, continuing..."' \
+'# Opcional: cachear config em produção (só se você quiser)' \
+'if [ "${CACHE_CONFIG:-false}" = "true" ]; then' \
+'  echo "==> Caching config..."' \
+'  php artisan config:cache || true' \
+'fi' \
+'' \
+'# Opcional: rodar seu setup (migrations/seeds/etc) só quando você mandar' \
+'if [ "${RUN_SETUP:-false}" = "true" ]; then' \
+'  echo "==> Running project setup..."' \
+'  php artisan project:setup || echo "Setup failed, continuing..."' \
+'else' \
+'  echo "==> Skipping project setup (RUN_SETUP != true)"' \
+'fi' \
 '' \
 'echo "==> Starting Laravel server on port ${PORT:-8000}..."' \
 'php artisan serve --host=0.0.0.0 --port=${PORT:-8000}' \
