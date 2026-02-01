@@ -22,6 +22,13 @@ class SetupProject extends Command
 		$this->info("🚀 Iniciando setup completo do projeto...");
 
 		/**
+		 * 0. Limpar cache de configuração para garantir leitura das variáveis de ambiente
+		 */
+		$this->section("Limpando cache de configuração...");
+		Artisan::call('config:clear');
+		$this->success("Cache limpo!");
+
+		/**
 		 * 1. Gerar APP_KEY (se não existir)
 		 */
 		if (empty(config('app.key'))) {
