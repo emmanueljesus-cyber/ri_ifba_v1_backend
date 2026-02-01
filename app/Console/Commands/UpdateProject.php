@@ -30,8 +30,6 @@ class UpdateProject extends Command
         Artisan::call('db:seed');
         $this->info("🌱 Seeds executadas");
 
-        Artisan::call('l5-swagger:generate');
-        $this->info("📘 Swagger atualizado");
 
         $this->info("✅ Projeto atualizado com sucesso!");
         return self::SUCCESS;
