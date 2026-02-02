@@ -24,7 +24,6 @@ return [
     'debug' => env('IMPORT_DEBUG', false),
 
     // Turno padrão quando não especificado
-    'default_turno' => 'almoco',
-
+	'default_turno' => ['almoco', 'jantar'],
 ];
 
