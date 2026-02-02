@@ -196,6 +196,15 @@ class BolsistaController extends Controller
             return ApiResponse::standardError($erro['chave'], $erro['message'], $erro['code']);
         }
 
+        // Validar se o bolsista tem direito ao turno específico
+        if ($user->aprovado && $user->aprovado->turno_refeicao !== $turno) {
+            return ApiResponse::standardError(
+                'turno_incorreto',
+                "Este bolsista não está listado para o turno de {$turno}. Turno do bolsista: {$user->aprovado->turno_refeicao}.",
+                422
+            );
+        }
+
         // Buscar refeição
         $resultado = ValidationHelper::buscarRefeicao($data, $turno);
         if ($resultado['erro']) {
