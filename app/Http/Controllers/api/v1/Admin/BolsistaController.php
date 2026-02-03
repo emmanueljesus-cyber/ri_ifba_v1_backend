@@ -491,18 +491,8 @@ class BolsistaController extends Controller
     public function exportTemplate()
     {
         try {
-            // Verifica se as dependências estão disponíveis
-            if (!class_exists(\Maatwebsite\Excel\Facades\Excel::class)) {
-                throw new \Exception('Laravel Excel package não está instalado');
-            }
-
-            if (!class_exists(\App\Exports\BolsistaTemplateExport::class)) {
-                throw new \Exception('Classe BolsistaTemplateExport não encontrada');
-            }
-
             $filename = 'template_bolsistas_' . now()->format('Y-m-d') . '.xlsx';
-
-            // Laravel Excel define headers automaticamente baseado na extensão do arquivo
+            
             return Excel::download(
                 new \App\Exports\BolsistaTemplateExport(),
                 $filename
@@ -512,16 +502,14 @@ class BolsistaController extends Controller
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'class' => get_class($e),
-                'environment' => config('app.env'),
-                'debug' => config('app.debug'),
+                'trace' => $e->getTraceAsString(),
             ]);
 
-            return ApiResponse::standardError(
-                'export_error',
-                'Erro ao gerar template Excel: ' . $e->getMessage(),
-                500
-            );
+            return response()->json([
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ], 500);
         }
     }
 
