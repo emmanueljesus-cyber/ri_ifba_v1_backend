@@ -106,17 +106,31 @@ class CardapioController extends Controller
     public function import(CardapioImportRequest $request)
     {
         $file = $request->file('file');
-        $turnos = $request->input('turno', ['almoco']);
+        // Frontend envia como turno[] então precisamos pegar assim
+        $turnos = $request->input('turno', $request->input('turno[]', ['almoco']));
+        
+        // Garantir que turnos seja sempre um array
+        if (!is_array($turnos)) {
+            $turnos = [$turnos];
+        }
+        
+        // Filtrar valores vazios
+        $turnos = array_filter($turnos);
+        if (empty($turnos)) {
+            $turnos = ['almoco'];
+        }
+        
         $rows = Excel::toArray(null, $file)[0] ?? [];
 
         if (empty($rows)) {
             return ApiResponse::standardError('file', 'Arquivo vazio', 422);
         }
 
-        \Log::info('Importando cardápios', [
+        \Log::info('Importando cardápios - Controller', [
             'total_linhas' => count($rows),
             'turnos' => $turnos,
             'usuario_id' => $request->user()?->id,
+            'primeira_linha' => $rows[0] ?? null,
         ]);
 
         $result = $this->importService->import(
@@ -126,6 +140,12 @@ class CardapioController extends Controller
             debug: $request->boolean('debug')
         );
 
+        \Log::info('Resultado da importação de cardápios - Controller', [
+            'total_criados' => count($result['created']),
+            'total_erros' => count($result['errors']),
+            'erros' => $result['errors'],
+        ]);
+
         // Modo debug
         if ($request->boolean('debug') && $result['debug']) {
             return ApiResponse::standardResponse(
@@ -134,13 +154,19 @@ class CardapioController extends Controller
             );
         }
 
-        // Resposta normal
+        // Resposta normal - incluir erros na mensagem se houver
+        $message = count($result['created']) . ' cardápio(s) importado(s) com sucesso!';
+        if (count($result['errors']) > 0) {
+            $message .= ' (' . count($result['errors']) . ' erro(s) encontrado(s))';
+        }
+
         return ApiResponse::standardCreated(
             data: $result['created'],
             meta: [
-                'total_criados' => count($result['created']),
+                'total_importados' => count($result['created']),
                 'total_erros' => count($result['errors']),
                 'errors' => $result['errors'],
+                'message' => $message,
             ]
         );
     }

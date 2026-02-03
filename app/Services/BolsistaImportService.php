@@ -24,17 +24,35 @@ class BolsistaImportService
         $errors = [];
         $processados = 0;
 
+        \Log::info('Iniciando importação de bolsistas', [
+            'total_linhas' => count($rows),
+            'turno_padrao' => $turnoPadrao,
+            'primeira_linha' => $rows[0] ?? null,
+            'segunda_linha' => $rows[1] ?? null,
+        ]);
+
         // Detectar formato e obter mapeamento de colunas
         $headers = $this->normalizeHeaders($rows[0] ?? []);
         $dataRows = array_slice($rows, 1);
 
+        \Log::info('Headers normalizados', ['headers' => $headers, 'total_data_rows' => count($dataRows)]);
+
         foreach ($dataRows as $index => $row) {
             $linha = $index + 2; // +2 porque começa do 0 e pulamos o header
+
+            // Ignorar linhas completamente vazias
+            if (empty(array_filter($row))) {
+                \Log::debug('Linha vazia ignorada', ['linha' => $linha]);
+                continue;
+            }
 
             try {
                 $dados = $this->mapRowToData($row, $headers, $turnoPadrao);
 
+                \Log::info('Linha mapeada', ['linha' => $linha, 'dados' => $dados, 'row_raw' => $row]);
+
                 if (empty($dados['matricula'])) {
+                    \Log::warning('Matrícula vazia', ['linha' => $linha, 'dados' => $dados]);
                     $errors[] = ['linha' => $linha, 'erro' => 'Matrícula é obrigatória'];
                     continue;
                 }
@@ -49,7 +67,7 @@ class BolsistaImportService
                         $existente->update([
                             'nome' => $dados['nome'] ?? $existente->nome,
                             'curso' => $dados['curso'] ?? $existente->curso,
-                            'turno' => $dados['turno'] ?? $existente->turno,
+                            'turno_refeicao' => $dados['turno_refeicao'] ?? $existente->turno_refeicao,
                             'dias_semana' => !empty($dados['dias_semana']) ? $dados['dias_semana'] : $existente->dias_semana,
                             'ativo' => true,
                         ]);
@@ -70,7 +88,7 @@ class BolsistaImportService
                         'matricula' => $dados['matricula'],
                         'nome' => $dados['nome'] ?? null,
                         'curso' => $dados['curso'] ?? null,
-                        'turno' => $dados['turno'] ?? $turnoPadrao,
+                        'turno_refeicao' => $dados['turno_refeicao'] ?? $turnoPadrao,
                         'dias_semana' => $dados['dias_semana'] ?? [1, 2, 3, 4, 5],
                         'ativo' => true,
                     ]);
@@ -90,12 +108,25 @@ class BolsistaImportService
                 $processados++;
             } catch (\Exception $e) {
                 DB::rollBack();
+                \Log::error('Erro ao processar linha', [
+                    'linha' => $linha,
+                    'erro' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                    'row' => $row,
+                ]);
                 $errors[] = [
                     'linha' => $linha,
                     'erro' => $e->getMessage(),
                 ];
             }
         }
+
+        \Log::info('Importação finalizada', [
+            'total_criados' => count($created),
+            'total_atualizados' => count($updated),
+            'total_erros' => count($errors),
+            'processados' => $processados,
+        ]);
 
         return [
             'created' => $created,
@@ -138,6 +169,9 @@ class BolsistaImportService
         $value = preg_replace('/[úùûü]/u', 'u', $value);
         $value = preg_replace('/[ç]/u', 'c', $value);
         $value = preg_replace('/[^a-z0-9_]/', '_', $value);
+        // Remover underscores duplicados e nas bordas
+        $value = preg_replace('/_+/', '_', $value);
+        $value = trim($value, '_');
         return $value;
     }
 
@@ -163,11 +197,11 @@ class BolsistaImportService
         $diasSemana = $this->parseDiasSemana($diasSemanaRaw);
 
         return [
-            'matricula' => $getValue(['matricula', 'mat', 'registro', 'ra']),
+            'matricula' => $getValue(['matricula', 'mat', 'registro', 'ra', 'matricula_']),
             'nome' => $getValue(['nome', 'name', 'aluno', 'estudante', 'nome_completo']),
             'email' => $getValue(['email', 'e_mail', 'correio']),
             'curso' => $getValue(['curso', 'turma', 'classe']),
-            'turno_refeicao' => $getValue(['turno', 'periodo', 'shift']) ?? $turnoPadrao,
+            'turno_refeicao' => $getValue(['turno', 'turno_refeicao', 'turno_almoco_jantar', 'periodo', 'shift']) ?? $turnoPadrao,
             'dias_semana' => $diasSemana,
         ];
     }

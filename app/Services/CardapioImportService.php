@@ -21,7 +21,16 @@ class CardapioImportService
      */
     public function import(array $rows, array $turnos, ?int $userId, bool $debug = false): array
     {
+        Log::info('=== INICIANDO IMPORTAÇÃO DE CARDÁPIOS ===', [
+            'total_linhas' => count($rows),
+            'turnos' => $turnos,
+            'userId' => $userId,
+            'primeira_linha' => $rows[0] ?? null,
+            'segunda_linha' => $rows[1] ?? null,
+        ]);
+
         if (empty($rows)) {
+            Log::warning('Arquivo vazio recebido');
             return ['created' => [], 'errors' => [['erro' => 'Arquivo vazio']], 'debug' => null];
         }
 
@@ -34,23 +43,30 @@ class CardapioImportService
         $segundaCelulaPrimeiraLinha = $rows[0][1] ?? null;
         $datasNaPrimeiraLinha = $this->parseDate($segundaCelulaPrimeiraLinha) !== null;
 
-        if (config('app.debug')) {
-            Log::info('Formato detectado na importação de cardápio', [
-                'primeiraCelula' => $primeiraCelula,
-                'segundaCelulaPrimeiraColuna' => $segundaCelulaPrimeiraColuna,
-                'datasNaPrimeiraColuna' => $datasNaPrimeiraColuna,
-                'segundaCelulaPrimeiraLinha' => $segundaCelulaPrimeiraLinha,
-                'datasNaPrimeiraLinha' => $datasNaPrimeiraLinha,
-            ]);
-        }
+        Log::info('Formato detectado na importação de cardápio', [
+            'primeiraCelula' => $primeiraCelula,
+            'segundaCelulaPrimeiraColuna' => $segundaCelulaPrimeiraColuna,
+            'datasNaPrimeiraColuna' => $datasNaPrimeiraColuna,
+            'segundaCelulaPrimeiraLinha' => $segundaCelulaPrimeiraLinha,
+            'datasNaPrimeiraLinha' => $datasNaPrimeiraLinha,
+        ]);
 
         if ($datasNaPrimeiraColuna) {
+            Log::info('Usando método COLUNAR');
             $result = $this->importColunar($rows, $turnos, $userId);
         } elseif ($datasNaPrimeiraLinha || (empty($primeiraCelula) || !str_contains($primeiraCelula, 'data'))) {
+            Log::info('Usando método TRANSPOSTO');
             $result = $this->importTransposto($rows, $turnos, $userId);
         } else {
+            Log::info('Usando método NORMAL');
             $result = $this->importNormal($rows, $turnos, $userId);
         }
+
+        Log::info('=== IMPORTAÇÃO FINALIZADA ===', [
+            'total_criados' => count($result['created']),
+            'total_erros' => count($result['errors']),
+            'erros' => $result['errors'],
+        ]);
 
         if ($debug) {
             $result['debug'] = [
@@ -83,19 +99,27 @@ class CardapioImportService
         $errors = [];
         $fieldMap = $this->getFieldMap();
 
+        Log::info('ImportTransposto: Buscando datas na primeira linha', [
+            'primeira_linha' => $rows[0] ?? [],
+        ]);
+
         $datas = [];
         for ($col = 1; $col < count($rows[0]); $col++) {
             $dataValue = $rows[0][$col] ?? null;
             if (!empty($dataValue)) {
                 $parsedDate = $this->parseDate($dataValue);
+                Log::debug("Coluna {$col}: valor={$dataValue}, parsed={$parsedDate}");
                 if ($parsedDate) {
                     $datas[$col] = $parsedDate;
                 }
             }
         }
 
+        Log::info('ImportTransposto: Datas encontradas', ['datas' => $datas]);
+
         if (empty($datas)) {
             $errors[] = ['linha' => 1, 'erro' => 'Nenhuma data válida encontrada na primeira linha'];
+            Log::warning('Nenhuma data válida encontrada');
             return ['created' => $created, 'errors' => $errors];
         }
 
