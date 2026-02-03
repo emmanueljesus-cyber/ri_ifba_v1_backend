@@ -404,6 +404,17 @@ Route::prefix('v1')->group(function () {
             Route::post('/{usuario}/reativar', [AdminUserController::class, 'reativar']); // Reativar
         });
 
+        // =========================================================================
+        // ROTAS TEMPLATE V2 (PHPSPREADSHEET DIRETO) - PROTEGIDAS
+        // =========================================================================
+        Route::get('cardapios/template-v2', function(\App\Services\TemplateExportService $service) {
+            return $service->downloadCardapioTemplate();
+        });
+        
+        Route::get('bolsistas/template-v2', function(\App\Services\TemplateExportService $service) {
+            return $service->downloadBolsistaTemplate();
+        });
+
     });
 
 });
