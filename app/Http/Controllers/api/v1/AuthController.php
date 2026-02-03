@@ -77,6 +77,9 @@ class AuthController extends Controller
         // Cria novo token
         $token = $user->createToken('auth-token')->plainTextToken;
 
+        // Tentar vincular se for bolsista e ainda não estiver vinculado
+        \App\Models\Bolsista::verificarEVincular($user);
+
         return ApiResponse::success([
             'user' => [
                 'id' => $user->id,
@@ -226,12 +229,10 @@ class AuthController extends Controller
             'turno_aula' => $turnoAula,
         ]);
 
-        // Se for bolsista, vincular com o registro na tabela bolsistas
-        if ($bolsistaAprovado) {
-            $bolsistaAprovado->update([
-                'user_id' => $user->id,
-                'vinculado_em' => now(),
-            ]);
+        // Se for bolsista, vincular com o registro na tabela bolsistas e sincronizar dias
+        if ($ehBolsista) {
+            \App\Models\Bolsista::verificarEVincular($user);
+            $user->refresh();
         }
 
         // Cria token para login automático

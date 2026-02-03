@@ -141,10 +141,8 @@ class BolsistaAprovadoService
 
             $bolsista->update($data);
 
-            // Sincronizar com usuário se necessário
-            if (isset($data['matricula'])) {
-                $this->atualizarUsuarioSeExiste($data['matricula']);
-            }
+            // Sincronizar com usuário se existir cadastro
+            $this->atualizarUsuarioSeExiste($bolsista->matricula);
 
             return $bolsista->fresh();
         });
@@ -233,9 +231,13 @@ class BolsistaAprovadoService
         if ($user) {
             $bolsistaAprovado = Bolsista::where('matricula', $matricula)
                 ->where('ativo', true)
-                ->exists();
+                ->first();
 
-            $user->update(['bolsista' => $bolsistaAprovado]);
+            if ($bolsistaAprovado) {
+                $bolsistaAprovado->vincularUsuario($user);
+            } else {
+                $user->update(['bolsista' => false]);
+            }
         }
     }
 

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Bolsista;
+use App\Models\User;
 use App\Models\UsuarioDiaSemana;
 use Illuminate\Support\Facades\DB;
 
@@ -75,6 +76,12 @@ class BolsistaImportService
 
                         $existente->refresh();
 
+                        // Sincronizar com usuário se já existir
+                        $user = User::where('matricula', $existente->matricula)->first();
+                        if ($user) {
+                            $existente->vincularUsuario($user);
+                        }
+
                         $updated[] = [
                             'id' => $existente->id,
                             'matricula' => $existente->matricula,
@@ -95,6 +102,12 @@ class BolsistaImportService
                         'ativo' => true,
                     ]);
                     $bolsista->refresh();
+
+                    // Sincronizar com usuário se já existir
+                    $user = User::where('matricula', $bolsista->matricula)->first();
+                    if ($user) {
+                        $bolsista->vincularUsuario($user);
+                    }
 
                     $created[] = [
                         'id' => $bolsista->id,
@@ -140,7 +153,7 @@ class BolsistaImportService
                 'total_criados' => count($created),
                 'total_atualizados' => count($updated),
                 'total_erros' => count($errors),
-                'mensagem' => 'Matrículas salvas. Estudantes serão marcados como bolsistas ao se cadastrarem.',
+                'mensagem' => 'Importação concluída. Dados sincronizados com usuários cadastrados.',
             ],
         ];
     }
