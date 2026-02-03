@@ -378,6 +378,17 @@ Route::prefix('v1')->group(function () {
             Route::delete('/{id}', [AdminExtrasController::class, 'destroy']);           // Remover inscrição
         });
 
+        // =========================================================================
+        // ROTAS TEMPLATE V2 (PHPSPREADSHEET DIRETO)
+        // =========================================================================
+        Route::get('cardapios/template-v2', function(\App\Services\TemplateExportService $service) {
+            return $service->downloadCardapioTemplate();
+        });
+        
+        Route::get('bolsistas/template-v2', function(\App\Services\TemplateExportService $service) {
+            return $service->downloadBolsistaTemplate();
+        });
+
         // -----------------------------------------------------------------
         // Solicitações de Mudança de Dias
         // -----------------------------------------------------------------
