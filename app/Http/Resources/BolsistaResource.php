@@ -28,9 +28,12 @@ class BolsistaResource extends JsonResource
             $isLinked = $this->user_id !== null;
             $id = $this->id;
             $matricula = $this->matricula;
+            
+            // Priorizar dados da tabela administrativa (bolsistas) conforme solicitado pelo admin
             $nome = $this->nome ?? $user?->nome;
             $curso = $this->curso ?? $user?->curso;
             $turno = $this->turno_refeicao ?? $user?->turno_refeicao;
+            
             $ativo = (bool) $this->ativo;
             $desligadoMotivo = $this->desligado_motivo;
         } else {
@@ -46,12 +49,12 @@ class BolsistaResource extends JsonResource
             $desligadoMotivo = $user->desligado_motivo;
         }
 
-        // Dias da semana
-        $diasSemana = [];
-        if ($user && $user->relationLoaded('diasSemana')) {
+        // Dias da semana - Priorizar sempre a tabela administrativa (bolsistas)
+        // O usuário não deve impactar na gestão do administrador
+        $diasSemana = $isBolsistaModel ? ($bolsista->dias_semana ?? []) : [];
+        
+        if (empty($diasSemana) && $user && $user->relationLoaded('diasSemana')) {
             $diasSemana = $user->diasSemana->pluck('dia_semana')->toArray();
-        } elseif ($isBolsistaModel) {
-            $diasSemana = $bolsista->dias_semana ?? [];
         }
 
         return [

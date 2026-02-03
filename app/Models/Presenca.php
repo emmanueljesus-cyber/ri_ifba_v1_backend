@@ -15,6 +15,7 @@ class Presenca extends Model
 
     protected $fillable = [
         'user_id',
+        'bolsista_id',
         'refeicao_id',
         'status_da_presenca',
         'validado_em',
@@ -33,6 +34,11 @@ class Presenca extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function bolsista()
+    {
+        return $this->belongsTo(Bolsista::class);
     }
 
     public function refeicao()

@@ -105,60 +105,48 @@ class PresencaService
     }
 
     /**
-     * MÉTODO COMPLETO: Confirma presença do bolsista
-     * Contém TODA a lógica de negócio. Lança exceções para erros.
+     * Confirma presença de um bolsista (pode estar vinculado a usuário ou não)
      * 
-     * @throws TurnoObrigatorioException
-     * @throws UsuarioNaoEncontradoException
-     * @throws NaoEBolsistaException
-     * @throws SemDireitoRefeicaoException
-     * @throws RefeicaoNaoEncontradaException
-     * @throws PresencaJaConfirmadaException
-     * @return array ['presenca' => Presenca, 'user' => User, 'refeicao' => Refeicao]
+     * @return array
      */
-    public function confirmarPresencaCompleta(int $userId, string $data, string $turno, ?int $validadoPor = null): array
+    public function confirmarPresencaBolsista(int $bolsistaId, string $data, string $turno, ?int $validadoPor = null): array
     {
+        $bolsista = \App\Models\Bolsista::findOrFail($bolsistaId);
+        $userId = $bolsista->user_id;
+
         // 1. Validar turno
         if (empty($turno)) {
             throw new TurnoObrigatorioException();
         }
 
-        // 2. Buscar usuário
-        $user = User::with('diasSemana')->find($userId);
-        if (!$user) {
-            throw new UsuarioNaoEncontradoException();
-        }
-
-        // 3. Verificar se é bolsista
-        if (!$user->bolsista) {
-            throw new NaoEBolsistaException();
-        }
-
-        // 4. Validar direito à refeição no dia
-        $diaSemana = Carbon::parse($data)->dayOfWeek;
-        if (!$user->temDireitoRefeicaoNoDia($diaSemana)) {
-            $diasCadastrados = $user->diasSemana()
-                ->get()
-                ->map(fn($d) => $this->getDiaSemanaTexto($d->dia_semana))
-                ->implode(', ');
-
-            throw new SemDireitoRefeicaoException(
-                $user->nome,
-                Carbon::parse($data)->locale('pt_BR')->dayName,
-                $diasCadastrados ?: 'Nenhum dia cadastrado'
-            );
-        }
-
-        // 5. Buscar refeição
+        // 2. Buscar refeição
         $refeicao = $this->buscarRefeicao($data, $turno);
         if (!$refeicao) {
             throw new RefeicaoNaoEncontradaException();
         }
 
-        // 6. Verificar se já confirmada
-        $presenca = Presenca::where('user_id', $userId)
-            ->where('refeicao_id', $refeicao->id)
-            ->first();
+        // 3. Validar direito na tabela MASTER de bolsistas
+        $diaSemana = Carbon::parse($data)->dayOfWeek;
+        $diasSemana = $bolsista->dias_semana ?? [];
+        if (!in_array($diaSemana, $diasSemana)) {
+            $diasTexto = collect($diasSemana)->map(fn($d) => $this->getDiaSemanaTexto($d))->implode(', ');
+            throw new SemDireitoRefeicaoException(
+                $bolsista->nome ?? "Bolsista {$bolsista->matricula}",
+                Carbon::parse($data)->locale('pt_BR')->dayName,
+                $diasTexto ?: 'Nenhum dia cadastrado'
+            );
+        }
+
+        // 4. Verificar se já confirmada (por user_id ou bolsista_id)
+        $query = Presenca::where('refeicao_id', $refeicao->id);
+        if ($userId) {
+            $query->where(function($q) use ($userId, $bolsistaId) {
+                $q->where('user_id', $userId)->orWhere('bolsista_id', $bolsistaId);
+            });
+        } else {
+            $query->where('bolsista_id', $bolsistaId);
+        }
+        $presenca = $query->first();
 
         if ($presenca && $presenca->status_da_presenca === StatusPresenca::PRESENTE) {
             throw new PresencaJaConfirmadaException(
@@ -167,10 +155,11 @@ class PresencaService
             );
         }
 
-        // 7. Confirmar presença
+        // 5. Confirmar presença
         if (!$presenca) {
             $presenca = Presenca::create([
                 'user_id' => $userId,
+                'bolsista_id' => $bolsistaId,
                 'refeicao_id' => $refeicao->id,
                 'status_da_presenca' => StatusPresenca::PRESENTE,
                 'validado_em' => now(),
@@ -178,53 +167,78 @@ class PresencaService
                 'registrado_em' => now(),
             ]);
         } else {
-            $presenca->marcarPresente($validadoPor ?? 1);
+            $presenca->update([
+                'status_da_presenca' => StatusPresenca::PRESENTE,
+                'validado_em' => now(),
+                'validado_por' => $validadoPor ?? 1,
+                'bolsista_id' => $bolsistaId, // Garante que o ID do bolsista esteja lá
+                'user_id' => $userId ?? $presenca->user_id,
+            ]);
             $presenca = $presenca->fresh();
         }
 
-        // 8. Retornar objetos de domínio
         return [
             'presenca' => $presenca,
-            'user' => $user,
+            'bolsista' => $bolsista,
+            'user' => $bolsista->user,
             'refeicao' => $refeicao,
         ];
     }
 
     /**
-     * MÉTODO COMPLETO: Marca falta do bolsista
-     * Contém TODA a lógica de negócio. Lança exceções para erros.
-     * 
-     * @throws TurnoObrigatorioException
-     * @throws UsuarioNaoEncontradoException
-     * @throws RefeicaoNaoEncontradaException
-     * @return array ['presenca' => Presenca, 'user' => User, 'refeicao' => Refeicao]
+     * Marca falta do bolsista (pode estar vinculado a usuário ou não)
      */
-    public function marcarFaltaCompleta(int $userId, string $data, string $turno, bool $justificada = false, ?int $validadoPor = null): array
+    public function marcarFaltaBolsista(int $bolsistaId, string $data, string $turno, bool $justificada = false, ?int $validadoPor = null): array
     {
-        // 1. Validar turno
+        $bolsista = \App\Models\Bolsista::findOrFail($bolsistaId);
+        $userId = $bolsista->user_id;
+
         if (empty($turno)) {
             throw new TurnoObrigatorioException();
         }
 
-        // 2. Buscar usuário
-        $user = User::find($userId);
-        if (!$user) {
-            throw new UsuarioNaoEncontradoException();
-        }
-
-        // 3. Buscar refeição
         $refeicao = $this->buscarRefeicao($data, $turno);
         if (!$refeicao) {
             throw new RefeicaoNaoEncontradaException();
         }
 
-        // 4. Marcar falta
-        $presenca = $this->marcarFalta($userId, $refeicao->id, $justificada, $validadoPor);
+        $status = $justificada ? StatusPresenca::FALTA_JUSTIFICADA : StatusPresenca::FALTA_INJUSTIFICADA;
 
-        // 5. Retornar objetos de domínio
+        $query = Presenca::where('refeicao_id', $refeicao->id);
+        if ($userId) {
+            $query->where(function($q) use ($userId, $bolsistaId) {
+                $q->where('user_id', $userId)->orWhere('bolsista_id', $bolsistaId);
+            });
+        } else {
+            $query->where('bolsista_id', $bolsistaId);
+        }
+        $presenca = $query->first();
+
+        if (!$presenca) {
+            $presenca = Presenca::create([
+                'user_id' => $userId,
+                'bolsista_id' => $bolsistaId,
+                'refeicao_id' => $refeicao->id,
+                'status_da_presenca' => $status,
+                'validado_em' => now(),
+                'validado_por' => $validadoPor ?? 1,
+                'registrado_em' => now(),
+            ]);
+        } else {
+            $presenca->update([
+                'status_da_presenca' => $status,
+                'validado_em' => now(),
+                'validado_por' => $validadoPor ?? 1,
+                'bolsista_id' => $bolsistaId,
+                'user_id' => $userId ?? $presenca->user_id,
+            ]);
+            $presenca = $presenca->fresh();
+        }
+
         return [
             'presenca' => $presenca,
-            'user' => $user,
+            'bolsista' => $bolsista,
+            'user' => $bolsista->user,
             'refeicao' => $refeicao,
         ];
     }

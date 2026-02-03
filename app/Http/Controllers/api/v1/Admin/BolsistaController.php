@@ -142,13 +142,7 @@ class BolsistaController extends Controller
                 $q->where('nome', 'like', "%{$search}%")
                   ->orWhere('matricula', 'like', "%{$search}%");
             })
-            ->where(function($q) use ($diaSemana) {
-                $q->whereHas('user.diasSemana', fn($d) => $d->where('dia_semana', $diaSemana))
-                  ->orWhere(function($sub) use ($diaSemana) {
-                      $sub->whereNull('user_id')
-                          ->whereJsonContains('dias_semana', $diaSemana);
-                  });
-            })
+            ->whereJsonContains('dias_semana', (int) $diaSemana)
             ->limit(10)
             ->get();
 
@@ -319,15 +313,46 @@ class BolsistaController extends Controller
 
     /**
      * Confirmar presença do bolsista
-     * POST /api/v1/admin/bolsistas/{userId}/confirmar-presenca
+     * POST /api/v1/admin/bolsistas/{id}/confirmar-presenca
      */
-    public function confirmarPresenca(Request $request, int $userId): JsonResponse
+    public function confirmarPresenca(Request $request, int $id): JsonResponse
     {
         try {
+            $data = Carbon::parse($request->input('data', now()))->format('Y-m-d');
+            $turno = $request->input('turno', '');
+
+            // Tentar encontrar o registro na tabela master de bolsistas
+            $bolsista = \App\Models\Bolsista::find($id);
+
+            if ($bolsista) {
+                $resultado = $this->presencaService->confirmarPresencaBolsista(
+                    $bolsista->id,
+                    $data,
+                    $turno,
+                    $request->user()?->id
+                );
+
+                return ApiResponse::standardCreated(
+                    data: [
+                        'presenca_id' => $resultado['presenca']->id,
+                        'usuario' => $resultado['bolsista']->nome ?? ($resultado['user']->nome ?? 'Bolsista'),
+                        'matricula' => $resultado['bolsista']->matricula,
+                        'refeicao' => [
+                            'id' => $resultado['refeicao']->id,
+                            'data' => DateHelper::formatarDataBR($resultado['refeicao']->data_do_cardapio),
+                            'turno' => $resultado['refeicao']->turno->value,
+                        ],
+                        'confirmado_em' => DateHelper::formatarDataHoraBR($resultado['presenca']->validado_em),
+                    ],
+                    meta: ['message' => '✅ Presença confirmada com sucesso.']
+                );
+            }
+
+            // Fallback para User ID (se for um estudante comum ou legado)
             $resultado = $this->presencaService->confirmarPresencaCompleta(
-                $userId,
-                Carbon::parse($request->input('data', now()))->format('Y-m-d'),
-                $request->input('turno', ''),
+                $id,
+                $data,
+                $turno,
                 $request->user()?->id
             );
 
@@ -348,22 +373,57 @@ class BolsistaController extends Controller
 
         } catch (BusinessException $e) {
             return ApiResponse::standardError('erro', $e->getMessage(), $e->getCode());
+        } catch (\Exception $e) {
+            return ApiResponse::standardError('erro', 'Falha ao confirmar presença: ' . $e->getMessage(), 500);
         }
     }
 
     /**
      * Marcar falta do bolsista
-     * POST /api/v1/admin/bolsistas/{userId}/marcar-falta
+     * POST /api/v1/admin/bolsistas/{id}/marcar-falta
      */
-    public function marcarFalta(Request $request, int $userId): JsonResponse
+    public function marcarFalta(Request $request, int $id): JsonResponse
     {
         try {
             $justificada = $request->boolean('justificada', false);
-            
+            $data = Carbon::parse($request->input('data', now()))->format('Y-m-d');
+            $turno = $request->input('turno', '');
+
+            // Tentar encontrar como bolsista
+            $bolsista = \App\Models\Bolsista::find($id);
+
+            if ($bolsista) {
+                $resultado = $this->presencaService->marcarFaltaBolsista(
+                    $bolsista->id,
+                    $data,
+                    $turno,
+                    $justificada,
+                    $request->user()?->id
+                );
+
+                $mensagem = $justificada ? 'Falta justificada registrada.' : 'Falta injustificada registrada.';
+
+                return ApiResponse::standardSuccess(
+                    data: [
+                        'presenca_id' => $resultado['presenca']->id,
+                        'usuario' => $resultado['bolsista']->nome ?? ($resultado['user']->nome ?? 'Bolsista'),
+                        'matricula' => $resultado['bolsista']->matricula,
+                        'status' => $resultado['presenca']->status_da_presenca->value,
+                        'refeicao' => [
+                            'id' => $resultado['refeicao']->id,
+                            'data' => DateHelper::formatarDataBR($resultado['refeicao']->data_do_cardapio),
+                            'turno' => $resultado['refeicao']->turno->value,
+                        ],
+                    ],
+                    meta: ['message' => $mensagem]
+                );
+            }
+
+            // Fallback para User ID
             $resultado = $this->presencaService->marcarFaltaCompleta(
-                $userId,
-                Carbon::parse($request->input('data', now()))->format('Y-m-d'),
-                $request->input('turno', ''),
+                $id,
+                $data,
+                $turno,
                 $justificada,
                 $request->user()?->id
             );
@@ -387,6 +447,8 @@ class BolsistaController extends Controller
 
         } catch (BusinessException $e) {
             return ApiResponse::standardError('erro', $e->getMessage(), $e->getCode());
+        } catch (\Exception $e) {
+            return ApiResponse::standardError('erro', 'Falha ao registrar falta: ' . $e->getMessage(), 500);
         }
     }
 
@@ -396,12 +458,12 @@ class BolsistaController extends Controller
      */
     public function confirmarLote(Request $request): JsonResponse
     {
-        $userIds = $request->input('user_ids', []);
+        $ids = $request->input('user_ids', []); // Pode ser IDs de Bolsista ou User
         $turno = $request->input('turno');
         $data = Carbon::parse($request->input('data', now()))->format('Y-m-d');
 
-        if (empty($userIds)) {
-            return ApiResponse::standardError('user_ids', 'Nenhum usuário selecionado.', 400);
+        if (empty($ids)) {
+            return ApiResponse::standardError('ids', 'Nenhum bolsista selecionado.', 400);
         }
 
         if (!$turno) {
@@ -419,43 +481,39 @@ class BolsistaController extends Controller
         $jaConfirmados = 0;
         $erros = [];
 
-        foreach ($userIds as $userId) {
-            $user = User::find($userId);
-
-            if (!$user) {
-                $erros[] = "Usuário ID {$userId} não encontrado.";
-                continue;
-            }
-
-            $presencaExistente = Presenca::where('user_id', $userId)
-                ->where('refeicao_id', $refeicao->id)
-                ->where('status_da_presenca', StatusPresenca::PRESENTE)
-                ->exists();
-
-            if ($presencaExistente) {
+        foreach ($ids as $id) {
+            try {
+                // Tenta confirmar via Bolsista ID primeiro (que é o que a lista atual usa)
+                $bolsista = \App\Models\Bolsista::find($id);
+                
+                if ($bolsista) {
+                    $this->presencaService->confirmarPresencaBolsista(
+                        $bolsista->id,
+                        $data,
+                        $turno,
+                        $request->user()?->id
+                    );
+                    $confirmados++;
+                } else {
+                    // Fallback para User ID
+                    $this->presencaService->confirmarPresencaCompleta(
+                        $id,
+                        $data,
+                        $turno,
+                        $request->user()?->id
+                    );
+                    $confirmados++;
+                }
+            } catch (PresencaJaConfirmadaException $e) {
                 $jaConfirmados++;
-                continue;
+            } catch (\Exception $e) {
+                $erros[] = "Erro no ID {$id}: " . $e->getMessage();
             }
-
-            Presenca::updateOrCreate(
-                [
-                    'user_id' => $userId,
-                    'refeicao_id' => $refeicao->id,
-                ],
-                [
-                    'status_da_presenca' => StatusPresenca::PRESENTE,
-                    'validado_em' => now(),
-                    'validado_por' => $request->user()?->id ?? 1,
-                    'registrado_em' => now(),
-                ]
-            );
-
-            $confirmados++;
         }
 
         return ApiResponse::standardSuccess(
             data: [
-                'total_solicitados' => count($userIds),
+                'total_solicitados' => count($ids),
                 'confirmados' => $confirmados,
                 'ja_confirmados' => $jaConfirmados,
                 'refeicao' => [
@@ -699,6 +757,7 @@ class BolsistaController extends Controller
             $lista = $query->orderBy('nome')->get();
         } else {
             // Buscar na tabela MASTER de bolsistas (inclusivo para pendentes)
+            // A gestão administrativa (dias e turnos) reside na tabela bolsistas
             $query = \App\Models\Bolsista::with(['user.diasSemana'])
                 ->where('ativo', true);
 
@@ -706,16 +765,9 @@ class BolsistaController extends Controller
                 $query->where('turno_refeicao', $turno);
             }
 
-            // Filtrar por dia da semana
-            $query->where(function($q) use ($diaSemana) {
-                // Se vinculado, olha dias_semana do user
-                $q->whereHas('user.diasSemana', fn($d) => $d->where('dia_semana', $diaSemana))
-                // Se pendente, olha dias_semana do bolsista (JSON)
-                  ->orWhere(function($sub) use ($diaSemana) {
-                      $sub->whereNull('user_id')
-                          ->whereJsonContains('dias_semana', $diaSemana);
-                  });
-            });
+            // Filtrar por dia da semana diretamente na tabela de bolsistas (JSON)
+            // Isso garante que a gestão do admin prevaleça sobre o cadastro do usuário
+            $query->whereJsonContains('dias_semana', (int) $diaSemana);
 
             $lista = $query->orderBy('nome')->get();
         }
@@ -729,9 +781,15 @@ class BolsistaController extends Controller
 
         // Anexar presenças e justificativas
         if ($refeicao) {
-            $presencas = Presenca::where('refeicao_id', $refeicao->id)
+            $presencasUser = Presenca::where('refeicao_id', $refeicao->id)
+                ->whereNotNull('user_id')
                 ->get()
                 ->keyBy('user_id');
+
+            $presencasBolsista = Presenca::where('refeicao_id', $refeicao->id)
+                ->whereNotNull('bolsista_id')
+                ->get()
+                ->keyBy('bolsista_id');
 
             $justificativas = \App\Models\Justificativa::where('refeicao_id', $refeicao->id)
                 ->where('tipo', 'antecipada')
@@ -741,16 +799,19 @@ class BolsistaController extends Controller
 
             foreach ($lista as $item) {
                 $userId = ($item instanceof User) ? $item->id : $item->user_id;
+                $bolsistaId = ($item instanceof \App\Models\Bolsista) ? $item->id : null;
                 
-                if ($userId) {
-                    $item->presenca_atual = $presencas[$userId] ?? null;
-                    $item->justificativa_antecipada = $justificativas[$userId] ?? null;
-                    $item->tem_falta_antecipada = isset($justificativas[$userId]);
-                } else {
-                    $item->presenca_atual = null;
-                    $item->justificativa_antecipada = null;
-                    $item->tem_falta_antecipada = false;
+                // Prioridade para presença do usuário vinculado, fallback para bolsista_id
+                $presenca = null;
+                if ($userId && isset($presencasUser[$userId])) {
+                    $presenca = $presencasUser[$userId];
+                } elseif ($bolsistaId && isset($presencasBolsista[$bolsistaId])) {
+                    $presenca = $presencasBolsista[$bolsistaId];
                 }
+
+                $item->presenca_atual = $presenca;
+                $item->justificativa_antecipada = $userId ? ($justificativas[$userId] ?? null) : null;
+                $item->tem_falta_antecipada = $userId && isset($justificativas[$userId]);
             }
         }
 
