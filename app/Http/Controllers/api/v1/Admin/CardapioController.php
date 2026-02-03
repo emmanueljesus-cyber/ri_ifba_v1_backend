@@ -205,7 +205,6 @@ class CardapioController extends Controller
     public function exportTemplate()
     {
         try {
-            // Verifica se as dependências estão disponíveis
             if (!class_exists(\Maatwebsite\Excel\Facades\Excel::class)) {
                 throw new \Exception('Laravel Excel package não está instalado');
             }
@@ -216,7 +215,6 @@ class CardapioController extends Controller
 
             $filename = 'template_cardapios_' . now()->format('Y-m-d') . '.xlsx';
 
-            // Laravel Excel define headers automaticamente baseado na extensão do arquivo
             return Excel::download(
                 new \App\Exports\CardapioTemplateExport(),
                 $filename
@@ -226,9 +224,6 @@ class CardapioController extends Controller
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'class' => get_class($e),
-                'environment' => config('app.env'),
-                'debug' => config('app.debug'),
             ]);
 
             return ApiResponse::standardError(
