@@ -502,25 +502,19 @@ class BolsistaController extends Controller
 
             $filename = 'template_bolsistas_' . now()->format('Y-m-d') . '.xlsx';
 
+            // Laravel Excel define headers automaticamente baseado na extensão do arquivo
             return Excel::download(
                 new \App\Exports\BolsistaTemplateExport(),
-                $filename,
-                \Maatwebsite\Excel\Excel::XLSX,
-                [
-                    'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-                    'Cache-Control' => 'max-age=0',
-                    'Pragma' => 'public',
-                ]
+                $filename
             );
         } catch (\Exception $e) {
             \Log::error('Erro ao exportar template de bolsistas', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'php_version' => PHP_VERSION,
-                'extensions' => get_loaded_extensions(),
-                'class_exists' => class_exists(\Maatwebsite\Excel\Facades\Excel::class),
-                'export_class' => class_exists(\App\Exports\BolsistaTemplateExport::class),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'class' => get_class($e),
+                'environment' => config('app.env'),
+                'debug' => config('app.debug'),
             ]);
 
             return ApiResponse::standardError(
