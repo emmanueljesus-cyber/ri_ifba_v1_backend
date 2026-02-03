@@ -55,6 +55,22 @@ Route::prefix('v1')->group(function () {
             'notificacoes_recentes' => $notificacoesRecentes,
         ]);
     });
+	// Em routes/api.php
+	Route::get('debug/test-template', function() {
+		try {
+			return \Maatwebsite\Excel\Facades\Excel::download(
+				new \App\Exports\CardapioTemplateExport(),
+				'test.xlsx'
+			);
+		} catch (\Exception $e) {
+			return response()->json([
+				'error' => $e->getMessage(),
+				'file' => $e->getFile(),
+				'line' => $e->getLine(),
+				'trace' => $e->getTraceAsString(),
+			], 500);
+		}
+	});
 
     // =========================================================================
     // ROTAS PÚBLICAS (sem autenticação)
