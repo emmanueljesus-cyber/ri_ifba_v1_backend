@@ -13,8 +13,9 @@ RUN apt-get update && apt-get install -y \
     libzip-dev \
     libpng-dev \
     libjpeg-dev \
+    libxml2-dev \
     && docker-php-ext-configure gd --with-jpeg \
-    && docker-php-ext-install pdo pdo_pgsql zip gd \
+    && docker-php-ext-install pdo pdo_pgsql zip gd xml xmlreader xmlwriter simplexml \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

@@ -205,81 +205,32 @@ class CardapioController extends Controller
     public function exportTemplate()
     {
         try {
+            $filename = 'template_cardapios_' . now()->format('Y-m-d') . '.xlsx';
+
             return Excel::download(
                 new \App\Exports\CardapioTemplateExport(),
-                'template_cardapios_' . now()->format('Y-m-d') . '.xlsx'
+                $filename,
+                \Maatwebsite\Excel\Excel::XLSX,
+                [
+                    'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                    'Cache-Control' => 'max-age=0',
+                    'Pragma' => 'public',
+                ]
             );
         } catch (\Exception $e) {
             \Log::error('Erro ao exportar template de cardápios', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'class_exists' => class_exists(\Maatwebsite\Excel\Facades\Excel::class),
+                'export_class' => class_exists(\App\Exports\CardapioTemplateExport::class),
             ]);
 
-            // Fallback: retornar CSV simples se Excel falhar
-            return $this->exportTemplateCsv();
+            return ApiResponse::standardError(
+                'export_error',
+                'Erro ao gerar template Excel: ' . $e->getMessage(),
+                500
+            );
         }
-    }
-
-    /**
-     * Fallback: Exportar template CSV se Excel falhar
-     */
-    public function exportTemplateCsv()
-    {
-        $headers = [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="template_cardapios_' . now()->format('Y-m-d') . '.csv"',
-        ];
-
-        $callback = function () {
-            $file = fopen('php://output', 'w');
-
-            // BOM para UTF-8
-            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
-
-            // Cabeçalho
-            fputcsv($file, [
-                'Data (DD/MM/AAAA) *',
-                'Prato Principal 01 *',
-                'Prato Principal 02',
-                'Guarnição',
-                'Acompanhamento 01 *',
-                'Acompanhamento 02 *',
-                'Salada',
-                'Ovo Lacto Veg.',
-                'Suco',
-                'Sobremesa'
-            ], ';');
-
-            // Exemplos
-            fputcsv($file, [
-                now()->format('d/m/Y'),
-                'Frango Grelhado',
-                'Omelete de Legumes',
-                'Farofa de Ovos',
-                'Arroz Branco',
-                'Feijão Carioca',
-                'Mix de Folhas',
-                'Omelete',
-                'Suco de Acerola',
-                'Maçã'
-            ], ';');
-
-            fputcsv($file, [
-                now()->addDay()->format('d/m/Y'),
-                'Bife Acebolado',
-                '',
-                'Macarrão Alho e Óleo',
-                'Arroz com Cenoura',
-                'Feijão Preto',
-                'Salada de Tomate',
-                'Grão de Bico',
-                'Suco de Caju',
-                'Gelatina'
-            ], ';');
-
-            fclose($file);
-        };
-
-        return response()->stream($callback, 200, $headers);
     }
 }
