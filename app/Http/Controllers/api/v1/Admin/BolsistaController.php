@@ -70,22 +70,19 @@ class BolsistaController extends Controller
      */
     public function todosBolsistas(Request $request): JsonResponse
     {
-        $query = \App\Models\Bolsista::with('user.diasSemana');
+        $query = \App\Models\Bolsista::with(['user.diasSemana']);
 
         // Filtros
         if ($request->has('search')) {
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('nome', 'like', "%{$search}%")
-                  ->orWhere('matricula', 'like', "%{$search}%")
-                  ->orWhereHas('user', function($u) use ($search) {
-                      $u->where('email', 'like', "%{$search}%");
-                  });
+                  ->orWhere('matricula', 'like', "%{$search}%");
             });
         }
 
         if ($request->has('ativo')) {
-            $query->where('desligado', !$request->boolean('ativo'));
+            $query->where('ativo', $request->boolean('ativo'));
         }
 
         if ($request->has('turno')) {
@@ -93,21 +90,28 @@ class BolsistaController extends Controller
         }
 
         $perPage = $request->integer('per_page', 20);
+        
+        // Clonar query para estatísticas globais antes de paginar
+        $statsQuery = clone $query;
+        $total = $statsQuery->count();
+        $ativos = (clone $statsQuery)->where('ativo', true)->count();
+        $vinculados = (clone $statsQuery)->whereNotNull('user_id')->count();
+
         $bolsistas = $query->orderBy('nome')->paginate($perPage);
 
         return ApiResponse::standardSuccess(
             data: BolsistaResource::collection($bolsistas),
             meta: [
-                'total' => $bolsistas->total(),
-                'ativos' => $bolsistas->where('desligado', false)->count(),
-                'inativos' => $bolsistas->where('desligado', true)->count(),
-                'vinculados' => $bolsistas->whereNotNull('user_id')->count(),
-                'pendentes' => $bolsistas->whereNull('user_id')->count(),
+                'total' => $total,
+                'ativos' => $ativos,
+                'inativos' => $total - $ativos,
+                'vinculados' => $vinculados,
+                'pendentes' => $total - $vinculados,
                 'pagination' => [
                     'current_page' => $bolsistas->currentPage(),
                     'last_page' => $bolsistas->lastPage(),
                     'per_page' => $bolsistas->perPage(),
-                    'total' => $bolsistas->total(),
+                    'total' => $total,
                 ]
             ]
         );
@@ -130,15 +134,21 @@ class BolsistaController extends Controller
         $data = Carbon::parse($request->input('data', now()))->format('Y-m-d');
         $diaSemana = Carbon::parse($data)->dayOfWeek;
 
-        // Buscar bolsistas
-        $bolsistas = User::where('bolsista', true)
-            ->where('desligado', false)
+        // Buscar na tabela MASTER de bolsistas (inclusivo para pendentes)
+        $bolsistas = \App\Models\Bolsista::with(['user.diasSemana'])
+            ->where('ativo', true)
+            ->where('turno_refeicao', $turno)
             ->where(function ($q) use ($search) {
                 $q->where('nome', 'like', "%{$search}%")
                   ->orWhere('matricula', 'like', "%{$search}%");
             })
-            ->whereHas('diasSemana', fn($q) => $q->where('dia_semana', $diaSemana))
-            ->whereHas('aprovado', fn($q) => $q->where('turno_refeicao', $turno))
+            ->where(function($q) use ($diaSemana) {
+                $q->whereHas('user.diasSemana', fn($d) => $d->where('dia_semana', $diaSemana))
+                  ->orWhere(function($sub) use ($diaSemana) {
+                      $sub->whereNull('user_id')
+                          ->whereJsonContains('dias_semana', $diaSemana);
+                  });
+            })
             ->limit(10)
             ->get();
 
@@ -149,13 +159,18 @@ class BolsistaController extends Controller
         // Anexar status de presença
         if ($refeicao) {
             foreach ($bolsistas as $bolsista) {
-                $presenca = Presenca::where('user_id', $bolsista->id)
-                    ->where('refeicao_id', $refeicao->id)
-                    ->first();
+                if ($bolsista->user_id) {
+                    $presenca = Presenca::where('user_id', $bolsista->user_id)
+                        ->where('refeicao_id', $refeicao->id)
+                        ->first();
 
-                $bolsista->presenca_status_busca = $presenca ? $presenca->status_da_presenca->value : 'sem_registro';
-                $bolsista->presenca_id_busca = $presenca?->id;
-                $bolsista->ja_presente_flag = $presenca && $presenca->status_da_presenca === StatusPresenca::PRESENTE;
+                    $bolsista->presenca_status_busca = $presenca ? $presenca->status_da_presenca->value : 'sem_registro';
+                    $bolsista->presenca_id_busca = $presenca?->id;
+                    $bolsista->ja_presente_flag = $presenca && $presenca->status_da_presenca === StatusPresenca::PRESENTE;
+                } else {
+                    $bolsista->presenca_status_busca = 'pendente_vinculo';
+                    $bolsista->ja_presente_flag = false;
+                }
             }
         }
 
@@ -670,25 +685,40 @@ class BolsistaController extends Controller
         bool $apenasAtivos = false,
         bool $usarScopeEstudantes = false
     ): array {
-        $query = $usarScopeEstudantes ? User::estudantes() : User::where('bolsista', true);
-        
-        $query->with(['diasSemana', 'aprovado'])
-            ->whereHas('diasSemana', fn($q) => $q->where('dia_semana', $diaSemana))
-            ->where('desligado', false) // Sempre excluir desligados
-            ->orderBy('nome');
+        if ($usarScopeEstudantes) {
+            $query = User::estudantes();
+            $query->with(['diasSemana', 'aprovado'])
+                ->whereHas('diasSemana', fn($q) => $q->where('dia_semana', $diaSemana))
+                ->where('desligado', false);
 
-        // Filtrar pelo turno da bolsa se o turno for passado (almoco/jantar)
-        if ($turno) {
-            $query->whereHas('aprovado', function($q) use ($turno) {
-                $q->where('turno_refeicao', $turno);
+            if ($turno) {
+                $query->whereHas('aprovado', function($q) use ($turno) {
+                    $q->where('turno_refeicao', $turno);
+                });
+            }
+            $lista = $query->orderBy('nome')->get();
+        } else {
+            // Buscar na tabela MASTER de bolsistas (inclusivo para pendentes)
+            $query = \App\Models\Bolsista::with(['user.diasSemana'])
+                ->where('ativo', true);
+
+            if ($turno) {
+                $query->where('turno_refeicao', $turno);
+            }
+
+            // Filtrar por dia da semana
+            $query->where(function($q) use ($diaSemana) {
+                // Se vinculado, olha dias_semana do user
+                $q->whereHas('user.diasSemana', fn($d) => $d->where('dia_semana', $diaSemana))
+                // Se pendente, olha dias_semana do bolsista (JSON)
+                  ->orWhere(function($sub) use ($diaSemana) {
+                      $sub->whereNull('user_id')
+                          ->whereJsonContains('dias_semana', $diaSemana);
+                  });
             });
-        }
 
-        if ($apenasAtivos) {
-            $query->where('desligado', false);
+            $lista = $query->orderBy('nome')->get();
         }
-
-        $bolsistas = $query->get();
 
         // Buscar refeição
         $refeicaoQuery = \App\Models\Refeicao::where('data_do_cardapio', $data);
@@ -703,21 +733,28 @@ class BolsistaController extends Controller
                 ->get()
                 ->keyBy('user_id');
 
-            // Buscar justificativas antecipadas aprovadas para essa refeição
             $justificativas = \App\Models\Justificativa::where('refeicao_id', $refeicao->id)
                 ->where('tipo', 'antecipada')
                 ->where('status', 'aprovada')
                 ->get()
                 ->keyBy('user_id');
 
-            foreach ($bolsistas as $bolsista) {
-                $bolsista->presenca_atual = $presencas[$bolsista->id] ?? null;
-                $bolsista->justificativa_antecipada = $justificativas[$bolsista->id] ?? null;
-                $bolsista->tem_falta_antecipada = isset($justificativas[$bolsista->id]);
+            foreach ($lista as $item) {
+                $userId = ($item instanceof User) ? $item->id : $item->user_id;
+                
+                if ($userId) {
+                    $item->presenca_atual = $presencas[$userId] ?? null;
+                    $item->justificativa_antecipada = $justificativas[$userId] ?? null;
+                    $item->tem_falta_antecipada = isset($justificativas[$userId]);
+                } else {
+                    $item->presenca_atual = null;
+                    $item->justificativa_antecipada = null;
+                    $item->tem_falta_antecipada = false;
+                }
             }
         }
 
-        return [$bolsistas, $refeicao];
+        return [$lista, $refeicao];
     }
 
     /**

@@ -24,18 +24,18 @@ class BolsistaResource extends JsonResource
         
         if ($isBolsistaModel) {
             $bolsista = $this->resource;
-            $user = $this->user; // relationship
+            $user = $this->relationLoaded('user') ? $this->user : null;
             $isLinked = $this->user_id !== null;
             $id = $this->id;
             $matricula = $this->matricula;
             $nome = $this->nome ?? $user?->nome;
             $curso = $this->curso ?? $user?->curso;
             $turno = $this->turno_refeicao ?? $user?->turno_refeicao;
-            $ativo = !$this->desligado;
+            $ativo = (bool) $this->ativo;
             $desligadoMotivo = $this->desligado_motivo;
         } else {
             $user = $this->resource;
-            $bolsista = $this->aprovado; // relationship
+            $bolsista = $this->relationLoaded('aprovado') ? $this->aprovado : null;
             $isLinked = $bolsista !== null;
             $id = $user->id;
             $matricula = $user->matricula;
@@ -51,7 +51,7 @@ class BolsistaResource extends JsonResource
         if ($user && $user->relationLoaded('diasSemana')) {
             $diasSemana = $user->diasSemana->pluck('dia_semana')->toArray();
         } elseif ($isBolsistaModel) {
-            $diasSemana = $this->dias_semana ?? [];
+            $diasSemana = $bolsista->dias_semana ?? [];
         }
 
         return [
@@ -64,7 +64,7 @@ class BolsistaResource extends JsonResource
             'curso' => $curso,
             'turno_refeicao' => $turno,
             'turno_aula' => $user?->turno_aula ?? null,
-            'is_bolsista' => $isBolsistaModel ? true : (bool) $user->bolsista,
+            'is_bolsista' => true,
             'ativo' => $ativo,
             'vinculado' => $isLinked,
             'desligado_motivo' => $desligadoMotivo,
@@ -82,12 +82,15 @@ class BolsistaResource extends JsonResource
 
             // Total de faltas
             'total_faltas' => $this->when($isLinked || !$isBolsistaModel, function() use ($isBolsistaModel, $user) {
-                if ($isBolsistaModel) {
+                if ($isBolsistaModel && $this->user_id) {
                     return $this->contarFaltasNaoJustificadas();
                 }
-                return \App\Models\Presenca::where('user_id', $user->id)
-                    ->where('status_da_presenca', \App\Enums\StatusPresenca::FALTA_INJUSTIFICADA)
-                    ->count();
+                if (!$isBolsistaModel) {
+                    return \App\Models\Presenca::where('user_id', $user->id)
+                        ->where('status_da_presenca', \App\Enums\StatusPresenca::FALTA_INJUSTIFICADA)
+                        ->count();
+                }
+                return 0;
             }),
 
             // Dados de presença (quando aplicável)
@@ -105,10 +108,10 @@ class BolsistaResource extends JsonResource
                     'confirmado_em' => DateHelper::formatarDataHoraBR($this->presenca_atual->validado_em),
                 ] : null;
             }),
-            'status_presenca' => $this->when(isset($this->presenca_atual),
+            'status_presenca' => $this->when(property_exists($this->resource, 'presenca_atual') || isset($this->presenca_atual),
                 fn() => $this->presenca_atual ? $this->presenca_atual->status_da_presenca->value : 'pendente'
             ),
-            'presente' => $this->when(isset($this->presenca_atual), 
+            'presente' => $this->when(property_exists($this->resource, 'presenca_atual') || isset($this->presenca_atual), 
                 fn() => $this->presenca_atual && $this->presenca_atual->status_da_presenca->value === 'presente'
             ),
 
