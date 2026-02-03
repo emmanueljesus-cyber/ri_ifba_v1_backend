@@ -133,8 +133,19 @@ class CardapioImportService
             $fieldName = mb_strtolower(trim($row[0] ?? ''));
             $fieldKey = $fieldMap[$fieldName] ?? null;
             if (!$fieldKey) {
+                // Tentar ver se contém alguma das chaves
+                foreach ($fieldMap as $key => $target) {
+                    if (str_contains($fieldName, $key)) {
+                        $fieldKey = $target;
+                        break;
+                    }
+                }
+            }
+
+            if (!$fieldKey) {
                 continue;
             }
+
             foreach ($datas as $col => $data) {
                 $value = $row[$col] ?? null;
                 if (!empty($value)) {
@@ -144,8 +155,8 @@ class CardapioImportService
         }
 
         foreach ($cardapiosPorData as $data => $campos) {
-            if (empty($campos['prato_principal_ptn01']) || empty($campos['prato_principal_ptn02'])) {
-                $errors[] = ['data' => $data, 'erro' => 'Pratos principais não informados'];
+            if (empty($campos['prato_principal_ptn01']) && empty($campos['prato_principal_ptn02'])) {
+                $errors[] = ['data' => $data, 'erro' => 'Nenhum prato principal informado'];
                 continue;
             }
             foreach ($turnos as $turno) {
@@ -222,8 +233,8 @@ class CardapioImportService
                 }
             }
 
-            if (empty($campos['prato_principal_ptn01']) || empty($campos['prato_principal_ptn02'])) {
-                $errors[] = ['linha' => $i + 1, 'data' => $parsedDate, 'erro' => 'Pratos principais não informados'];
+            if (empty($campos['prato_principal_ptn01']) && empty($campos['prato_principal_ptn02'])) {
+                $errors[] = ['linha' => $i + 1, 'data' => $parsedDate, 'erro' => 'Nenhum prato principal informado'];
                 continue;
             }
 
@@ -279,9 +290,14 @@ class CardapioImportService
             }
             $assoc = array_combine($header, $row);
 
-            $dataCardapio = isset($assoc['data_do_cardapio']) && !empty($assoc['data_do_cardapio'])
-                ? $this->parseDate($assoc['data_do_cardapio'])
-                : null;
+            $dataCardapio = null;
+            foreach (['data_do_cardapio', 'data'] as $key) {
+                if (isset($assoc[$key]) && !empty($assoc[$key])) {
+                    $dataCardapio = $this->parseDate($assoc[$key]);
+                    if ($dataCardapio) break;
+                }
+            }
+
             if (!$dataCardapio) {
                 $errors[] = ['linha' => $i + 1, 'erro' => 'Data inválida ou não informada'];
                 continue;
@@ -291,13 +307,13 @@ class CardapioImportService
                 $data = [
                     'data_do_cardapio' => $dataCardapio,
                     'turno' => $turno,
-                    'prato_principal_ptn01' => $assoc['prato_principal_ptn01'] ?? null,
-                    'prato_principal_ptn02' => $assoc['prato_principal_ptn02'] ?? null,
-                    'guarnicao' => $assoc['guarnicao'] ?? null,
-                    'acompanhamento_01' => $assoc['acompanhamento_01'] ?? null,
-                    'acompanhamento_02' => $assoc['acompanhamento_02'] ?? null,
+                    'prato_principal_ptn01' => $assoc['prato_principal_ptn01'] ?? $assoc['prato principal ptn 01'] ?? null,
+                    'prato_principal_ptn02' => $assoc['prato_principal_ptn02'] ?? $assoc['prato principal ptn 02'] ?? null,
+                    'guarnicao' => $assoc['guarnicao'] ?? $assoc['guarnição'] ?? null,
+                    'acompanhamento_01' => $assoc['acompanhamento_01'] ?? $assoc['acompanhamento 01'] ?? null,
+                    'acompanhamento_02' => $assoc['acompanhamento_02'] ?? $assoc['acompanhamento 02'] ?? null,
                     'salada' => $assoc['salada'] ?? null,
-                    'ovo_lacto_vegetariano' => $assoc['ovo_lacto_vegetariano'] ?? null,
+                    'ovo_lacto_vegetariano' => $assoc['ovo_lacto_vegetariano'] ?? $assoc['ovolactovegetariano'] ?? $assoc['ovo lacto vegetariano'] ?? null,
                     'suco' => $assoc['suco'] ?? null,
                     'sobremesa' => $assoc['sobremesa'] ?? null,
                     'capacidade' => $assoc['capacidade'] ?? null,

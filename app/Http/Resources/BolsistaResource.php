@@ -20,36 +20,40 @@ class BolsistaResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $user = $this->user ?? $this;
+        $isLinked = $this->user_id !== null;
+
         return [
             'id' => $this->id,
-            'user_id' => $this->id,
+            'user_id' => $this->user_id,
             'matricula' => $this->matricula,
-            'nome' => $this->nome,
-            'email' => $this->when($request->routeIs('*.todosBolsistas'), $this->email),
-            'foto_url' => $this->foto_url,
-            'curso' => $this->curso,
-            'turno_refeicao' => $this->turno_refeicao,
-            'turno_aula' => $this->turno_aula,
+            'nome' => $this->nome ?? $user->nome,
+            'email' => $this->when($request->routeIs('*.todosBolsistas'), $user->email),
+            'foto_url' => $user->foto_url ?? null,
+            'curso' => $this->curso ?? $user->curso,
+            'turno_refeicao' => $this->turno_refeicao ?? $user->turno_refeicao,
+            'turno_aula' => $user->turno_aula ?? null,
             'is_bolsista' => true,
-            'ativo' => $this->when(isset($this->desligado), !$this->desligado),
+            'ativo' => !$this->desligado,
+            'vinculado' => $isLinked,
 
             // Preferências e restrições alimentares
-            'preferencia_alimentar' => $this->preferencia_alimentar,
-            'is_ovolactovegetariano' => $this->preferencia_alimentar === 'ovolactovegetariano',
-            'restricoes_alimentares' => $this->restricoes_alimentares ?? [],
-            'alergias' => $this->alergias ?? null,
+            'preferencia_alimentar' => $user->preferencia_alimentar ?? null,
+            'is_ovolactovegetariano' => ($user->preferencia_alimentar ?? null) === 'ovolactovegetariano',
+            'restricoes_alimentares' => $user->restricoes_alimentares ?? [],
+            'alergias' => $user->alergias ?? null,
 
-            'dias_semana' => $this->when($this->relationLoaded('diasSemana'),
-                fn() => $this->diasSemana->pluck('dia_semana')->toArray()
+            'dias_semana' => $this->when($isLinked && $this->user->relationLoaded('diasSemana'),
+                fn() => $this->user->diasSemana->pluck('dia_semana')->toArray()
             ),
-            'dias_semana_texto' => $this->when($this->relationLoaded('diasSemana'), 
-                fn() => $this->diasSemana
+            'dias_semana_texto' => $this->when($isLinked && $this->user->relationLoaded('diasSemana'), 
+                fn() => $this->user->diasSemana
                     ->map(fn($d) => DateHelper::getDiaSemanaTexto($d->dia_semana))
                     ->implode(', ')
             ),
 
             // Total de faltas
-            'total_faltas' => $this->when(isset($this->total_faltas), $this->total_faltas ?? 0),
+            'total_faltas' => $this->when($isLinked, fn() => $this->contarFaltasNaoJustificadas()),
             // Dados de presença (quando aplicável)
             'presenca' => $this->when(isset($this->presenca_atual), function() {
                 return $this->presenca_atual ? [

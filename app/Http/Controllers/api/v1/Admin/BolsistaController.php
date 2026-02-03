@@ -70,11 +70,7 @@ class BolsistaController extends Controller
      */
     public function todosBolsistas(Request $request): JsonResponse
     {
-        $query = User::where('bolsista', true)
-            ->with('diasSemana')
-            ->withCount(['presencas as total_faltas' => function ($q) {
-                $q->where('status_da_presenca', 'falta');
-            }]);
+        $query = \App\Models\Bolsista::with('user.diasSemana');
 
         // Filtros
         if ($request->has('search')) {
@@ -82,7 +78,9 @@ class BolsistaController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('nome', 'like', "%{$search}%")
                   ->orWhere('matricula', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
+                  ->orWhereHas('user', function($u) use ($search) {
+                      $u->where('email', 'like', "%{$search}%");
+                  });
             });
         }
 
@@ -102,6 +100,8 @@ class BolsistaController extends Controller
                 'total' => $bolsistas->count(),
                 'ativos' => $bolsistas->where('desligado', false)->count(),
                 'inativos' => $bolsistas->where('desligado', true)->count(),
+                'vinculados' => $bolsistas->whereNotNull('user_id')->count(),
+                'pendentes' => $bolsistas->whereNull('user_id')->count(),
             ]
         );
     }

@@ -65,7 +65,7 @@ class CardapioService
 
             if ($cardapio) {
                 // Mesclar turnos existentes com o novo turno
-                $turnosExistentes = $cardapio->turnos ?? [];
+                $turnosExistentes = (array) ($cardapio->turnos ?? []);
                 if (!in_array($turno, $turnosExistentes)) {
                     $turnosExistentes[] = $turno;
                 }
@@ -73,8 +73,8 @@ class CardapioService
                 // Atualizar cardápio existente
                 $cardapio->update([
                     'turnos'                => $turnosExistentes,
-                    'prato_principal_ptn01' => $data['prato_principal_ptn01'],
-                    'prato_principal_ptn02' => $data['prato_principal_ptn02'],
+                    'prato_principal_ptn01' => $data['prato_principal_ptn01'] ?? $cardapio->prato_principal_ptn01,
+                    'prato_principal_ptn02' => $data['prato_principal_ptn02'] ?? $cardapio->prato_principal_ptn02,
                     'guarnicao'             => $data['guarnicao'] ?? $cardapio->guarnicao,
                     'acompanhamento_01'     => $data['acompanhamento_01'] ?? $cardapio->acompanhamento_01,
                     'acompanhamento_02'     => $data['acompanhamento_02'] ?? $cardapio->acompanhamento_02,
