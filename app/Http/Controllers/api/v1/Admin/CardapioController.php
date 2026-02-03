@@ -120,7 +120,7 @@ class CardapioController extends Controller
             $turnos = ['almoco'];
         }
         
-        $rows = Excel::toArray(null, $file)[0] ?? [];
+        $rows = Excel::toArray(new class {}, $file)[0] ?? [];
 
         if (empty($rows)) {
             return ApiResponse::standardError('file', 'Arquivo vazio', 422);

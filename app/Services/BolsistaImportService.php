@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Bolsista;
+use App\Models\UsuarioDiaSemana;
 use Illuminate\Support\Facades\DB;
 
 class BolsistaImportService
@@ -71,6 +72,25 @@ class BolsistaImportService
                             'dias_semana' => !empty($dados['dias_semana']) ? $dados['dias_semana'] : $existente->dias_semana,
                             'ativo' => true,
                         ]);
+
+                        // Se já houver usuário vinculado, sincronizar dados básicos
+                        if ($existente->user_id) {
+                            $user = \App\Models\User::find($existente->user_id);
+                            if ($user) {
+                                $user->update([
+                                    'nome' => $dados['nome'] ?? $user->nome,
+                                    'curso' => $dados['curso'] ?? $user->curso,
+                                    'turno_refeicao' => $dados['turno_refeicao'] ?? $user->turno_refeicao,
+                                    'bolsista' => true, // Garante que continue marcado como bolsista
+                                ]);
+
+                                // Sincronizar dias da semana do usuário
+                                if (!empty($dados['dias_semana'])) {
+                                    $this->atualizarDiasSemana($user->id, $dados['dias_semana']);
+                                }
+                            }
+                        }
+
                         $existente->refresh();
 
                         $updated[] = [
@@ -196,14 +216,40 @@ class BolsistaImportService
         $diasSemanaRaw = $getValue(['dias_semana', 'dias', 'dia_semana', 'dias_da_semana']);
         $diasSemana = $this->parseDiasSemana($diasSemanaRaw);
 
+        // Processar turno
+        $turnoRaw = $getValue(['turno', 'turno_refeicao', 'turno_almoco_jantar', 'periodo', 'shift']);
+        $turnoRefeicao = $this->parseTurno($turnoRaw) ?? $turnoPadrao;
+
         return [
             'matricula' => $getValue(['matricula', 'mat', 'registro', 'ra', 'matricula_']),
             'nome' => $getValue(['nome', 'name', 'aluno', 'estudante', 'nome_completo']),
             'email' => $getValue(['email', 'e_mail', 'correio']),
             'curso' => $getValue(['curso', 'turma', 'classe']),
-            'turno_refeicao' => $getValue(['turno', 'turno_refeicao', 'turno_almoco_jantar', 'periodo', 'shift']) ?? $turnoPadrao,
+            'turno_refeicao' => $turnoRefeicao,
             'dias_semana' => $diasSemana,
         ];
+    }
+
+    /**
+     * Converte string de turno para valor do enum
+     */
+    private function parseTurno(?string $value): ?string
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        $value = $this->normalizeString($value);
+
+        if (str_contains($value, 'almoco') || str_contains($value, 'manha') || str_contains($value, 'integral')) {
+            return 'almoco';
+        }
+
+        if (str_contains($value, 'jantar') || str_contains($value, 'noite') || str_contains($value, 'noturno')) {
+            return 'jantar';
+        }
+
+        return null;
     }
 
     /**
