@@ -92,16 +92,23 @@ class BolsistaController extends Controller
             $query->where('turno_refeicao', $request->input('turno'));
         }
 
-        $bolsistas = $query->orderBy('nome')->get();
+        $perPage = $request->integer('per_page', 20);
+        $bolsistas = $query->orderBy('nome')->paginate($perPage);
 
         return ApiResponse::standardSuccess(
             data: BolsistaResource::collection($bolsistas),
             meta: [
-                'total' => $bolsistas->count(),
+                'total' => $bolsistas->total(),
                 'ativos' => $bolsistas->where('desligado', false)->count(),
                 'inativos' => $bolsistas->where('desligado', true)->count(),
                 'vinculados' => $bolsistas->whereNotNull('user_id')->count(),
                 'pendentes' => $bolsistas->whereNull('user_id')->count(),
+                'pagination' => [
+                    'current_page' => $bolsistas->currentPage(),
+                    'last_page' => $bolsistas->lastPage(),
+                    'per_page' => $bolsistas->perPage(),
+                    'total' => $bolsistas->total(),
+                ]
             ]
         );
     }

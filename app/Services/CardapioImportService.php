@@ -25,8 +25,6 @@ class CardapioImportService
             'total_linhas' => count($rows),
             'turnos' => $turnos,
             'userId' => $userId,
-            'primeira_linha' => $rows[0] ?? null,
-            'segunda_linha' => $rows[1] ?? null,
         ]);
 
         if (empty($rows)) {
@@ -34,63 +32,38 @@ class CardapioImportService
             return ['created' => [], 'errors' => [['erro' => 'Arquivo vazio']], 'debug' => null];
         }
 
-        $primeiraLinha = array_map(fn($h) => mb_strtolower(trim($h ?? '')), $rows[0]);
-        $primeiraCelula = $primeiraLinha[0] ?? '';
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($rows, $turnos, $userId, $debug) {
+            $primeiraLinha = array_map(fn($h) => mb_strtolower(trim($h ?? '')), $rows[0]);
+            $primeiraCelula = $primeiraLinha[0] ?? '';
 
-        $segundaCelulaPrimeiraColuna = $rows[1][0] ?? null;
-        $datasNaPrimeiraColuna = $this->parseDate($segundaCelulaPrimeiraColuna) !== null;
+            $segundaCelulaPrimeiraColuna = $rows[1][0] ?? null;
+            $datasNaPrimeiraColuna = $this->parseDate($segundaCelulaPrimeiraColuna) !== null;
 
-        $segundaCelulaPrimeiraLinha = $rows[0][1] ?? null;
-        $datasNaPrimeiraLinha = $this->parseDate($segundaCelulaPrimeiraLinha) !== null;
+            $segundaCelulaPrimeiraLinha = $rows[0][1] ?? null;
+            $datasNaPrimeiraLinha = $this->parseDate($segundaCelulaPrimeiraLinha) !== null;
 
-        Log::info('Formato detectado na importação de cardápio', [
-            'primeiraCelula' => $primeiraCelula,
-            'segundaCelulaPrimeiraColuna' => $segundaCelulaPrimeiraColuna,
-            'datasNaPrimeiraColuna' => $datasNaPrimeiraColuna,
-            'segundaCelulaPrimeiraLinha' => $segundaCelulaPrimeiraLinha,
-            'datasNaPrimeiraLinha' => $datasNaPrimeiraLinha,
-        ]);
+            if ($datasNaPrimeiraColuna) {
+                Log::info('Usando método COLUNAR');
+                $result = $this->importColunar($rows, $turnos, $userId);
+            } elseif ($datasNaPrimeiraLinha || (empty($primeiraCelula) || !str_contains($primeiraCelula, 'data'))) {
+                Log::info('Usando método TRANSPOSTO');
+                $result = $this->importTransposto($rows, $turnos, $userId);
+            } else {
+                Log::info('Usando método NORMAL');
+                $result = $this->importNormal($rows, $turnos, $userId);
+            }
 
-        if ($datasNaPrimeiraColuna) {
-            Log::info('Usando método COLUNAR');
-            $result = $this->importColunar($rows, $turnos, $userId);
-        } elseif ($datasNaPrimeiraLinha || (empty($primeiraCelula) || !str_contains($primeiraCelula, 'data'))) {
-            Log::info('Usando método TRANSPOSTO');
-            $result = $this->importTransposto($rows, $turnos, $userId);
-        } else {
-            Log::info('Usando método NORMAL');
-            $result = $this->importNormal($rows, $turnos, $userId);
-        }
+            if ($debug) {
+                $result['debug'] = [
+                    'primeira_linha' => $rows[0] ?? [],
+                    'total_linhas' => count($rows),
+                ];
+            } else {
+                $result['debug'] = null;
+            }
 
-        Log::info('=== IMPORTAÇÃO FINALIZADA ===', [
-            'total_criados' => count($result['created']),
-            'total_erros' => count($result['errors']),
-            'erros' => $result['errors'],
-        ]);
-
-        if ($debug) {
-            $result['debug'] = [
-                'primeira_linha' => $rows[0] ?? [],
-                'segunda_linha' => $rows[1] ?? [],
-                'terceira_linha' => $rows[2] ?? [],
-                'total_linhas' => count($rows),
-                'total_colunas' => count($rows[0] ?? []),
-                'teste_parseDate_rows_1_0' => [
-                    'valor_original' => $rows[1][0] ?? null,
-                    'tipo' => gettype($rows[1][0] ?? null),
-                    'resultado' => $this->parseDate($rows[1][0] ?? null),
-                ],
-                'teste_parseDate_rows_0_1' => [
-                    'valor_original' => $rows[0][1] ?? null,
-                    'tipo' => gettype($rows[0][1] ?? null),
-                    'resultado' => $this->parseDate($rows[0][1] ?? null),
-                ],
-            ];
-        } else {
-            $result['debug'] = null;
-        }
-
-        return $result;
+            return $result;
+        });
     }
 
     private function importTransposto(array $rows, array $turnos, ?int $userId): array
@@ -166,7 +139,7 @@ class CardapioImportService
                     'turno' => $turno,
                 ]);
                 try {
-                    $result = $this->service->createOrUpdate($cardapioData, $userId);
+                    $result = $this->service->createOrUpdate($cardapioData, $userId, refresh: false);
                     $cardapio = $result['cardapio'];
                     $created[] = [
                         'id' => $cardapio->id,
@@ -174,12 +147,6 @@ class CardapioImportService
                         'turno' => $turno,
                         'action' => $result['created'] ? 'created' : 'updated',
                     ];
-                    \Log::info('Cardápio importado (transposto)', [
-                        'id' => $cardapio->id,
-                        'data' => $data,
-                        'turno' => $turno,
-                        'action' => $result['created'] ? 'created' : 'updated',
-                    ]);
                 } catch (\Throwable $e) {
                     \Log::error('Erro ao importar cardápio (transposto)', [
                         'data' => $data,
@@ -250,7 +217,7 @@ class CardapioImportService
                     'turno' => $turno,
                 ]);
                 try {
-                    $result = $this->service->createOrUpdate($cardapioData, $userId);
+                    $result = $this->service->createOrUpdate($cardapioData, $userId, refresh: false);
                     $cardapio = $result['cardapio'];
                     $created[] = [
                         'id' => $cardapio->id,
@@ -258,12 +225,6 @@ class CardapioImportService
                         'turno' => $turno,
                         'action' => $result['created'] ? 'created' : 'updated',
                     ];
-                    \Log::info('Cardápio importado (colunar)', [
-                        'id' => $cardapio->id,
-                        'data' => $parsedDate,
-                        'turno' => $turno,
-                        'action' => $result['created'] ? 'created' : 'updated',
-                    ]);
                 } catch (\Throwable $e) {
                     \Log::error('Erro ao importar cardápio (colunar)', [
                         'linha' => $i + 1,
@@ -331,7 +292,7 @@ class CardapioImportService
                     'capacidade' => $assoc['capacidade'] ?? null,
                 ];
                 try {
-                    $result = $this->service->createOrUpdate($data, $userId);
+                    $result = $this->service->createOrUpdate($data, $userId, refresh: false);
                     $cardapio = $result['cardapio'];
                     $created[] = [
                         'id' => $cardapio->id,
@@ -340,12 +301,6 @@ class CardapioImportService
                         'action' => $result['created'] ? 'created' : 'updated',
                         'linha' => $i + 1,
                     ];
-                    \Log::info('Cardápio importado (normal)', [
-                        'id' => $cardapio->id,
-                        'data' => $cardapio->data_do_cardapio,
-                        'turno' => $turno,
-                        'action' => $result['created'] ? 'created' : 'updated',
-                    ]);
                 } catch (\Throwable $e) {
                     \Log::error('Erro ao importar cardápio (normal)', [
                         'linha' => $i + 1,

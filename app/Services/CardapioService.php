@@ -63,9 +63,9 @@ class CardapioService
      * Se o cardápio já existir para a data, atualiza os dados
      * Se a refeição (turno) já existir, atualiza; senão, cria nova
      */
-    public function createOrUpdate(array $data, ?string $userId): array
+    public function createOrUpdate(array $data, ?string $userId, bool $refresh = true): array
     {
-        return DB::transaction(function () use ($data, $userId) {
+        $callback = function () use ($data, $userId, $refresh) {
             $dataCardapio = $data['data_do_cardapio'];
             $turno = $data['turno'] ?? 'almoco';
 
@@ -112,30 +112,22 @@ class CardapioService
                 $isNew = true;
             }
 
-            // Buscar ou criar refeição para o turno
-            $refeicao = Refeicao::where('cardapio_id', $cardapio->id)
-                ->where('turno', $turno)
-                ->first();
-
-            if ($refeicao) {
-                $refeicao->update([
-                    'capacidade' => $data['capacidade'] ?? $refeicao->capacidade,
-                ]);
-            } else {
-                Refeicao::create([
-                    'cardapio_id'      => $cardapio->id,
-                    'data_do_cardapio' => $cardapio->data_do_cardapio,
-                    'turno'            => $turno,
-                    'capacidade'       => $data['capacidade'] ?? null,
+            // O sincronismo de refeições agora é feito pelo boot() do model Cardapio via saved()
+            // Se precisar atualizar a capacidade especificamente:
+            if (isset($data['capacidade'])) {
+                $cardapio->refeicoes()->where('turno', $turno)->update([
+                    'capacidade' => $data['capacidade'],
                 ]);
             }
 
             return [
-                'cardapio' => $cardapio->refresh()->load(['criador', 'refeicoes']),
+                'cardapio' => $refresh ? $cardapio->refresh()->load(['criador', 'refeicoes']) : $cardapio,
                 'created' => $isNew,
                 'turno' => $turno,
             ];
-        });
+        };
+
+        return DB::isTransactional() ? $callback() : DB::transaction($callback);
     }
 
     public function update(Cardapio $cardapio, array $data): Cardapio
