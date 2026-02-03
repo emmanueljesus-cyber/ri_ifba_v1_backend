@@ -73,24 +73,6 @@ class BolsistaImportService
                             'ativo' => true,
                         ]);
 
-                        // Se já houver usuário vinculado, sincronizar dados básicos
-                        if ($existente->user_id) {
-                            $user = \App\Models\User::find($existente->user_id);
-                            if ($user) {
-                                $user->update([
-                                    'nome' => $dados['nome'] ?? $user->nome,
-                                    'curso' => $dados['curso'] ?? $user->curso,
-                                    'turno_refeicao' => $dados['turno_refeicao'] ?? $user->turno_refeicao,
-                                    'bolsista' => true, // Garante que continue marcado como bolsista
-                                ]);
-
-                                // Sincronizar dias da semana do usuário
-                                if (!empty($dados['dias_semana'])) {
-                                    $this->atualizarDiasSemana($user->id, $dados['dias_semana']);
-                                }
-                            }
-                        }
-
                         $existente->refresh();
 
                         $updated[] = [

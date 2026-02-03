@@ -20,40 +20,76 @@ class BolsistaResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $user = $this->user ?? $this;
-        $isLinked = $this->user_id !== null;
+        $isBolsistaModel = $this->resource instanceof \App\Models\Bolsista;
+        
+        if ($isBolsistaModel) {
+            $bolsista = $this->resource;
+            $user = $this->user; // relationship
+            $isLinked = $this->user_id !== null;
+            $id = $this->id;
+            $matricula = $this->matricula;
+            $nome = $this->nome ?? $user?->nome;
+            $curso = $this->curso ?? $user?->curso;
+            $turno = $this->turno_refeicao ?? $user?->turno_refeicao;
+            $ativo = !$this->desligado;
+            $desligadoMotivo = $this->desligado_motivo;
+        } else {
+            $user = $this->resource;
+            $bolsista = $this->aprovado; // relationship
+            $isLinked = $bolsista !== null;
+            $id = $user->id;
+            $matricula = $user->matricula;
+            $nome = $user->nome;
+            $curso = $user->curso;
+            $turno = $user->turno_refeicao;
+            $ativo = !$user->desligado;
+            $desligadoMotivo = $user->desligado_motivo;
+        }
+
+        // Dias da semana
+        $diasSemana = [];
+        if ($user && $user->relationLoaded('diasSemana')) {
+            $diasSemana = $user->diasSemana->pluck('dia_semana')->toArray();
+        } elseif ($isBolsistaModel) {
+            $diasSemana = $this->dias_semana ?? [];
+        }
 
         return [
-            'id' => $this->id,
-            'user_id' => $this->user_id,
-            'matricula' => $this->matricula,
-            'nome' => $this->nome ?? $user->nome,
-            'email' => $this->when($request->routeIs('*.todosBolsistas'), $user->email),
-            'foto_url' => $user->foto_url ?? null,
-            'curso' => $this->curso ?? $user->curso,
-            'turno_refeicao' => $this->turno_refeicao ?? $user->turno_refeicao,
-            'turno_aula' => $user->turno_aula ?? null,
-            'is_bolsista' => true,
-            'ativo' => !$this->desligado,
+            'id' => $id,
+            'user_id' => $isBolsistaModel ? $this->user_id : $user->id,
+            'matricula' => $matricula,
+            'nome' => $nome,
+            'email' => $user?->email,
+            'foto_url' => $user?->foto_url ?? null,
+            'curso' => $curso,
+            'turno_refeicao' => $turno,
+            'turno_aula' => $user?->turno_aula ?? null,
+            'is_bolsista' => $isBolsistaModel ? true : (bool) $user->bolsista,
+            'ativo' => $ativo,
             'vinculado' => $isLinked,
+            'desligado_motivo' => $desligadoMotivo,
 
             // Preferências e restrições alimentares
-            'preferencia_alimentar' => $user->preferencia_alimentar ?? null,
-            'is_ovolactovegetariano' => ($user->preferencia_alimentar ?? null) === 'ovolactovegetariano',
-            'restricoes_alimentares' => $user->restricoes_alimentares ?? [],
-            'alergias' => $user->alergias ?? null,
+            'preferencia_alimentar' => $user?->preferencia_alimentar ?? null,
+            'is_ovolactovegetariano' => ($user?->preferencia_alimentar ?? null) === 'ovolactovegetariano',
+            'restricoes_alimentares' => $user?->restricoes_alimentares ?? [],
+            'alergias' => $user?->alergias ?? null,
 
-            'dias_semana' => $this->when($isLinked && $this->user->relationLoaded('diasSemana'),
-                fn() => $this->user->diasSemana->pluck('dia_semana')->toArray()
-            ),
-            'dias_semana_texto' => $this->when($isLinked && $this->user->relationLoaded('diasSemana'), 
-                fn() => $this->user->diasSemana
-                    ->map(fn($d) => DateHelper::getDiaSemanaTexto($d->dia_semana))
-                    ->implode(', ')
-            ),
+            'dias_semana' => $diasSemana,
+            'dias_semana_texto' => collect($diasSemana)
+                ->map(fn($d) => DateHelper::getDiaSemanaTexto($d))
+                ->implode(', '),
 
             // Total de faltas
-            'total_faltas' => $this->when($isLinked, fn() => $this->contarFaltasNaoJustificadas()),
+            'total_faltas' => $this->when($isLinked || !$isBolsistaModel, function() use ($isBolsistaModel, $user) {
+                if ($isBolsistaModel) {
+                    return $this->contarFaltasNaoJustificadas();
+                }
+                return \App\Models\Presenca::where('user_id', $user->id)
+                    ->where('status_da_presenca', \App\Enums\StatusPresenca::FALTA_INJUSTIFICADA)
+                    ->count();
+            }),
+
             // Dados de presença (quando aplicável)
             'presenca' => $this->when(isset($this->presenca_atual), function() {
                 return $this->presenca_atual ? [
@@ -75,8 +111,9 @@ class BolsistaResource extends JsonResource
             'presente' => $this->when(isset($this->presenca_atual), 
                 fn() => $this->presenca_atual && $this->presenca_atual->status_da_presenca->value === 'presente'
             ),
+
             // Dados de justificativa antecipada (quando aplicável)
-            'tem_falta_antecipada' => $this->when(isset($this->tem_falta_antecipada), $this->tem_falta_antecipada),
+            'tem_falta_antecipada' => $this->when(isset($this->tem_falta_antecipada), (bool) ($this->tem_falta_antecipada ?? false)),
             'justificativa_antecipada' => $this->when(isset($this->justificativa_antecipada), function() {
                 return $this->justificativa_antecipada ? [
                     'id' => $this->justificativa_antecipada->id,
@@ -85,6 +122,7 @@ class BolsistaResource extends JsonResource
                     'criado_em' => DateHelper::formatarDataHoraBR($this->justificativa_antecipada->created_at),
                 ] : null;
             }),
+            
             // Para busca de confirmação
             'presenca_status' => $this->when(isset($this->presenca_status_busca), $this->presenca_status_busca),
             'presenca_id' => $this->when(isset($this->presenca_id_busca), $this->presenca_id_busca),

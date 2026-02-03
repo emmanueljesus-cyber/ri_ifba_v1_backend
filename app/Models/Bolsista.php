@@ -149,7 +149,12 @@ class Bolsista extends Model
 
         // Atualizar usuário vinculado se existir
         if ($this->user_id) {
-            $this->user->update(['bolsista' => false]);
+            $this->user->update([
+                'bolsista' => false,
+                'desligado' => true,
+                'desligado_em' => $this->desligado_em,
+                'desligado_motivo' => $this->desligado_motivo,
+            ]);
         }
     }
 
@@ -167,7 +172,12 @@ class Bolsista extends Model
 
         // Atualizar usuário vinculado se existir
         if ($this->user_id) {
-            $this->user->update(['bolsista' => true]);
+            $this->user->update([
+                'bolsista' => true,
+                'desligado' => false,
+                'desligado_em' => null,
+                'desligado_motivo' => null,
+            ]);
         }
     }
 
@@ -181,10 +191,7 @@ class Bolsista extends Model
         }
 
         return \App\Models\Presenca::where('user_id', $this->user_id)
-            ->where('status', 'falta')
-            ->whereDoesntHave('justificativa', function ($query) {
-                $query->where('status', 'aprovada');
-            })
+            ->where('status_da_presenca', \App\Enums\StatusPresenca::FALTA_INJUSTIFICADA)
             ->count();
     }
 
