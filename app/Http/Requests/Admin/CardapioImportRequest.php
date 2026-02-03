@@ -16,10 +16,12 @@ class CardapioImportRequest extends FormRequest
     public function rules(): array
     {
         $maxSize = config('import.max_file_size', 5120);
-        $mimes = implode(',', config('import.allowed_mimes', ['xlsx', 'xls']));
+        $mimes = implode(',', config('import.allowed_mimes', ['xlsx', 'xls', 'csv']));
 
         return [
-            'file' => ['required', 'file', "mimes:{$mimes}", "max:{$maxSize}"],
+            // Aceitar tanto 'file' quanto 'arquivo' (compat com front)
+            'file' => ['required_without:arquivo', 'file', "mimes:{$mimes}", "max:{$maxSize}"],
+            'arquivo' => ['required_without:file', 'file', "mimes:{$mimes}", "max:{$maxSize}"],
             'turno' => ['nullable', 'array'],
             'turno.*' => [Rule::enum(TurnoRefeicao::class)],
             'debug' => ['sometimes'],
@@ -32,11 +34,16 @@ class CardapioImportRequest extends FormRequest
         $allowedMimes = implode(', ', config('import.allowed_mimes', ['xlsx', 'xls']));
 
         return [
-            'file.required' => 'O arquivo é obrigatório.',
+            'file.required_without' => 'O arquivo é obrigatório.',
+            'arquivo.required_without' => 'O arquivo é obrigatório.',
             'file.file' => 'O campo deve ser um arquivo válido.',
+            'arquivo.file' => 'O campo deve ser um arquivo válido.',
             'file.uploaded' => 'Ocorreu um erro ao enviar/importar o arquivo. Verifique e tente novamente.',
+            'arquivo.uploaded' => 'Ocorreu um erro ao enviar/importar o arquivo. Verifique e tente novamente.',
             'file.mimes' => "O arquivo deve ser do tipo: {$allowedMimes}.",
+            'arquivo.mimes' => "O arquivo deve ser do tipo: {$allowedMimes}.",
             'file.max' => "O arquivo não pode exceder {$maxSize}KB.",
+            'arquivo.max' => "O arquivo não pode exceder {$maxSize}KB.",
             'turno.*.enum' => 'O turno deve ser: almoco ou jantar.',
         ];
     }

@@ -80,14 +80,15 @@ class BolsistaAprovadoService
     /**
      * Adiciona novo bolsista à lista de aprovados
      * 
-     * @param string $matricula
-     * @param string $turno (almoco|jantar)
+     * @param array $data Dados do bolsista (matricula, turno_refeicao, nome, curso, dias_semana)
      * @return Bolsista
      * @throws \Exception Se matrícula já existe
      */
-    public function adicionarBolsista(string $matricula, string $turno): Bolsista
+    public function adicionarBolsista(array $data): Bolsista
     {
-        return DB::transaction(function () use ($matricula, $turno) {
+        return DB::transaction(function () use ($data) {
+            $matricula = $data['matricula'];
+
             // Verificar se já existe
             $existente = $this->buscarPorMatricula($matricula);
             
@@ -95,17 +96,17 @@ class BolsistaAprovadoService
                 throw new \Exception("Matrícula {$matricula} já está na lista de bolsistas aprovados.");
             }
 
-            // Se existe mas está inativo, reativar
+            // Se existe mas está inativo, reativar e atualizar dados
             if ($existente && !$existente->ativo) {
-                return $this->reativarBolsista($existente->id);
+                $existente->update(array_merge($data, ['ativo' => true]));
+                $this->atualizarUsuarioSeExiste($matricula);
+                return $existente->fresh();
             }
 
             // Criar novo
-            $bolsista = Bolsista::create([
-                'matricula' => $matricula,
-                'turno_refeicao' => $turno,
+            $bolsista = Bolsista::create(array_merge($data, [
                 'ativo' => true,
-            ]);
+            ]));
 
             // Atualizar usuário se já existir
             $this->atualizarUsuarioSeExiste($matricula);

@@ -38,8 +38,10 @@ class BolsistaAprovadoController extends Controller
             return [
                 'id' => $b->id,
                 'matricula' => $b->matricula,
-                'nome' => $b->nome, // Adicionado campo nome
+                'nome' => $b->nome,
+                'curso' => $b->curso,
                 'turno_refeicao' => $b->turno_refeicao,
+                'dias_semana' => $b->dias_semana,
                 'ativo' => $b->ativo,
                 'created_at' => DateHelper::formatarDataHoraBR($b->created_at),
             ];
@@ -71,19 +73,25 @@ class BolsistaAprovadoController extends Controller
         $request->validate([
             'matricula' => 'required|string|max:20',
             'turno_refeicao' => 'required|in:almoco,jantar',
+            'nome' => 'nullable|string|max:255',
+            'curso' => 'nullable|string|max:255',
+            'dias_semana' => 'nullable|array',
+            'dias_semana.*' => 'integer|between:0,6',
         ]);
 
         try {
             $bolsista = $this->service->adicionarBolsista(
-                matricula: $request->input('matricula'),
-                turno: $request->input('turno_refeicao')
+                $request->only(['matricula', 'turno_refeicao', 'nome', 'curso', 'dias_semana'])
             );
 
             return ApiResponse::standardCreated(
                 data: [
                     'id' => $bolsista->id,
                     'matricula' => $bolsista->matricula,
+                    'nome' => $bolsista->nome,
+                    'curso' => $bolsista->curso,
                     'turno_refeicao' => $bolsista->turno_refeicao,
+                    'dias_semana' => $bolsista->dias_semana,
                 ],
                 meta: ['message' => '✅ Matrícula adicionada à lista de aprovados.']
             );
@@ -105,7 +113,10 @@ class BolsistaAprovadoController extends Controller
             return ApiResponse::standardSuccess([
                 'id' => $bolsista->id,
                 'matricula' => $bolsista->matricula,
+                'nome' => $bolsista->nome,
+                'curso' => $bolsista->curso,
                 'turno_refeicao' => $bolsista->turno_refeicao,
+                'dias_semana' => $bolsista->dias_semana,
                 'ativo' => $bolsista->ativo,
                 'created_at' => DateHelper::formatarDataHoraBR($bolsista->created_at),
             ]);
@@ -124,18 +135,26 @@ class BolsistaAprovadoController extends Controller
         $request->validate([
             'matricula' => 'sometimes|string|max:20',
             'turno_refeicao' => 'sometimes|in:almoco,jantar',
+            'nome' => 'nullable|string|max:255',
+            'curso' => 'nullable|string|max:255',
+            'dias_semana' => 'nullable|array',
+            'dias_semana.*' => 'integer|between:0,6',
         ]);
 
         try {
             $bolsista = $this->service->atualizarBolsista(
                 id: $id,
-                data: $request->only(['matricula', 'turno_refeicao'])
+                data: $request->only(['matricula', 'turno_refeicao', 'nome', 'curso', 'dias_semana'])
             );
 
             return ApiResponse::standardSuccess(
                 data: [
                     'id' => $bolsista->id,
                     'matricula' => $bolsista->matricula,
+                    'nome' => $bolsista->nome,
+                    'curso' => $bolsista->curso,
+                    'turno_refeicao' => $bolsista->turno_refeicao,
+                    'dias_semana' => $bolsista->dias_semana,
                 ],
                 meta: ['message' => '✅ Bolsista atualizado.']
             );

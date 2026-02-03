@@ -24,14 +24,24 @@ class CardapioService
     public function create(array $data, ?string $userId): Cardapio
     {
         return DB::transaction(function () use ($data, $userId) {
+            $ptn01 = $data['prato_principal_ptn01'] ?? null;
+            $ptn02 = $data['prato_principal_ptn02'] ?? null;
+            // Garantir que pelo menos uma opção de prato principal exista e nunca gravar null (colunas NOT NULL)
+            if (empty($ptn01) && !empty($ptn02)) {
+                $ptn01 = $ptn02;
+            }
+            if (empty($ptn02) && !empty($ptn01)) {
+                $ptn02 = $ptn01;
+            }
+
             $cardapio = Cardapio::create([
                 'data_do_cardapio'      => $data['data_do_cardapio'],
                 'turnos'                => $data['turnos'] ?? ['almoco', 'jantar'],
-                'prato_principal_ptn01' => $data['prato_principal_ptn01'],
-                'prato_principal_ptn02' => $data['prato_principal_ptn02'],
+                'prato_principal_ptn01' => $ptn01 ?? '',
+                'prato_principal_ptn02' => $ptn02 ?? '',
                 'guarnicao'             => $data['guarnicao'] ?? null,
-                'acompanhamento_01'     => $data['acompanhamento_01'],
-                'acompanhamento_02'     => $data['acompanhamento_02'],
+                'acompanhamento_01'     => $data['acompanhamento_01'] ?? '',
+                'acompanhamento_02'     => $data['acompanhamento_02'] ?? '',
                 'salada'                => $data['salada'] ?? null,
                 'ovo_lacto_vegetariano' => $data['ovo_lacto_vegetariano'] ?? null,
                 'suco'                  => $data['suco'] ?? null,

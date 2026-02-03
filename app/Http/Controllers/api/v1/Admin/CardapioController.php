@@ -105,7 +105,8 @@ class CardapioController extends Controller
      */
     public function import(CardapioImportRequest $request)
     {
-        $file = $request->file('file');
+        // Aceitar 'file' ou 'arquivo' (compatibilidade com o front)
+        $file = $request->file('file') ?? $request->file('arquivo');
         // Frontend envia como turno[] então precisamos pegar assim
         $turnos = $request->input('turno', $request->input('turno[]', ['almoco']));
         

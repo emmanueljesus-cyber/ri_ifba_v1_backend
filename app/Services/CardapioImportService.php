@@ -130,12 +130,13 @@ class CardapioImportService
 
         for ($i = 1; $i < count($rows); $i++) {
             $row = $rows[$i];
-            $fieldName = mb_strtolower(trim($row[0] ?? ''));
+            $fieldName = $this->normalizeString($row[0] ?? '');
             $fieldKey = $fieldMap[$fieldName] ?? null;
+
             if (!$fieldKey) {
-                // Tentar ver se contém alguma das chaves
+                // Tentar ver se contém alguma das chaves (match parcial se necessário)
                 foreach ($fieldMap as $key => $target) {
-                    if (str_contains($fieldName, $key)) {
+                    if (!empty($key) && str_contains($fieldName, $key)) {
                         $fieldKey = $target;
                         break;
                     }
@@ -202,8 +203,13 @@ class CardapioImportService
 
         $header = [];
         for ($col = 0; $col < count($rows[0]); $col++) {
-            $headerValue = mb_strtolower(trim($rows[0][$col] ?? ''));
-            $header[$col] = $col === 0 ? 'data' : ($fieldMap[$headerValue] ?? null);
+            $headerValue = $this->normalizeString($rows[0][$col] ?? '');
+            $header[$col] = $fieldMap[$headerValue] ?? null;
+            
+            // Especial para a primeira coluna se for data
+            if ($col === 0 && !$header[$col]) {
+                $header[$col] = 'data';
+            }
         }
 
         for ($i = 1; $i < count($rows); $i++) {
@@ -278,21 +284,27 @@ class CardapioImportService
     {
         $created = [];
         $errors = [];
-        $header = array_map(fn($h) => mb_strtolower(trim($h ?? '')), $rows[0]);
+        $fieldMap = $this->getFieldMap();
+        
+        $headerRaw = $rows[0] ?? [];
+        $header = array_map(fn($h) => $this->normalizeString($h ?? ''), $headerRaw);
 
         for ($i = 1; $i < count($rows); $i++) {
             $row = $rows[$i];
             if (empty(array_filter($row))) {
                 continue;
             }
-            while (count($row) < count($header)) {
-                $row[] = null;
+            
+            // Associar linha com cabeçalho
+            $assoc = [];
+            foreach ($header as $index => $normalizedKey) {
+                $fieldKey = $fieldMap[$normalizedKey] ?? $normalizedKey;
+                $assoc[$fieldKey] = $row[$index] ?? null;
             }
-            $assoc = array_combine($header, $row);
 
             $dataCardapio = null;
             foreach (['data_do_cardapio', 'data'] as $key) {
-                if (isset($assoc[$key]) && !empty($assoc[$key])) {
+                if (!empty($assoc[$key])) {
                     $dataCardapio = $this->parseDate($assoc[$key]);
                     if ($dataCardapio) break;
                 }
@@ -307,13 +319,13 @@ class CardapioImportService
                 $data = [
                     'data_do_cardapio' => $dataCardapio,
                     'turno' => $turno,
-                    'prato_principal_ptn01' => $assoc['prato_principal_ptn01'] ?? $assoc['prato principal ptn 01'] ?? null,
-                    'prato_principal_ptn02' => $assoc['prato_principal_ptn02'] ?? $assoc['prato principal ptn 02'] ?? null,
-                    'guarnicao' => $assoc['guarnicao'] ?? $assoc['guarnição'] ?? null,
-                    'acompanhamento_01' => $assoc['acompanhamento_01'] ?? $assoc['acompanhamento 01'] ?? null,
-                    'acompanhamento_02' => $assoc['acompanhamento_02'] ?? $assoc['acompanhamento 02'] ?? null,
+                    'prato_principal_ptn01' => $assoc['prato_principal_ptn01'] ?? null,
+                    'prato_principal_ptn02' => $assoc['prato_principal_ptn02'] ?? null,
+                    'guarnicao' => $assoc['guarnicao'] ?? null,
+                    'acompanhamento_01' => $assoc['acompanhamento_01'] ?? null,
+                    'acompanhamento_02' => $assoc['acompanhamento_02'] ?? null,
                     'salada' => $assoc['salada'] ?? null,
-                    'ovo_lacto_vegetariano' => $assoc['ovo_lacto_vegetariano'] ?? $assoc['ovolactovegetariano'] ?? $assoc['ovo lacto vegetariano'] ?? null,
+                    'ovo_lacto_vegetariano' => $assoc['ovo_lacto_vegetariano'] ?? null,
                     'suco' => $assoc['suco'] ?? null,
                     'sobremesa' => $assoc['sobremesa'] ?? null,
                     'capacidade' => $assoc['capacidade'] ?? null,
@@ -352,24 +364,58 @@ class CardapioImportService
     private function getFieldMap(): array
     {
         return [
-            'prato principal ptn 01' => 'prato_principal_ptn01',
+            // Prato Principal 01
+            'prato_principal_ptn_01' => 'prato_principal_ptn01',
             'prato_principal_ptn01' => 'prato_principal_ptn01',
-            'prato principal ptn 02' => 'prato_principal_ptn02',
+            'prato_principal_01' => 'prato_principal_ptn01',
+            
+            // Prato Principal 02
+            'prato_principal_ptn_02' => 'prato_principal_ptn02',
             'prato_principal_ptn02' => 'prato_principal_ptn02',
+            'prato_principal_02' => 'prato_principal_ptn02',
+            
+            // Guarnição
             'guarnicao' => 'guarnicao',
-            'guarnição' => 'guarnicao',
-            'acompanhamento 01' => 'acompanhamento_01',
+            
+            // Acompanhamentos
             'acompanhamento_01' => 'acompanhamento_01',
-            'acompanhamento 02' => 'acompanhamento_02',
             'acompanhamento_02' => 'acompanhamento_02',
+            'acompanhamento_1' => 'acompanhamento_01',
+            'acompanhamento_2' => 'acompanhamento_02',
+            
+            // Outros
             'salada' => 'salada',
-            'ovolactovegetariano' => 'ovo_lacto_vegetariano',
             'ovo_lacto_vegetariano' => 'ovo_lacto_vegetariano',
-            'ovo lacto vegetariano' => 'ovo_lacto_vegetariano',
+            'ovolactovegetariano' => 'ovo_lacto_vegetariano',
+            'ovo_lacto_veg' => 'ovo_lacto_vegetariano',
             'suco' => 'suco',
             'sobremesa' => 'sobremesa',
             'capacidade' => 'capacidade',
+            
+            // Data
+            'data' => 'data_do_cardapio',
+            'data_do_cardapio' => 'data_do_cardapio',
         ];
+    }
+
+    /**
+     * Normaliza string removendo acentos, asteriscos e convertendo para lowercase com underscores
+     */
+    private function normalizeString(string $value): string
+    {
+        $value = mb_strtolower(trim($value));
+        $value = str_replace('*', '', $value);
+        $value = preg_replace('/[áàãâä]/u', 'a', $value);
+        $value = preg_replace('/[éèêë]/u', 'e', $value);
+        $value = preg_replace('/[íìîï]/u', 'i', $value);
+        $value = preg_replace('/[óòõôö]/u', 'o', $value);
+        $value = preg_replace('/[úùûü]/u', 'u', $value);
+        $value = preg_replace('/[ç]/u', 'c', $value);
+        $value = preg_replace('/[^a-z0-9_]/', '_', $value);
+        // Remover underscores duplicados e nas bordas
+        $value = preg_replace('/_+/', '_', $value);
+        $value = trim($value, '_');
+        return $value;
     }
 
     private function parseDate($value): ?string
