@@ -101,6 +101,65 @@ Route::prefix('v1')->group(function () {
     });
 
     // =========================================================================
+    // ROTAS DE DEBUG/TESTE (REMOVER EM PRODUÇÃO FINAL)
+    // =========================================================================
+    Route::get('debug/test-template', function() {
+        try {
+            return \Maatwebsite\Excel\Facades\Excel::download(
+                new \App\Exports\CardapioTemplateExport(),
+                'test.xlsx'
+            );
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ], 500);
+        }
+    });
+
+    // Teste alternativo usando PhpSpreadsheet DIRETO (sem maatwebsite/excel)
+    Route::get('debug/test-phpspreadsheet', function() {
+        try {
+            $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            
+            // Headers
+            $sheet->setCellValue('A1', 'Data (DD/MM/AAAA)');
+            $sheet->setCellValue('B1', 'Prato Principal 01');
+            $sheet->setCellValue('C1', 'Prato Principal 02');
+            
+            // Dados de exemplo
+            $sheet->setCellValue('A2', now()->format('d/m/Y'));
+            $sheet->setCellValue('B2', 'Frango Grelhado');
+            $sheet->setCellValue('C2', 'Omelete de Legumes');
+            
+            // Estilo do header
+            $sheet->getStyle('A1:C1')->getFont()->setBold(true);
+            
+            // Gerar arquivo
+            $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+            
+            // Criar resposta com stream
+            $filename = 'test-phpspreadsheet-' . now()->format('Y-m-d') . '.xlsx';
+            
+            return response()->streamDownload(function() use ($writer) {
+                $writer->save('php://output');
+            }, $filename, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ], 500);
+        }
+    });
+
+    // =========================================================================
     // ROTAS ESTUDANTE (sempre autenticadas via Sanctum)
     // =========================================================================
     $estudanteMiddleware = ['auth:sanctum'];
