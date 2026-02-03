@@ -71,38 +71,46 @@ class DashboardService
      */
     private function getRefeicaoAtual(): ?array
     {
-        $agora = now();
-        $hora = $agora->hour;
-        
-        // Define turno baseado na hora: Almoço até 15h, Jantar depois
-        $turno = ($hora < 15) ? 'almoco' : 'jantar';
-        
-        $refeicao = Refeicao::where('data_do_cardapio', $agora->toDateString())
-            ->where('turno', $turno)
-            ->first();
-            
-        if (!$refeicao) {
-            // Tenta buscar qualquer uma do dia se a específica do horário não existir
-            $refeicao = Refeicao::where('data_do_cardapio', $agora->toDateString())->first();
+        try {
+            $agora = now();
+            $hora = $agora->hour;
+
+            // Define turno baseado na hora: Almoço até 15h, Jantar depois
+            $turno = ($hora < 15) ? 'almoco' : 'jantar';
+
+            $refeicao = Refeicao::where('data_do_cardapio', $agora->toDateString())
+                ->where('turno', $turno)
+                ->first();
+
+            if (!$refeicao) {
+                // Tenta buscar qualquer uma do dia se a específica do horário não existir
+                $refeicao = Refeicao::where('data_do_cardapio', $agora->toDateString())->first();
+            }
+
+            if (!$refeicao) return null;
+
+            $confirmados = Presenca::where('refeicao_id', $refeicao->id)
+                ->where('status_da_presenca', StatusPresenca::PRESENTE)
+                ->count();
+
+            // Calcular total de bolsistas esperados para este turno/dia (RF09)
+            $totalEsperados = $this->calcularTotalEsperados($turno, $agora->toDateString());
+
+            return [
+                'id' => $refeicao->id,
+                'turno' => $refeicao->turno->value ?? $refeicao->turno,
+                'confirmados' => $confirmados,
+                'total_esperados' => $totalEsperados,
+                'capacidade' => $refeicao->capacidade,
+                'vagas_restantes' => max(0, $refeicao->capacidade - $confirmados),
+            ];
+        } catch (\Exception $e) {
+            \Log::error('Erro ao obter refeição atual', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return null;
         }
-            
-        if (!$refeicao) return null;
-        
-        $confirmados = Presenca::where('refeicao_id', $refeicao->id)
-            ->where('status_da_presenca', StatusPresenca::PRESENTE)
-            ->count();
-
-        // Calcular total de bolsistas esperados para este turno/dia (RF09)
-        $totalEsperados = $this->calcularTotalEsperados($turno, $agora->toDateString());
-
-        return [
-            'id' => $refeicao->id,
-            'turno' => $refeicao->turno->value ?? $refeicao->turno,
-            'confirmados' => $confirmados,
-            'total_esperados' => $totalEsperados,
-            'capacidade' => $refeicao->capacidade,
-            'vagas_restantes' => max(0, $refeicao->capacidade - $confirmados),
-        ];
     }
 
     /**
@@ -110,14 +118,24 @@ class DashboardService
      */
     private function calcularTotalEsperados(string $turno, string $data): int
     {
-        $diaSemana = Carbon::parse($data)->dayOfWeek; // 0=Domingo, 1=Segunda, etc.
+        try {
+            $diaSemana = Carbon::parse($data)->dayOfWeek; // 0=Domingo, 1=Segunda, etc.
 
-        // Contar bolsistas ativos que têm direito à refeição neste dia/turno
-        return User::where('bolsista', true)
-            ->where('desligado', false)
-            ->where('turno', $turno)
-            ->whereHas('diasSemana', fn($q) => $q->where('dia_semana', $diaSemana))
-            ->count();
+            // Contar bolsistas ativos que têm direito à refeição neste dia/turno
+            return User::where('bolsista', true)
+                ->where('desligado', false)
+                ->where('turno', $turno)
+                ->whereHas('diasSemana', fn($q) => $q->where('dia_semana', $diaSemana))
+                ->count();
+        } catch (\Exception $e) {
+            \Log::error('Erro ao calcular total esperados', [
+                'error' => $e->getMessage(),
+                'turno' => $turno,
+                'data' => $data,
+            ]);
+            // Retorna 0 para não quebrar a aplicação
+            return 0;
+        }
     }
 
     /**

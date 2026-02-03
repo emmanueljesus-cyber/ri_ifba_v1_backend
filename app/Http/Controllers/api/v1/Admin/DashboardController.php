@@ -30,29 +30,43 @@ class DashboardController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $mes = $request->input('mes', now()->month);
-        $ano = $request->input('ano', now()->year);
-        $dataInicio = $request->input('data_inicio');
-        $dataFim = $request->input('data_fim');
+        try {
+            $mes = $request->input('mes', now()->month);
+            $ano = $request->input('ano', now()->year);
+            $dataInicio = $request->input('data_inicio');
+            $dataFim = $request->input('data_fim');
 
-        // Se não especificou datas, usa o mês/ano informado
-        if (!$dataInicio || !$dataFim) {
-            $dataInicio = Carbon::create($ano, $mes, 1)->startOfMonth()->toDateString();
-            $dataFim = Carbon::create($ano, $mes, 1)->endOfMonth()->toDateString();
+            // Se não especificou datas, usa o mês/ano informado
+            if (!$dataInicio || !$dataFim) {
+                $dataInicio = Carbon::create($ano, $mes, 1)->startOfMonth()->toDateString();
+                $dataFim = Carbon::create($ano, $mes, 1)->endOfMonth()->toDateString();
+            }
+
+            return ApiResponse::standardSuccess(
+                data: [
+                    'resumo' => $this->service->resumoGeral($mes, $ano),
+                    'taxa_presenca' => $this->service->taxaPresenca($dataInicio, $dataFim),
+                    'faltas' => $this->service->faltasPorTipo($dataInicio, $dataFim),
+                    'extras' => $this->service->extrasAtendidos($dataInicio, $dataFim),
+                ],
+                meta: [
+                    'periodo' => "{$dataInicio} a {$dataFim}",
+                    'gerado_em' => DateHelper::formatarDataHoraBR(now()),
+                ]
+            );
+        } catch (\Exception $e) {
+            \Log::error('Erro ao carregar dashboard', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all(),
+            ]);
+
+            return ApiResponse::standardError(
+                'dashboard_error',
+                'Erro ao carregar dashboard: ' . $e->getMessage(),
+                500
+            );
         }
-
-        return ApiResponse::standardSuccess(
-            data: [
-                'resumo' => $this->service->resumoGeral($mes, $ano),
-                'taxa_presenca' => $this->service->taxaPresenca($dataInicio, $dataFim),
-                'faltas' => $this->service->faltasPorTipo($dataInicio, $dataFim),
-                'extras' => $this->service->extrasAtendidos($dataInicio, $dataFim),
-            ],
-            meta: [
-                'periodo' => "{$dataInicio} a {$dataFim}",
-                'gerado_em' => DateHelper::formatarDataHoraBR(now()),
-            ]
-        );
     }
 
     /**

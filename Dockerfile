@@ -14,8 +14,11 @@ RUN apt-get update && apt-get install -y \
     libpng-dev \
     libjpeg-dev \
     libxml2-dev \
+    libicu-dev \
+    libonig-dev \
     && docker-php-ext-configure gd --with-jpeg \
-    && docker-php-ext-install pdo pdo_pgsql zip gd xml xmlreader xmlwriter simplexml \
+    && docker-php-ext-configure intl \
+    && docker-php-ext-install pdo pdo_pgsql zip gd xml xmlreader xmlwriter simplexml mbstring fileinfo intl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
