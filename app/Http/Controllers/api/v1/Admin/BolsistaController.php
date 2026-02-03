@@ -488,12 +488,74 @@ class BolsistaController extends Controller
      * Exportar template Excel para importação de bolsistas
      * GET /api/v1/admin/bolsistas/template
      */
-    public function exportTemplate(): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    public function exportTemplate()
     {
-        return Excel::download(
-            new \App\Exports\BolsistaTemplateExport(),
-            'template_bolsistas_' . now()->format('Y-m-d') . '.xlsx'
-        );
+        try {
+            return Excel::download(
+                new \App\Exports\BolsistaTemplateExport(),
+                'template_bolsistas_' . now()->format('Y-m-d') . '.xlsx'
+            );
+        } catch (\Exception $e) {
+            \Log::error('Erro ao exportar template de bolsistas', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            // Fallback: retornar CSV simples se Excel falhar
+            return $this->exportTemplateCsv();
+        }
+    }
+
+    /**
+     * Fallback: Exportar template CSV se Excel falhar
+     * GET /api/v1/admin/bolsistas/template-csv
+     */
+    public function exportTemplateCsv()
+    {
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="template_bolsistas_' . now()->format('Y-m-d') . '.csv"',
+        ];
+
+        $callback = function () {
+            $file = fopen('php://output', 'w');
+
+            // BOM para UTF-8 (para Excel abrir corretamente)
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+
+            // Cabeçalho
+            fputcsv($file, [
+                'Matrícula *',
+                'Nome Completo',
+                'Email',
+                'Curso',
+                'Turno (almoco/jantar) *',
+                'Dias da Semana (1=seg, 2=ter, ...)'
+            ], ';');
+
+            // Exemplos
+            fputcsv($file, [
+                '20231234567',
+                'João da Silva',
+                'joao.silva@aluno.ifba.edu.br',
+                'Informática',
+                'almoco',
+                '1,2,3,4,5'
+            ], ';');
+
+            fputcsv($file, [
+                '20231234568',
+                'Maria Santos',
+                'maria.santos@aluno.ifba.edu.br',
+                'Administração',
+                'jantar',
+                '1,2,3,4,5'
+            ], ';');
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 
     /**

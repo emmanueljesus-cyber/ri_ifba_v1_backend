@@ -170,6 +170,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/', [AdminCardapioController::class, 'store']);
             Route::post('/import', [AdminCardapioController::class, 'import']);
             Route::get('/template', [AdminCardapioController::class, 'exportTemplate']);
+            Route::get('/template-csv', [AdminCardapioController::class, 'exportTemplateCsv']);
             Route::get('/{cardapio}', [AdminCardapioController::class, 'show']);
             Route::put('/{cardapio}', [AdminCardapioController::class, 'update']);
             Route::delete('/{cardapio}', [AdminCardapioController::class, 'destroy']);
@@ -201,6 +202,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/dia', [AdminBolsistaController::class, 'bolsistasDoDia']);        // RF09 - Lista do dia
             Route::get('/buscar', [AdminBolsistaController::class, 'buscarParaConfirmacao']); // RF13 - Busca manual
             Route::get('/template', [AdminBolsistaController::class, 'exportTemplate']);   // Exportar template Excel
+            Route::get('/template-csv', [AdminBolsistaController::class, 'exportTemplateCsv']); // Fallback CSV
             Route::get('/alerta-faltas', [AdminBolsistaController::class, 'alertaFaltas']); // Bolsistas com risco de desligamento
             Route::post('/import', [AdminBolsistaController::class, 'import']);            // RF15 - Importar Excel/CSV
             Route::post('/qrcode', [AdminBolsistaController::class, 'confirmarPorQrCode']); // RF13 - QR Code
