@@ -53,12 +53,16 @@ class BolsistaImportService
                             'dias_semana' => !empty($dados['dias_semana']) ? $dados['dias_semana'] : $existente->dias_semana,
                             'ativo' => true,
                         ]);
+                        $existente->refresh();
 
                         $updated[] = [
+                            'id' => $existente->id,
                             'matricula' => $existente->matricula,
                             'nome' => $existente->nome,
                             'status' => $existente->user_id ? 'Já vinculado' : 'Atualizado',
                         ];
+
+                        \Log::info('Bolsista atualizado', ['matricula' => $existente->matricula, 'id' => $existente->id]);
                     }
                 } else {
                     // Criar novo registro de bolsista aprovado
@@ -70,12 +74,16 @@ class BolsistaImportService
                         'dias_semana' => $dados['dias_semana'] ?? [1, 2, 3, 4, 5],
                         'ativo' => true,
                     ]);
+                    $bolsista->refresh();
 
                     $created[] = [
+                        'id' => $bolsista->id,
                         'matricula' => $bolsista->matricula,
                         'nome' => $bolsista->nome,
                         'status' => 'Aguardando cadastro do estudante',
                     ];
+
+                    \Log::info('Bolsista criado', ['matricula' => $bolsista->matricula, 'id' => $bolsista->id]);
                 }
 
                 DB::commit();

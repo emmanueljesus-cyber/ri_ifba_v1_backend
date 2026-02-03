@@ -106,12 +106,18 @@ class CardapioController extends Controller
     public function import(CardapioImportRequest $request)
     {
         $file = $request->file('file');
-        $turnos = $request->validated('turno') ?? ['almoco'];
+        $turnos = $request->input('turno', ['almoco']);
         $rows = Excel::toArray(null, $file)[0] ?? [];
 
         if (empty($rows)) {
             return ApiResponse::standardError('file', 'Arquivo vazio', 422);
         }
+
+        \Log::info('Importando cardápios', [
+            'total_linhas' => count($rows),
+            'turnos' => $turnos,
+            'usuario_id' => $request->user()?->id,
+        ]);
 
         $result = $this->importService->import(
             rows: $rows,

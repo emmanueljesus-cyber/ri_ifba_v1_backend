@@ -466,7 +466,19 @@ class BolsistaController extends Controller
                 return ApiResponse::standardError('file', 'Arquivo vazio ou formato inválido.', 422);
             }
 
+            \Log::info('Importando bolsistas', [
+                'total_linhas' => count($rows),
+                'turno_padrao' => $turnoPadrao,
+                'usuario_id' => $request->user()?->id,
+            ]);
+
             $resultado = $service->import($rows, $turnoPadrao, $atualizarExistentes);
+
+            \Log::info('Resultado da importação de bolsistas', [
+                'total_criados' => count($resultado['created']),
+                'total_atualizados' => count($resultado['updated']),
+                'total_erros' => count($resultado['errors']),
+            ]);
 
             return ApiResponse::standardCreated(
                 data: [
@@ -475,7 +487,10 @@ class BolsistaController extends Controller
                 ],
                 meta: array_merge(
                     $resultado['meta'],
-                    ['errors' => $resultado['errors']]
+                    [
+                        'errors' => $resultado['errors'],
+                        'message' => $resultado['meta']['mensagem'] ?? 'Importação concluída!'
+                    ]
                 )
             );
             

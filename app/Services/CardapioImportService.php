@@ -131,13 +131,26 @@ class CardapioImportService
                 ]);
                 try {
                     $result = $this->service->createOrUpdate($cardapioData, $userId);
+                    $cardapio = $result['cardapio'];
                     $created[] = [
-                        'id' => $result['cardapio']->id,
+                        'id' => $cardapio->id,
                         'data' => $data,
                         'turno' => $turno,
                         'action' => $result['created'] ? 'created' : 'updated',
                     ];
+                    \Log::info('Cardápio importado (transposto)', [
+                        'id' => $cardapio->id,
+                        'data' => $data,
+                        'turno' => $turno,
+                        'action' => $result['created'] ? 'created' : 'updated',
+                    ]);
                 } catch (\Throwable $e) {
+                    \Log::error('Erro ao importar cardápio (transposto)', [
+                        'data' => $data,
+                        'turno' => $turno,
+                        'erro' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
                     $errors[] = ['data' => $data, 'turno' => $turno, 'erro' => $e->getMessage()];
                 }
             }
@@ -197,13 +210,27 @@ class CardapioImportService
                 ]);
                 try {
                     $result = $this->service->createOrUpdate($cardapioData, $userId);
+                    $cardapio = $result['cardapio'];
                     $created[] = [
-                        'id' => $result['cardapio']->id,
+                        'id' => $cardapio->id,
                         'data' => $parsedDate,
                         'turno' => $turno,
                         'action' => $result['created'] ? 'created' : 'updated',
                     ];
+                    \Log::info('Cardápio importado (colunar)', [
+                        'id' => $cardapio->id,
+                        'data' => $parsedDate,
+                        'turno' => $turno,
+                        'action' => $result['created'] ? 'created' : 'updated',
+                    ]);
                 } catch (\Throwable $e) {
+                    \Log::error('Erro ao importar cardápio (colunar)', [
+                        'linha' => $i + 1,
+                        'data' => $parsedDate,
+                        'turno' => $turno,
+                        'erro' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
                     $errors[] = ['linha' => $i + 1, 'data' => $parsedDate, 'turno' => $turno, 'erro' => $e->getMessage()];
                 }
             }
@@ -253,14 +280,27 @@ class CardapioImportService
                 ];
                 try {
                     $result = $this->service->createOrUpdate($data, $userId);
+                    $cardapio = $result['cardapio'];
                     $created[] = [
-                        'id' => $result['cardapio']->id,
-                        'data' => $result['cardapio']->data_do_cardapio,
+                        'id' => $cardapio->id,
+                        'data' => $cardapio->data_do_cardapio,
                         'turno' => $turno,
                         'action' => $result['created'] ? 'created' : 'updated',
                         'linha' => $i + 1,
                     ];
+                    \Log::info('Cardápio importado (normal)', [
+                        'id' => $cardapio->id,
+                        'data' => $cardapio->data_do_cardapio,
+                        'turno' => $turno,
+                        'action' => $result['created'] ? 'created' : 'updated',
+                    ]);
                 } catch (\Throwable $e) {
+                    \Log::error('Erro ao importar cardápio (normal)', [
+                        'linha' => $i + 1,
+                        'turno' => $turno,
+                        'erro' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
                     $errors[] = ['linha' => $i + 1, 'turno' => $turno, 'erro' => $e->getMessage()];
                 }
             }
