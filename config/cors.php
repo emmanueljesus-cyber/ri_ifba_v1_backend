@@ -19,9 +19,9 @@ return [
     'allowed_origins' => array_filter([
         env('FRONTEND_URL', 'http://localhost:5173'),
         'http://localhost:5173',
-        'http://localhost:3000',
-		'https://ri-ifba.vercel.app/',
-		'https://ri-ifba.netlify.app'
+        'http://127.0.0.1:5173',
+        'https://ri-ifba.vercel.app',
+        'https://ri-ifba.netlify.app'
     ]),
 
     'allowed_origins_patterns' => [
