@@ -20,6 +20,8 @@ return [
         env('FRONTEND_URL', 'http://localhost:5173'),
         'http://localhost:5173',
         'http://localhost:3000',
+		'https://ri-ifba.vercel.app/',
+		'https://ri-ifba.netlify.app'
     ]),
 
     'allowed_origins_patterns' => [
