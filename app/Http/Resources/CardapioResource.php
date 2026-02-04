@@ -9,16 +9,16 @@ class CardapioResource extends JsonResource
     public function toArray($request)
     {
         // Determinar quais turnos existem
-        $refeicoes = $this->relationLoaded('refeicoes') ? $this->refeicoes : collect();
+        $refeicoes = $this->relationLoaded('refeicoes') ? $this->refeicoes : $this->refeicoes()->get();
         
         $refeicaoAlmoco = $refeicoes->first(function($r) {
-            $val = $r->turno instanceof \BackedEnum ? $r->turno->value : $r->turno;
-            return $val === 'almoco';
+            $val = $r->turno instanceof \BackedEnum ? $r->turno->value : (string)$r->turno;
+            return strtolower(trim($val)) === 'almoco';
         });
         
         $refeicaoJantar = $refeicoes->first(function($r) {
-            $val = $r->turno instanceof \BackedEnum ? $r->turno->value : $r->turno;
-            return $val === 'jantar';
+            $val = $r->turno instanceof \BackedEnum ? $r->turno->value : (string)$r->turno;
+            return strtolower(trim($val)) === 'jantar';
         });
         
         // Formatar refeição para o frontend

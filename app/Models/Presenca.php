@@ -89,8 +89,18 @@ class Presenca extends Model
      */
     public function marcarPresente($validadorId)
     {
+        // Se for uma instância virtual (não salva no banco ainda)
+        if (!$this->exists) {
+            $this->status_da_presenca = $this->status_da_presenca ?? StatusPresenca::PRESENTE;
+            $this->registrado_em = $this->registrado_em ?? now();
+            $this->validado_em = now();
+            $this->validado_por = $validadorId;
+            $this->save();
+            return;
+        }
+
         $this->update([
-            'status_da_presenca' => StatusPresenca::PRESENTE,
+            'status_da_presenca' => $this->status_da_presenca === StatusPresenca::EXTRA ? StatusPresenca::EXTRA : StatusPresenca::PRESENTE,
             'validado_em' => now(),
             'validado_por' => $validadorId,
         ]);
@@ -143,12 +153,110 @@ class Presenca extends Model
      */
     public static function buscarPorTokenQrCode($token)
     {
-        return self::with(['user', 'refeicao'])
-            ->whereNull('status_da_presenca')
-            ->orWhere('status_da_presenca', '!=', StatusPresenca::PRESENTE)
+        // 1. Tentar buscar em presenças reais
+        $presenca = self::with(['user', 'refeicao'])
+            ->where(function ($q) {
+                $q->whereNull('status_da_presenca')
+                    ->orWhere('status_da_presenca', '!=', StatusPresenca::PRESENTE);
+            })
             ->get()
-            ->first(function ($presenca) use ($token) {
-                return $presenca->gerarTokenQrCode() === $token;
+            ->first(function ($p) use ($token) {
+                return $p->gerarTokenQrCode() === $token;
             });
+
+        if ($presenca) {
+            return $presenca;
+        }
+
+        // 2. Tentar buscar em FilaExtra (estudantes não bolsistas aprovados)
+        $inscricao = \App\Models\FilaExtra::with(['user', 'refeicao'])
+            ->where('status_fila_extras', \App\Enums\StatusFila::APROVADO)
+            ->get()
+            ->first(function ($i) use ($token) {
+                $tokenGerado = hash('sha256', $i->user_id . $i->refeicao_id . config('app.key'));
+                return $tokenGerado === $token;
+            });
+
+        if ($inscricao) {
+            // Verificar se já tem presença (para não duplicar)
+            $jaTemPresenca = self::where('user_id', $inscricao->user_id)
+                ->where('refeicao_id', $inscricao->refeicao_id)
+                ->exists();
+
+            if ($jaTemPresenca) {
+                return null;
+            }
+
+            // Criar uma instância de presença temporária para o validador reconhecer
+            // mas sem salvar ainda (o controller de validação deve salvar ao confirmar)
+            $presencaVirtual = new self([
+                'user_id' => $inscricao->user_id,
+                'refeicao_id' => $inscricao->refeicao_id,
+                'status_da_presenca' => StatusPresenca::EXTRA,
+            ]);
+            $presencaVirtual->setRelation('user', $inscricao->user);
+            $presencaVirtual->setRelation('refeicao', $inscricao->refeicao);
+
+            return $presencaVirtual;
+        }
+
+        // 3. Tentar buscar para BOLSISTAS que ainda não têm registro de presença
+        $hoje = now();
+        $diaSemana = $hoje->dayOfWeek;
+        
+        // Buscar bolsistas ativos que têm direito hoje
+        $bolsistaComDireito = \App\Models\User::bolsistas()
+            ->ativos()
+            ->whereHas('diasSemana', function ($q) use ($diaSemana) {
+                $q->where('dia_semana', $diaSemana);
+            })
+            ->get()
+            ->first(function ($user) use ($token) {
+                // Para bolsistas virtuais, precisamos testar contra o token gerado para as refeições de HOJE
+                $refeicoesHoje = \App\Models\Refeicao::where('data_do_cardapio', now()->toDateString())->get();
+                foreach ($refeicoesHoje as $refeicao) {
+                    $tokenGerado = hash('sha256', $user->id . $refeicao->id . config('app.key'));
+                    if ($tokenGerado === $token) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+
+        if ($bolsistaComDireito) {
+            // Descobrir qual refeição gerou esse token
+            $refeicaoId = null;
+            $refeicoesHoje = \App\Models\Refeicao::where('data_do_cardapio', now()->toDateString())->get();
+            foreach ($refeicoesHoje as $refeicao) {
+                if (hash('sha256', $bolsistaComDireito->id . $refeicao->id . config('app.key')) === $token) {
+                    $refeicaoId = $refeicao->id;
+                    $refeicaoEncontrada = $refeicao;
+                    break;
+                }
+            }
+
+            if ($refeicaoId) {
+                // Verificar se já tem presença (para não duplicar)
+                $jaTemPresenca = self::where('user_id', $bolsistaComDireito->id)
+                    ->where('refeicao_id', $refeicaoId)
+                    ->exists();
+
+                if ($jaTemPresenca) {
+                    return null;
+                }
+
+                $presencaVirtual = new self([
+                    'user_id' => $bolsistaComDireito->id,
+                    'refeicao_id' => $refeicaoId,
+                    'status_da_presenca' => StatusPresenca::PRESENTE,
+                ]);
+                $presencaVirtual->setRelation('user', $bolsistaComDireito);
+                $presencaVirtual->setRelation('refeicao', $refeicaoEncontrada);
+
+                return $presencaVirtual;
+            }
+        }
+
+        return null;
     }
 }

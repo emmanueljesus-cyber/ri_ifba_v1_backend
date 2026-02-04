@@ -87,16 +87,16 @@ class Cardapio extends Model
 
     public function scopeDataFutura($query)
     {
-        return $query->where('data_do_cardapio', '>=', now()->toDateString());
+        return $query->whereDate('data_do_cardapio', '>=', now()->toDateString());
     }
 
     public function scopeDataPassada($query)
     {
-        return $query->where('data_do_cardapio', '<', now()->toDateString());
+        return $query->whereDate('data_do_cardapio', '<', now()->toDateString());
     }
 
     public function scopeHoje($query)
     {
-        return $query->where('data_do_cardapio', now()->toDateString());
+        return $query->whereDate('data_do_cardapio', now()->toDateString());
     }
 }

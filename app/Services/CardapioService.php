@@ -166,9 +166,46 @@ class CardapioService
         $cardapio->delete();
     }
 
-    public function cardapioDeHoje(): ?Cardapio
+    public function cardapioDeHoje(?string $data = null): ?Cardapio
     {
-        return Cardapio::hoje()->with(['criador', 'refeicoes'])->first();
+        // Forçar data conforme parâmetro ou usar o Timezone do sistema (America/Bahia)
+        $hoje = $data ?: now()->toDateString();
+        
+        // Tenta buscar usando o scope (que usa whereDate)
+        $cardapio = Cardapio::whereDate('data_do_cardapio', $hoje)
+            ->with(['criador', 'refeicoes'])
+            ->first();
+
+        // Se não encontrou, tenta uma busca bruta pela data string
+        if (!$cardapio) {
+             $cardapio = Cardapio::where('data_do_cardapio', $hoje)
+                ->with(['criador', 'refeicoes'])
+                ->first();
+        }
+
+        // Se ainda assim não encontrar (caso extremo de fuso horário), busca qualquer um que combine com a data de hoje, ignorando TZ no banco
+        if (!$cardapio) {
+            $cardapio = Cardapio::whereRaw("data_do_cardapio::text LIKE ?", ["$hoje%"])
+                ->with(['criador', 'refeicoes'])
+                ->first();
+        }
+
+        // Medida de segurança: se o cardápio existe mas não tem refeições, sincroniza
+        if ($cardapio && $cardapio->refeicoes->isEmpty()) {
+            $turnos = $cardapio->turnos ?? ['almoco', 'jantar'];
+            foreach ($turnos as $turno) {
+                $cardapio->refeicoes()->updateOrCreate(
+                    ['turno' => $turno],
+                    [
+                        'data_do_cardapio' => $cardapio->data_do_cardapio,
+                        'capacidade' => config('refeicoes.capacidade_padrao', 100),
+                    ]
+                );
+            }
+            $cardapio->load('refeicoes');
+        }
+
+        return $cardapio;
     }
 
     public function cardapioSemanal(?string $turno = null, ?string $data = null)

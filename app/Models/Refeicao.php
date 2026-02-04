@@ -93,12 +93,12 @@ class Refeicao extends Model
 
     public function scopeHoje($query)
     {
-        return $query->where('data_do_cardapio', now()->toDateString());
+        return $query->whereDate('data_do_cardapio', now()->toDateString());
     }
 
     public function scopeFuturas($query)
     {
-        return $query->where('data_do_cardapio', '>=', now()->toDateString());
+        return $query->whereDate('data_do_cardapio', '>=', now()->toDateString());
     }
 
     // ========== MÉTODOS AUXILIARES ==========
@@ -148,7 +148,10 @@ class Refeicao extends Model
         $data = $this->cardapio?->data_do_cardapio ?? $this->data_do_cardapio;
         if (!$data) return 0;
 
-        $diaSemana = \Carbon\Carbon::parse($data)->dayOfWeek;
+        // Se $data for string, o Carbon::parse usa o TZ padrão (America/Bahia)
+        // Se for objeto Carbon, ele já tem o TZ.
+        $carbonData = ($data instanceof \Carbon\Carbon) ? $data : \Carbon\Carbon::parse($data);
+        $diaSemana = $carbonData->dayOfWeek;
         $turno = $this->turno instanceof \BackedEnum ? $this->turno->value : $this->turno;
 
         return \App\Models\User::where('bolsista', true)

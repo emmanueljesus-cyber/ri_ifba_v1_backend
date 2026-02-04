@@ -17,9 +17,10 @@ class CardapioController extends Controller
     {
         $cardapio = $this->service->cardapioDeHoje();
         if (!$cardapio) {
-            return response()->json(['message' => 'Nenhum cardápio para hoje.'], 404);
+            return response()->json(['data' => null, 'message' => 'Nenhum cardápio para hoje.'], 200);
         }
-        return new CardapioResource($cardapio);
+        $cardapio->loadMissing('refeicoes');
+        return response()->json(['data' => new CardapioResource($cardapio)]);
     }
 
     public function semanal(Request $request)
